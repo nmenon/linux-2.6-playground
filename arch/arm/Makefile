@@ -310,6 +310,8 @@ $(INSTALL_TARGETS):
 
 %.dtb: | scripts
 	$(Q)$(MAKE) $(build)=$(boot)/dts MACHINE=$(MACHINE) $(boot)/dts/$@
+uImage.%: uImage
+	$(Q)$(MAKE) $(build)=$(boot) MACHINE=$(MACHINE) $(boot)/$@
 
 PHONY += dtbs dtbs_install
 
