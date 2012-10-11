@@ -88,4 +88,12 @@ config ARM_EXYNOS5_BUS_DEVFREQ
 	  It reads PPMU counters of memory controllers and adjusts the
 	  operating frequencies and voltages with OPP support.
 
+config ARM_OMAP_COPROC_DEVFREQ
+	bool "ARM OMAPx Co processor devfreq driver"
+	depends on ARCH_OMAP && ARCH_HAS_OPP
+	default y
+	select DEVFREQ_GOV_SIMPLE_ONDEMAND
+	help
+	  This adds OMAP Co processor devfreq driver.. yada yada..
+
 endif # PM_DEVFREQ
