@@ -34,5 +34,13 @@
 			ti,hwmods = "uart4";
 			clock-frequency = <48000000>;
 		};
+
+		avs_mpu: regulator-avs_mpu@0x40200000 {
+			compatible = "ti,avsclass0";
+			reg = <0x40200000 0x20>;
+			efuse-settings = <975000 0
+				1075000 4
+				1200000 8>;
+		};
 	};
 };

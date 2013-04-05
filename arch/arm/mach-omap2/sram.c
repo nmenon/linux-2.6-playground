@@ -162,6 +162,9 @@ static void __init omap2_map_sram(void)
 		cached = 0;
 	}
 
+	omap_sram_start += PAGE_SIZE;
+	omap_sram_size -= SZ_16K;
+
 	omap_map_sram(omap_sram_start, omap_sram_size,
 			omap_sram_skip, cached);
 }
