@@ -289,6 +289,8 @@ struct regulator_dev {
 
 	struct blocking_notifier_head notifier;
 	struct mutex mutex; /* consumer lock */
+	struct task_struct *lock_owner; /* consumer thread context */
+	int lock_count; /* number of recursive locks taken */
 	struct module *owner;
 	struct device dev;
 	struct regulation_constraints *constraints;
