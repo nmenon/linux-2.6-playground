@@ -264,6 +264,91 @@ static void __init omap4_init_voltages(void)
 	omap2_set_init_voltage("iva", "dpll_iva_m5x2_ck", "iva");
 }
 
+static inline void dummy_consumers_for_abb_test(void)
+{
+	if (cpu_is_omap34xx()) {
+		char name1[] = "abb_mpu_iva";
+		struct platform_device_info devinfo1 = {
+				.name = "reg-virt-consumer",
+				.data = name1,
+				.size_data = sizeof(name1),
+		};
+		platform_device_register_full(&devinfo1);
+	}
+
+	if (cpu_is_omap44xx()) {
+		char name1[] = "abb_mpu";
+		char name2[] = "abb_iva";
+		struct platform_device_info devinfo1 = {
+				.name = "reg-virt-consumer",
+				.id = 0,
+				.data = name1,
+				.size_data = sizeof(name1),
+		};
+		struct platform_device_info devinfo2 = {
+				.name = "reg-virt-consumer",
+				.id = 1,
+				.data = name2,
+				.size_data = sizeof(name2),
+		};
+		platform_device_register_full(&devinfo1);
+		platform_device_register_full(&devinfo2);
+	}
+
+	if (soc_is_omap54xx()) {
+		char name1[] = "abb_mpu";
+		char name2[] = "abb_mm";
+		struct platform_device_info devinfo1 = {
+				.name = "reg-virt-consumer",
+				.id = 0,
+				.data = name1,
+				.size_data = sizeof(name1),
+		};
+		struct platform_device_info devinfo2 = {
+				.name = "reg-virt-consumer",
+				.id = 1,
+				.data = name2,
+				.size_data = sizeof(name2),
+		};
+		platform_device_register_full(&devinfo1);
+		platform_device_register_full(&devinfo2);
+	}
+	if (soc_is_dra7xx()) {
+		char name1[] = "abb_mpu";
+		char name2[] = "abb_ivahd";
+		char name3[] = "abb_dspeve";
+		char name4[] = "abb_gpu";
+		struct platform_device_info devinfo1 = {
+				.name = "reg-virt-consumer",
+				.id = 0,
+				.data = name1,
+				.size_data = sizeof(name1),
+		};
+		struct platform_device_info devinfo2 = {
+				.name = "reg-virt-consumer",
+				.id = 1,
+				.data = name2,
+				.size_data = sizeof(name2),
+		};
+		struct platform_device_info devinfo3 = {
+				.name = "reg-virt-consumer",
+				.id = 3,
+				.data = name3,
+				.size_data = sizeof(name3),
+		};
+		struct platform_device_info devinfo4 = {
+				.name = "reg-virt-consumer",
+				.id = 4,
+				.data = name4,
+				.size_data = sizeof(name4),
+		};
+		platform_device_register_full(&devinfo1);
+		platform_device_register_full(&devinfo2);
+		platform_device_register_full(&devinfo3);
+		platform_device_register_full(&devinfo4);
+	}
+}
+
 static inline void omap_init_cpufreq(void)
 {
 	struct platform_device_info devinfo = { };
@@ -309,6 +394,8 @@ int __init omap2_common_pm_late_init(void)
 
 	/* cpufreq dummy device instantiation */
 	omap_init_cpufreq();
+
+	dummy_consumers_for_abb_test();
 
 #ifdef CONFIG_SUSPEND
 	suspend_set_ops(&omap_pm_ops);
