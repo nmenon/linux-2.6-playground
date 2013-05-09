@@ -1,0 +1,90 @@
+
+/* Add blah blah */
+
+/* Register set definitions */
+#define REG_TPS6236X_SET_0		0x00
+#define REG_TPS6236X_SET_1		0x01
+#define REG_TPS6236X_SET_2		0x02
+#define REG_TPS6236X_SET_3		0x03
+#define REG_TPS6236X_CTRL		0x04
+#define REG_TPS6236X_TEMP		0x05
+#define REG_TPS6236X_RAMP_CTRL		0x06
+#define REG_TPS6236X_CHIP_ID0		0x08
+#define REG_TPS6236X_CHIP_ID1		0x09
+
+/* Register field definitions for REG_TPS6236X_CTRL */
+#define REG_TPS6236X_CTRL_PD_EN		(1 << 7)
+#define REG_TPS6236X_CTRL_PD_VSEL0	(1 << 6)
+#define REG_TPS6236X_CTRL_PD_VSEL1	(1 << 5)
+
+/* Register field definitions for REG_TPS6236X_RAMP_CTRL */
+#define REG_TPS6236X_RAMP_CTRL_RMP_SHIFT 5
+#define REG_TPS6236X_RAMP_CTRL_EN_DISC	(1 << 2)
+#define REG_TPS6236X_RAMP_CTRL_RAMP_PFM	(1 << 1)
+
+/* Value definitions for REG_TPS6236X_RAMP_CTRL::RMP field */
+#define RMP_32MV_USEC			0x0
+#define RMP_16MV_USEC			0x1
+#define RMP_8MV_USEC			0x2
+#define RMP_4MV_USEC			0x3
+#define RMP_2MV_USEC			0x4
+#define RMP_1MV_USEC			0x5
+
+/* Selected values */
+#define RMP_VALUE			(RMP_32MV_USEC << REG_TPS6236X_RAMP_CTRL_RMP_SHIFT | REG_TPS6236X_RAMP_CTRL_EN_DISC | REG_TPS6236X_RAMP_CTRL_RAMP_PFM)
+
+#ifdef TPS62361_PD_VSEL0
+#define _CTRL_VALUE0			(REG_TPS6236X_CTRL_PD_EN | REG_TPS6236X_CTRL_PD_VSEL0)
+#else
+#define _CTRL_VALUE0			0x0
+#endif
+#ifdef TPS62361_PD_VSEL1
+#define _CTRL_VALUE1			(REG_TPS6236X_CTRL_PD_EN | REG_TPS6236X_CTRL_PD_VSEL0)
+#else
+#define _CTRL_VALUE1			0x0
+#endif
+
+#if defined(TPS62361_PD_VSEL0) || defined(TPS62361_PD_VSEL1)
+#define _CTRL_VALUE			(_CTRL_VALUE0 | _CTRL_VALUE0)
+#endif
+
+/ {
+	omap_tps62361: tps62361 {
+		compatible = "ti,omap-pmic";
+		ti,non-zero-voltage-selector;
+
+		/* Slave address */
+		ti,i2c-slave-address = <0x60>;
+		/* I2C register address */
+		ti,i2c-voltage-register = <0x01>; /* Set 1 */
+		ti,i2c-command-register = <0x01>; /* Set 1 */
+
+		/* Slew rate in uV */
+		ti,slew-rate-microvolt = <32000>;
+		/* Step size in uV */
+		ti,step-size-microvolt = <10000>;
+		regulator-min-microvolt= <500000>;
+		regulator-max-microvolt= <1770000>;
+
+		/* Optional - any voltage selector offset to care about */
+		ti,voltage-selector-offset = <0x0>;
+		/* Optional - what mask to apply on vsel value before doing operations on it */
+		ti,voltage-selector-mask =<0x7F>;
+		/* Optional - what bits to always set on voltage selector when sending to PMIC */
+		ti,voltage-selector-set-bits =<0x80>; /* PFM mode */
+
+		/* Optional - Any access to be done over I2C SR to setup registers */
+		ti,setup_commands=<
+			/* register_addr value */
+			/* Setup Slew (ramp) rate */
+			REG_TPS6236X_RAMP_CTRL RMP_VALUE
+			/* Setup PMIC internal pull if needed */
+#ifdef _CTRL_VALUE
+			REG_TPS6236X_CTRL  _CTRL_VALUE
+#endif
+			/* Enable thermal shutdown - 0 is enable :) */
+			REG_TPS6236X_TEMP	0x0
+			/* Setup the internal pulls */
+		>;
+	};
+};

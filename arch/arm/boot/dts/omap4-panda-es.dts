@@ -43,10 +43,18 @@
 	};
 };
 
-&led_wkgpio_pins {
-	pinctrl-single,pins = <
-		0x1c 0x3	/* gpio_wk8 OUTPUT | MODE 3 */
-	>;
+&omap4_pmx_wkup {
+	led_wkgpio_pins: pinmux_leds_wkpins {
+		pinctrl-single,pins = <
+			0x1c 0x3	/* gpio_wk8 OUTPUT | MODE 3 */
+		>;
+	};
+
+	tps62361_wkgpio_pins: pinmux_tps62361_wkpins {
+		pinctrl-single,pins = <
+			0x1a 0xa03	/* gpio_wk7 OUTPUT | MODE 3 |OFF_HI */
+		>;
+	};
 };
 
 &leds {
@@ -67,4 +75,43 @@
 		gpios = <&gpio1 8 0>;
 		linux,default-trigger = "mmc0";
 	};
+};
+
+#define TPS62361_PD_VSEL0
+#include "tps62361.dtsi"
+
+/* Board Specific configuration */
+&omap_tps62361 {
+	pinctrl-names = "default";
+	pinctrl-0 = <
+		&tps62361_wkgpio_pins
+	>;
+	gpios = <&gpio1 7 1>;	/* gpio_wk7 Set to HIGH */
+
+	ti,boot-voltage-micro-volts=<1203000>;
+	ti,vp=<&vp_mpu>;
+};
+
+&omap_twl6030_vcore1 {
+	ti,boot-voltage-micro-volts=<1200000>;
+	ti,vp=<&vp_core>;
+};
+
+&omap_twl6030_vcore2 {
+	ti,boot-voltage-micro-volts=<1200000>;
+	ti,vp = <&vp_iva>;
+};
+
+&omap_twl6030_vcore3 {
+	status = "disabled";
+};
+
+&vc_mpu {
+	/* Due to potential lifetime impact, OFF voltage is set to RET V: TPS*/
+	ti,off-micro-volts = <750000>;
+};
+
+&vc {
+	ti,i2c-high-speed;
+	ti,i2c-pad-load=<3>;
 };

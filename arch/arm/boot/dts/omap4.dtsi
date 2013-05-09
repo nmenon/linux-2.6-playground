@@ -108,6 +108,11 @@
 			ti,hwmods = "counter_32k";
 		};
 
+		sysclk_in: sys_clkin {
+			#clock-cells = <0>;
+			compatible = "ti,omap-clock";
+		};
+
 		dpll_mpu: dpll_mpu {
 			#clock-cells = <0>;
 			compatible = "ti,omap-clock";
@@ -666,6 +671,85 @@
 			num-eps = <16>;
 			ram-bits = <12>;
 			ti,has-mailbox;
+		};
+
+	vc: vc@0x4A307B88 {
+			compatible = "ti,omap4-vc";
+			clocks = <&sysclk_in>;
+			reg = <0x4A307B88 0x40>;
+			reg-names = "base-address";
+
+			ti,i2c-high-speed; /* belongs to board file */
+			vc_mpu: vc_mpu {
+				compatible = "ti,omap4-vc-channel-mpu";
+				ti,master-channel;
+				ti,retention-micro-volts = <750000>;
+				ti,off-micro-volts = <0>;
+			};
+
+			vc_iva: vc_iva {
+				compatible = "ti,omap4-vc-channel-iva";
+				ti,retention-micro-volts = <750000>;
+				ti,off-micro-volts = <0>;
+			};
+
+			vc_core: vc_core {
+				compatible = "ti,omap4-vc-channel-core";
+				ti,retention-micro-volts = <750000>;
+				ti,off-micro-volts = <0>;
+			};
+		};
+
+		vp_mpu: vp@0x4a307b58 {
+			compatible = "ti,omap4-vp";
+
+			reg = <0x4a307b58 0x18>, <0x4A306014 0x4>;
+			reg-names = "base-address", "int-address";
+			ti,tranxdone-status-mask=<0x20>;
+
+			clocks = <&sysclk_in>;
+
+			ti,vc-channel = <&vc_mpu>;
+			ti,min-step-micro-volts = <10000>;
+			ti,max-step-micro-volts = <50000>;
+			/* HACKs: belongs to SoC specific file */
+			ti,min-micro-volts = <750000>;
+			ti,max-micro-volts = <1410000>;
+		};
+
+		vp_iva: vp@0x4a307b70 {
+			compatible = "ti,omap4-vp";
+
+			reg = <0x4a307b70 0x18>, <0x4A306010 0x4>;
+			reg-names = "base-address", "int-address";
+			ti,tranxdone-status-mask=<0x20000000>;
+
+			clocks = <&sysclk_in>;
+
+			ti,vc-channel = <&vc_iva>;
+			/* HACKs: belongs to SoC specific file */
+			ti,min-step-micro-volts = <10000>;
+			ti,max-step-micro-volts = <50000>;
+			ti,min-micro-volts = <750000>;
+			ti,max-micro-volts = <1260000>;
+		};
+
+		vp_core: vp@0x4a307b40 {
+			compatible = "ti,omap4-vp";
+
+			reg = <0x4a307b40 0x18>, <0x4A306010 0x4>;
+			reg-names = "base-address", "int-address";
+			ti,tranxdone-status-mask=<0x200000>;
+
+			clocks = <&sysclk_in>;
+
+			regulator_name = "vdd_core";
+			ti,vc-channel = <&vc_core>;
+			/* HACKs: belongs to SoC specific file */
+			ti,min-step-micro-volts = <10000>;
+			ti,max-step-micro-volts = <50000>;
+			ti,min-micro-volts = <830000>;
+			ti,max-micro-volts = <1200000>;
 		};
 	};
 };

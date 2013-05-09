@@ -20,6 +20,7 @@
 				920000  1313000
 			>;
 			clock-latency = <300000>; /* From legacy driver */
+			cpu0-supply = <&omap_tps62361>; /* HACK: belongs to board file */
 		};
 	};
 

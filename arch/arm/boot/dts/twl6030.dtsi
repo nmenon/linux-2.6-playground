@@ -103,4 +103,72 @@
 		compatible = "ti,twl6030-pwmled";
 		#pwm-cells = <2>;
 	};
+
+	omap_twl6030_vcore1: vcore1 {
+		compatible = "ti,omap-pmic";
+
+		/* Slave address */
+		ti,i2c-slave-address = <0x12>;
+		/* I2C register address */
+		ti,i2c-voltage-register = <0x55>;
+		ti,i2c-command-register = <0x56>;
+
+		/* Slew rate in uV */
+		ti,slew-rate-microvolt = <9000>;
+		/* Step size in uV */
+		ti,step-size-microvolt = <12660>;
+		regulator-min-microvolt= <709000>;
+		regulator-max-microvolt= <1418000>;
+
+		/* Optional - any voltage selector offset to care about */
+		ti,voltage-selector-offset = <0x1>;
+		/* Optional - what mask to apply on vsel value before doing operations on it */
+		ti,voltage-selector-mask =<0x7F>;
+	};
+
+	omap_twl6030_vcore2: vcore2 {
+		compatible = "ti,omap-pmic";
+
+		/* Slave address */
+		ti,i2c-slave-address = <0x12>;
+		/* I2C register address */
+		ti,i2c-voltage-register = <0x5b>;
+		ti,i2c-command-register = <0x5c>;
+
+		/* Slew rate in uV */
+		ti,slew-rate-microvolt = <9000>;
+		/* Step size in uV */
+		ti,step-size-microvolt = <12660>;
+		/* Min voltage in uV for continous operational range at step size */
+		regulator-min-microvolt= <709000>;
+		regulator-max-microvolt= <1418000>;
+
+		/* Optional - any voltage selector offset to care about */
+		ti,voltage-selector-offset = <0x1>;
+		/* Optional - what mask to apply on vsel value before doing operations on it */
+		ti,voltage-selector-mask =<0x7F>;
+	};
+
+	omap_twl6030_vcore3: vcore3 {
+		compatible = "ti,omap-pmic";
+
+		/* Slave address */
+		ti,i2c-slave-address = <0x12>;
+		/* I2C register address */
+		ti,i2c-voltage-register = <0x61>;
+		ti,i2c-command-register = <0x62>;
+
+
+		/* Slew rate in uV */
+		ti,slew-rate-microvolt = <9000>;
+		/* Step size in uV */
+		ti,step-size-microvolt = <12660>;
+		regulator-min-microvolt= <709000>;
+		regulator-max-microvolt= <1418000>;
+
+		/* Optional - any voltage selector offset to care about */
+		ti,voltage-selector-offset = <0x1>;
+		/* Optional - what mask to apply on vsel value before doing operations on it */
+		ti,voltage-selector-mask =<0x7F>;
+	};
 };
