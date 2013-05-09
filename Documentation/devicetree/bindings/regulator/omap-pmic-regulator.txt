@@ -1,0 +1,121 @@
+Generic Power Management IC(PMIC) Regulator for Texas Instruments OMAP SoCs
+
+Required Properties:
+- compatible: Should be:
+  - "ti,omap-pmic"
+
+- ti,i2c-slave-address - I2C slave address of the PMIC
+- ti,i2c-voltage-register - I2C register address where voltage commands are
+	to be set.
+- ti,i2c-command-register - I2C register address where commands are to be set
+	when OMAP enters low power state. This may be the same as
+	ti,i2c-voltage-register depending on the PMIC.
+- ti,slew-rate-microvolt - worst case slew rate of rise / fall for voltage
+	transition in microvolts per microseconds (uV/uS)
+- step-size-micro-volts - Step size in micovolts as to what one step in voltage
+	selector increment translates to. See example.
+- regulator-min-microvolt - Minimum voltage in microvolts which is supported by
+	the PMIC in ti,step-size-microvolt increments. See example.
+- regulator-max-microvolt - Maximum voltage in microvolts which is supported
+	by the PMIC in ti,step-size-microvolt increments. See example.
+
+Optional Properties:
+- gpios: OF device-tree gpio specification - can be an array, will be setup
+	in the order of definition and set to the flags.
+- pinctrl: OF device-tree pinctrl definitions as needed (usually for the GPIOs)
+- ti,boot-voltage-micro-volts - voltage in microvolts that bootloader is leaving
+	over the PMIC at. This may be 'PMIC data manual configuration' if
+	bootloader does not set an value, or appropritate value.
+- ti,voltage-selector-set-bits - what bits to set permenantly for the PMIC
+	voltage selector - this may have PMIC specific meaning.
+- ti,voltage-selector-mask - what mask to use for the vsel value - this is
+	useful for PMICs where the vsel has to be applied at an offset.
+- ti,voltage-selector-offset - what offset to apply to conversion routine when
+	operating on vsel.
+- ti,non-zero-voltage-selector - Special case handling if 0 value does NOT
+	indicates power-off for PMIC.
+- ti,setup_commands - An array of 2-tuples items, and each item consists
+  of register address and command like <address data>
+	addr: I2C register address to send the command (over Voltage controller)
+	data: What data to send
+
+Example: defining step-size, min/max voltages
+NOTE: OMAP can only handle continous voltages. In a case of an PMIC such as the
+follows:
+	vsel- corresponding voltage
+	0x1 - 500mV
+	0x2 - 800mV
+	0x3 - 810mV
+	0x4 - 820mV
+	..
+	0x14 - 1v
+	0x15 - 1.5v
+OMAP can only suppport voltages for voltage operations when the voltages
+are in equal increments. In the above example, it is 800mV to 1v at 10mV steps
+This corresponds to the following properties:
+step-size-micro-volts  = <10000>;
+regulator-min-microvolt = <800000>;
+regulator-max-microvolt = <1000000>;
+
+Example: Setup PMIC with PFM mode to be enabled for voltage operations
+Lets say that the bit in voltage selector(vsel) is 0x80. in this case,
+ti,voltage-selector-set-bits =<0x80>;
+
+Example: setup PMIC where the vsel bits are set from bits 7:4
+Consider an following example
+0x10 - 800mV
+0xf0 - 1v
+in this case,
+ti,voltage-selector-mask = <0xF0>;
+
+Example: Conversion routine needs an offset
+Consider an PMIC with the following behavior for vsel.
+	0 - OFF voltage
+	1 - 709mV
+	2 - 721.66mV
+	etc..
+	regulator-min-microvolt would be 709, however vsel offsets needs to be
+	accounted for. Hence, we could use
+ti,voltage-selector-offset = <1>;	/* incremental vsel starts at 1 */
+
+On the other hand, when 0 indicates voltage = regulator-min-microvolt, use:
+ti,non-zero-voltage-selector;
+
+Example: Sample PMIC description
+omap_tps62361: tps62361 {
+	compatible = "ti,omap-pmic";
+	ti,non-zero-voltage-selector;
+
+	ti,i2c-slave-address = <0x60>;
+	/* We have only one register to set voltage / low power voltage  to */
+	ti,i2c-voltage-register = <0x01>; /* Set 1 register */
+	ti,i2c-command-register = <0x01>; /* Set 1 register */
+
+	ti,slew-rate-microvolt = <32000>;
+	ti,step-size-microvolt = <10000>;
+	regulator-min-microvolt = <500000>;
+	regulator-max-microvolt = <1770000>;
+
+	ti,voltage-selector-offset = <0x0>;
+	ti,voltage-selector-set-bits =<0x80>; /* PFM mode */
+	ti,non-zero-voltage-selector;
+
+	ti,setup_commands=<
+		/* register_addr value */
+		/* Setup Slew (ramp) rate (0 - 32mV/uS) */
+		0x06	0x0
+		/* Enable thermal shutdown - 0 is enable :( */
+		0x5	0x0
+	>;
+};
+
+/* Board Specific configuration */
+&omap_tps62361 {
+	pinctrl-names = "default";
+	pinctrl-0 = <
+		&tps62361_wkgpio_pins
+	>;
+	gpios = <&gpio1 7 1>;	/* gpio_wk7 */
+
+	ti,boot-voltage-micro-volts=<1200000>;
+};
