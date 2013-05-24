@@ -50,6 +50,23 @@ static char sclp_init_sccb[PAGE_SIZE] __attribute__((__aligned__(PAGE_SIZE)));
 /* Suspend request */
 static DECLARE_COMPLETION(sclp_request_queue_flushed);
 
+/* Number of console pages to allocate, used by sclp_con.c and sclp_vt220.c */
+int sclp_console_pages = SCLP_CONSOLE_PAGES;
+/* Number of times the console pages pool run empty */
+unsigned long sclp_console_pages_empty;
+
+static int __init sclp_setup_console_pages(char *str)
+{
+	int pages;
+
+	pages = simple_strtoul(str, &str, 0);
+	if (pages >= 6)
+		sclp_console_pages = pages;
+	return 1;
+}
+
+__setup("sclp_console_pages=", sclp_setup_console_pages);
+
 static void sclp_suspend_req_cb(struct sclp_req *req, void *data)
 {
 	complete(&sclp_request_queue_flushed);
@@ -1013,11 +1030,41 @@ static const struct dev_pm_ops sclp_pm_ops = {
 	.restore	= sclp_restore,
 };
 
+static ssize_t sclp_show_console_pages(struct device_driver *dev, char *buf)
+{
+	return sprintf(buf, "%i\n", sclp_console_pages);
+}
+
+static DRIVER_ATTR(console_pages, S_IRUSR, sclp_show_console_pages, NULL);
+
+static ssize_t sclp_show_console_pages_empty(struct device_driver *dev,
+					     char *buf)
+{
+	return sprintf(buf, "%lu\n", sclp_console_pages_empty);
+}
+
+static DRIVER_ATTR(console_pages_empty, S_IRUSR,
+		   sclp_show_console_pages_empty, NULL);
+
+static struct attribute *sclp_drv_attrs[] = {
+	&driver_attr_console_pages.attr,
+	&driver_attr_console_pages_empty.attr,
+	NULL,
+};
+static struct attribute_group sclp_drv_attr_group = {
+	.attrs = sclp_drv_attrs,
+};
+static const struct attribute_group *sclp_drv_attr_groups[] = {
+	&sclp_drv_attr_group,
+	NULL,
+};
+
 static struct platform_driver sclp_pdrv = {
 	.driver = {
 		.name	= "sclp",
 		.owner	= THIS_MODULE,
 		.pm	= &sclp_pm_ops,
+		.groups = sclp_drv_attr_groups,
 	},
 };
 
@@ -1096,10 +1143,12 @@ static __init int sclp_initcall(void)
 	rc = platform_driver_register(&sclp_pdrv);
 	if (rc)
 		return rc;
+
 	sclp_pdev = platform_device_register_simple("sclp", -1, NULL, 0);
 	rc = IS_ERR(sclp_pdev) ? PTR_ERR(sclp_pdev) : 0;
 	if (rc)
 		goto fail_platform_driver_unregister;
+
 	rc = atomic_notifier_chain_register(&panic_notifier_list,
 					    &sclp_on_panic_nb);
 	if (rc)
