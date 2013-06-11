@@ -142,7 +142,7 @@ VECTOR   reserved                ; Reserved Exceptions
 .endr
 
 #include <linux/linkage.h>   /* ARC_{EXTRY,EXIT} */
-#include <asm/entry.h>       /* SAVE_ALL_{INT1,INT2,TRAP...} */
+#include <asm/entry.h>       /* SAVE_ALL_{INT1,INT2,SYS...} */
 #include <asm/errno.h>
 #include <asm/arcregs.h>
 #include <asm/irqflags.h>
@@ -495,8 +495,6 @@ tracesys_exit:
 trap_with_param:
 
 	; stop_pc info by gdb needs this info
-	stw orig_r8_IS_BRKPT, [sp, PT_orig_r8]
-
 	mov r0, r12
 	lr  r1, [efa]
 	mov r2, sp
@@ -541,7 +539,7 @@ ARC_ENTRY EV_Trap
 	lr  r9, [erstatus]
 
 	SWITCH_TO_KERNEL_STK
-	SAVE_ALL_TRAP
+	SAVE_ALL_SYS
 
 	;------- (4) What caused the Trap --------------
 	lr     r12, [ecr]
