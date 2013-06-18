@@ -104,6 +104,11 @@
 			ti,hwmods = "counter_32k";
 		};
 
+		sysclk_in: sys_clkin {
+			#clock-cells = <0>;
+			compatible = "ti,omap-clock";
+		};
+
 		dpll_mpu: dpll_mpu {
 			#clock-cells = <0>;
 			compatible = "ti,omap-clock";
@@ -662,6 +667,27 @@
 			num-eps = <16>;
 			ram-bits = <12>;
 			ti,has-mailbox;
+		};
+
+		vc: vc@0x4A307B88 {
+			compatible = "ti,omap4-vc";
+			clocks = <&sysclk_in>;
+			reg = <0x4A307B88 0x40>;
+			reg-names = "base-address";
+
+			ti,i2c-high-speed; /* belongs to board file */
+			vc_mpu: vc_mpu {
+				compatible = "ti,omap4-vc-channel-mpu";
+				ti,master-channel;
+			};
+
+			vc_iva: vc_iva {
+				compatible = "ti,omap4-vc-channel-iva";
+			};
+
+			vc_core: vc_core {
+				compatible = "ti,omap4-vc-channel-core";
+			};
 		};
 	};
 };
