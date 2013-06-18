@@ -75,3 +75,21 @@
 	/* We use TPS62361 on this platform instead */
 	status = "disabled";
 };
+
+#include "tps62361_omap.dtsi"
+
+&omap4_pmx_wkup {
+	tps62361_wkgpio_pins: pinmux_tps62361_wkpins {
+		pinctrl-single,pins = <
+			0x1a (PIN_OUTPUT | MUX_MODE3 | OFF_EN | OFFOUT_VAL) /* gpio_wk7 */
+		>;
+	};
+};
+
+&omap_tps62361 {
+	pinctrl-names = "default";
+	pinctrl-0 = <
+		&tps62361_wkgpio_pins
+	>;
+	gpios = <&gpio1 7 GPIO_ACTIVE_HIGH>;
+};
