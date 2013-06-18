@@ -663,5 +663,25 @@
 			ram-bits = <12>;
 			ti,has-mailbox;
 		};
+
+		vc: vc@4a307b88 {
+			compatible = "ti,omap4-vc";
+			/* TBD: clocks = <&sysclk_in>; */
+			reg = <0x4A307B88 0x40>;
+			reg-names = "base-address";
+
+			vc_mpu: vc_mpu {
+				compatible = "ti,omap4-vc-channel-mpu";
+				ti,master-channel;
+			};
+
+			vc_iva: vc_iva {
+				compatible = "ti,omap4-vc-channel-iva";
+			};
+
+			vc_core: vc_core {
+				compatible = "ti,omap4-vc-channel-core";
+			};
+		};
 	};
 };
