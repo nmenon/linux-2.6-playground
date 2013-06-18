@@ -39,3 +39,19 @@
 		gpios = <&gpio3 22 0>; /* tshut */
 	};
 };
+
+&vc_mpu {
+	ti,retention-micro-volts = <750000>;
+	/* Erratum i738: Reliability impact work around */
+	ti,off-micro-volts = <750000>;
+};
+
+&vc_iva {
+	ti,retention-micro-volts = <750000>;
+	ti,off-micro-volts = <0>;
+};
+
+&vc_core {
+	ti,retention-micro-volts = <750000>;
+	ti,off-micro-volts = <0>;
+};
