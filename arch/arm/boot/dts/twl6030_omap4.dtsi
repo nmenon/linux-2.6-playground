@@ -44,6 +44,10 @@
 	};
 };
 
+&cpu0 {
+	cpu0-supply = <&omap_twl6030_vcore1>;
+};
+
 &vc {
 	ti,i2c-high-speed;
 	ti,i2c-pad-load = <3>;
