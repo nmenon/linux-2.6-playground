@@ -93,3 +93,7 @@
 	>;
 	gpios = <&gpio1 7 GPIO_ACTIVE_HIGH>;	/* gpio_wk7 Set to HIGH */
 };
+
+&cpu0 {
+		cpu0-supply = <&omap_tps62361>;
+};
