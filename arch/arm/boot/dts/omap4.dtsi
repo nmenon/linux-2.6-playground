@@ -689,5 +689,48 @@
 				compatible = "ti,omap4-vc-channel-core";
 			};
 		};
+
+		vp_mpu: vp@0x4A307B58 {
+			compatible = "ti,omap4-vp";
+
+			reg = <0x4A307b58 0x18>, <0x4A306014 0x4>;
+			reg-names = "base-address", "int-address";
+			ti,tranxdone-status-mask=<0x20>;
+
+			clocks = <&sysclk_in>;
+
+			ti,vc-channel = <&vc_mpu>;
+			ti,min-step-micro-volts = <10000>;
+			ti,max-step-micro-volts = <50000>;
+		};
+
+		vp_iva: vp@0x4A307B70 {
+			compatible = "ti,omap4-vp";
+
+			reg = <0x4A307B70 0x18>, <0x4A306010 0x4>;
+			reg-names = "base-address", "int-address";
+			ti,tranxdone-status-mask=<0x20000000>;
+
+			clocks = <&sysclk_in>;
+
+			ti,vc-channel = <&vc_iva>;
+			ti,min-step-micro-volts = <10000>;
+			ti,max-step-micro-volts = <50000>;
+		};
+
+		vp_core: vp@0x4A307B40 {
+			compatible = "ti,omap4-vp";
+
+			reg = <0x4A307b40 0x18>, <0x4A306010 0x4>;
+			reg-names = "base-address", "int-address";
+			ti,tranxdone-status-mask=<0x200000>;
+
+			clocks = <&sysclk_in>;
+
+			regulator_name = "vdd_core";
+			ti,vc-channel = <&vc_core>;
+			ti,min-step-micro-volts = <10000>;
+			ti,max-step-micro-volts = <50000>;
+		};
 	};
 };
