@@ -1014,8 +1014,6 @@ static int ghes_remove(struct platform_device *ghes_dev)
 
 	kfree(ghes);
 
-	platform_set_drvdata(ghes_dev, NULL);
-
 	return 0;
 }
 
