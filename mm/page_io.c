@@ -21,6 +21,7 @@
 #include <linux/writeback.h>
 #include <linux/frontswap.h>
 #include <linux/aio.h>
+#include <linux/blkdev.h>
 #include <asm/pgtable.h>
 
 static struct bio *get_swap_bio(gfp_t gfp_flags,
@@ -81,8 +82,42 @@ void end_swap_bio_read(struct bio *bio, int err)
 				iminor(bio->bi_bdev->bd_inode),
 				(unsigned long long)bio->bi_sector);
 	} else {
+		struct swap_info_struct *sis;
+
 		SetPageUptodate(page);
+		sis = page_swap_info(page);
+		if (sis->flags & SWP_BLKDEV) {
+			/*
+			 * Swap subsystem does lazy swap slot free with
+			 * expecting the page would be swapped out again
+			 * so we can avoid unnecessary write if the page
+			 * isn't redirty.
+			 * It's good for real swap storage  because we can
+			 * reduce unnecessary I/O and enhance wear-leveling
+			 * if you use SSD as swap device.
+			 * But if you use in-memory swap device(ex, zram),
+			 * it causes duplicated copy between uncompressed
+			 * data in VM-owned memory and compressed data in
+			 * zram-owned memory. So let's free zram-owned memory
+			 * and make the VM-owned decompressed page *dirty*
+			 * so the page should be swap out somewhere again if
+			 * we want to reclaim it, again.
+			 */
+			struct gendisk *disk = sis->bdev->bd_disk;
+			if (disk->fops->swap_slot_free_notify) {
+				swp_entry_t entry;
+				unsigned long offset;
+
+				entry.val = page_private(page);
+				offset = swp_offset(entry);
+
+				SetPageDirty(page);
+				disk->fops->swap_slot_free_notify(sis->bdev,
+						offset);
+			}
+		}
 	}
+
 	unlock_page(page);
 	bio_put(bio);
 }
