@@ -477,6 +477,12 @@ static void __init set_vmcore_list_offsets(size_t elfsz,
 	}
 }
 
+static void free_elfcorebuf(void)
+{
+	free_pages((unsigned long)elfcorebuf, get_order(elfcorebuf_sz_orig));
+	elfcorebuf = NULL;
+}
+
 static int __init parse_crash_elf64_headers(void)
 {
 	int rc=0;
@@ -505,36 +511,31 @@ static int __init parse_crash_elf64_headers(void)
 	}
 
 	/* Read in all elf headers. */
-	elfcorebuf_sz_orig = sizeof(Elf64_Ehdr) + ehdr.e_phnum * sizeof(Elf64_Phdr);
+	elfcorebuf_sz_orig = sizeof(Elf64_Ehdr) +
+				ehdr.e_phnum * sizeof(Elf64_Phdr);
 	elfcorebuf_sz = elfcorebuf_sz_orig;
-	elfcorebuf = (void *) __get_free_pages(GFP_KERNEL | __GFP_ZERO,
-					       get_order(elfcorebuf_sz_orig));
+	elfcorebuf = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO,
+					      get_order(elfcorebuf_sz_orig));
 	if (!elfcorebuf)
 		return -ENOMEM;
 	addr = elfcorehdr_addr;
 	rc = read_from_oldmem(elfcorebuf, elfcorebuf_sz_orig, &addr, 0);
-	if (rc < 0) {
-		free_pages((unsigned long)elfcorebuf,
-			   get_order(elfcorebuf_sz_orig));
-		return rc;
-	}
+	if (rc < 0)
+		goto fail;
 
 	/* Merge all PT_NOTE headers into one. */
 	rc = merge_note_headers_elf64(elfcorebuf, &elfcorebuf_sz, &vmcore_list);
-	if (rc) {
-		free_pages((unsigned long)elfcorebuf,
-			   get_order(elfcorebuf_sz_orig));
-		return rc;
-	}
+	if (rc)
+		goto fail;
 	rc = process_ptload_program_headers_elf64(elfcorebuf, elfcorebuf_sz,
 							&vmcore_list);
-	if (rc) {
-		free_pages((unsigned long)elfcorebuf,
-			   get_order(elfcorebuf_sz_orig));
-		return rc;
-	}
+	if (rc)
+		goto fail;
 	set_vmcore_list_offsets(elfcorebuf_sz, &vmcore_list);
 	return 0;
+fail:
+	free_elfcorebuf();
+	return rc;
 }
 
 static int __init parse_crash_elf32_headers(void)
@@ -567,34 +568,28 @@ static int __init parse_crash_elf32_headers(void)
 	/* Read in all elf headers. */
 	elfcorebuf_sz_orig = sizeof(Elf32_Ehdr) + ehdr.e_phnum * sizeof(Elf32_Phdr);
 	elfcorebuf_sz = elfcorebuf_sz_orig;
-	elfcorebuf = (void *) __get_free_pages(GFP_KERNEL | __GFP_ZERO,
-					       get_order(elfcorebuf_sz_orig));
+	elfcorebuf = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO,
+					      get_order(elfcorebuf_sz_orig));
 	if (!elfcorebuf)
 		return -ENOMEM;
 	addr = elfcorehdr_addr;
 	rc = read_from_oldmem(elfcorebuf, elfcorebuf_sz_orig, &addr, 0);
-	if (rc < 0) {
-		free_pages((unsigned long)elfcorebuf,
-			   get_order(elfcorebuf_sz_orig));
-		return rc;
-	}
+	if (rc < 0)
+		goto fail;
 
 	/* Merge all PT_NOTE headers into one. */
 	rc = merge_note_headers_elf32(elfcorebuf, &elfcorebuf_sz, &vmcore_list);
-	if (rc) {
-		free_pages((unsigned long)elfcorebuf,
-			   get_order(elfcorebuf_sz_orig));
-		return rc;
-	}
+	if (rc)
+		goto fail;
 	rc = process_ptload_program_headers_elf32(elfcorebuf, elfcorebuf_sz,
 								&vmcore_list);
-	if (rc) {
-		free_pages((unsigned long)elfcorebuf,
-			   get_order(elfcorebuf_sz_orig));
-		return rc;
-	}
+	if (rc)
+		goto fail;
 	set_vmcore_list_offsets(elfcorebuf_sz, &vmcore_list);
 	return 0;
+fail:
+	free_elfcorebuf();
+	return rc;
 }
 
 static int __init parse_crash_elf_headers(void)
@@ -672,8 +667,6 @@ void vmcore_cleanup(void)
 		list_del(&m->list);
 		kfree(m);
 	}
-	free_pages((unsigned long)elfcorebuf,
-		   get_order(elfcorebuf_sz_orig));
-	elfcorebuf = NULL;
+	free_elfcorebuf();
 }
 EXPORT_SYMBOL_GPL(vmcore_cleanup);
