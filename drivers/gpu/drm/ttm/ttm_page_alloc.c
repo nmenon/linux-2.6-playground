@@ -388,7 +388,7 @@ out:
  *
  * This code is crying out for a shrinker per pool....
  */
-static long
+static unsigned long
 ttm_pool_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
 	static atomic_t start_pool = ATOMIC_INIT(0);
@@ -396,7 +396,7 @@ ttm_pool_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 	unsigned pool_offset = atomic_add_return(1, &start_pool);
 	struct ttm_page_pool *pool;
 	int shrink_pages = sc->nr_to_scan;
-	long freed = 0;
+	unsigned long freed = 0;
 
 	pool_offset = pool_offset % NUM_POOLS;
 	/* select start pool in round robin fashion */
@@ -412,11 +412,11 @@ ttm_pool_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 }
 
 
-static long
+static unsigned long
 ttm_pool_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
 {
 	unsigned i;
-	long count = 0;
+	unsigned long count = 0;
 
 	for (i = 0; i < NUM_POOLS; ++i)
 		count += _manager->pools[i].npages;
@@ -426,8 +426,8 @@ ttm_pool_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
 
 static void ttm_pool_mm_shrink_init(struct ttm_pool_manager *manager)
 {
-	manager->mm_shrink.count_objects = &ttm_pool_shrink_count;
-	manager->mm_shrink.scan_objects = &ttm_pool_shrink_scan;
+	manager->mm_shrink.count_objects = ttm_pool_shrink_count;
+	manager->mm_shrink.scan_objects = ttm_pool_shrink_scan;
 	manager->mm_shrink.seeks = 1;
 	register_shrinker(&manager->mm_shrink);
 }

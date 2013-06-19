@@ -598,12 +598,13 @@ static int mca_reap(struct btree *b, struct closure *cl, unsigned min_order)
 	return 0;
 }
 
-static long bch_mca_scan(struct shrinker *shrink, struct shrink_control *sc)
+static unsigned long bch_mca_scan(struct shrinker *shrink,
+				  struct shrink_control *sc)
 {
 	struct cache_set *c = container_of(shrink, struct cache_set, shrink);
 	struct btree *b, *t;
 	unsigned long i, nr = sc->nr_to_scan;
-	long freed = 0;
+	unsigned long freed = 0;
 
 	if (c->shrinker_disabled)
 		return SHRINK_STOP;
@@ -658,7 +659,8 @@ out:
 	return freed;
 }
 
-static long bch_mca_count(struct shrinker *shrink, struct shrink_control *sc)
+static unsigned long bch_mca_count(struct shrinker *shrink,
+				   struct shrink_control *sc)
 {
 	struct cache_set *c = container_of(shrink, struct cache_set, shrink);
 

@@ -66,7 +66,8 @@ static unsigned long lowmem_deathpending_timeout;
 			pr_info(x);			\
 	} while (0)
 
-static long lowmem_count(struct shrinker *s, struct shrink_control *sc)
+static unsigned long lowmem_count(struct shrinker *s,
+				  struct shrink_control *sc)
 {
 	return global_page_state(NR_ACTIVE_ANON) +
 		global_page_state(NR_ACTIVE_FILE) +
@@ -74,11 +75,11 @@ static long lowmem_count(struct shrinker *s, struct shrink_control *sc)
 		global_page_state(NR_INACTIVE_FILE);
 }
 
-static long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
+static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 {
 	struct task_struct *tsk;
 	struct task_struct *selected = NULL;
-	int rem = 0;
+	unsigned long rem = 0;
 	int tasksize;
 	int i;
 	short min_score_adj = OOM_SCORE_ADJ_MAX + 1;
@@ -163,7 +164,7 @@ static long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 		rem += selected_tasksize;
 	}
 
-	lowmem_print(4, "lowmem_scan %lu, %x, return %d\n",
+	lowmem_print(4, "lowmem_scan %lu, %x, return %lu\n",
 		     sc->nr_to_scan, sc->gfp_mask, rem);
 	rcu_read_unlock();
 	return rem;

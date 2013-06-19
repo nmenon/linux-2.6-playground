@@ -352,11 +352,11 @@ out:
  * chunks of ashmem regions LRU-wise one-at-a-time until we hit 'nr_to_scan'
  * pages freed.
  */
-static long
+static unsigned long
 ashmem_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
 	struct ashmem_range *range, *next;
-	long freed = 0;
+	unsigned long freed = 0;
 
 	/* We might recurse into filesystem code, so bail out if necessary */
 	if (!(sc->gfp_mask & __GFP_FS))
@@ -381,7 +381,7 @@ ashmem_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 	return freed;
 }
 
-static long
+static unsigned long
 ashmem_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
 {
 	/*

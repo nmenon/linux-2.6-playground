@@ -1140,15 +1140,15 @@ static bool zcache_freeze;
  * pageframes in use.  FIXME POLICY: Probably the writeback should only occur
  * if the eviction doesn't free enough pages.
  */
-static long scan_zcache_memory(struct shrinker *shrink,
-			       struct shrink_control *sc)
+static unsigned long scan_zcache_memory(struct shrinker *shrink,
+					struct shrink_control *sc)
 {
 	static bool in_progress;
 	int nr_evict = 0;
 	int nr_writeback = 0;
 	struct page *page;
 	int  file_pageframes_inuse, anon_pageframes_inuse;
-	long freed = 0;
+	unsigned long freed = 0;
 
 	/* don't allow more than one eviction thread at a time */
 	if (in_progress)
@@ -1200,10 +1200,10 @@ static long scan_zcache_memory(struct shrinker *shrink,
 	return freed;
 }
 
-static long count_zcache_memory(struct shrinker *shrink,
+static unsigned long count_zcache_memory(struct shrinker *shrink,
 				struct shrink_control *sc)
 {
-	int ret = -1;
+	long ret = -1;
 
 	/* resample: has changed, but maybe not all the way yet */
 	zcache_last_active_file_pageframes =
