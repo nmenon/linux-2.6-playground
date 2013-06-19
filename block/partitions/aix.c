@@ -257,12 +257,13 @@ int aix_partition(struct parsed_partitions *state)
 				continue;
 			}
 			lvip[lv_ix].pps_found += 1;
-			if (lp_ix != next_lp_ix)
-				continue;
-			if (lp_ix == 1)
+			if (lp_ix == 1) {
 				cur_lv_ix = lv_ix;
-			else if (lv_ix != cur_lv_ix)
 				next_lp_ix = 1;
+			} else if (lv_ix != cur_lv_ix || lp_ix != next_lp_ix) {
+				next_lp_ix = 1;
+				continue;
+			}
 			if (lp_ix == lvip[lv_ix].pps_per_lv) {
 				char tmp[70];
 
