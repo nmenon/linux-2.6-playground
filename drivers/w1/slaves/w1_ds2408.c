@@ -302,7 +302,7 @@ error:
 	return -EIO;
 }
 
-/**
+/*
  * This is a special sequence we must do to ensure the P0 output is not stuck
  * in test mode. This is described in rev 2 of the ds2408's datasheet
  * (http://datasheets.maximintegrated.com/en/ds/DS2408.pdf) under
@@ -313,6 +313,7 @@ static int w1_f29_disable_test_mode(struct w1_slave *sl)
 	int res;
 	u8 magic[10] = {0x96, };
 	u64 rn = le64_to_cpu(*((u64*)&sl->reg_num));
+
 	memcpy(&magic[1], &rn, 8);
 	magic[9] = 0x3C;
 
