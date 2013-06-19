@@ -386,8 +386,10 @@ static int __init merge_note_headers_elf64(char *elfptr, size_t *elfsz,
 	if (!*notes_buf)
 		return -ENOMEM;
 
-	/* Allow users to remap ELF note segment buffer on vmalloc
-	 * memory using remap_vmalloc_range. */
+	/*
+	 * Allow users to remap ELF note segment buffer on vmalloc memory using
+	 * remap_vmalloc_range.()
+	 */
 	vm = find_vm_area(*notes_buf);
 	BUG_ON(!vm);
 	vm->flags |= VM_USERMAP;
@@ -572,8 +574,10 @@ static int __init merge_note_headers_elf32(char *elfptr, size_t *elfsz,
 	if (!*notes_buf)
 		return -ENOMEM;
 
-	/* Allow users to remap ELF note segment buffer on vmalloc
-	 * memory using remap_vmalloc_range. */
+	/*
+	 * Allow users to remap ELF note segment buffer on vmalloc memory using
+	 * remap_vmalloc_range()
+	 */
 	vm = find_vm_area(*notes_buf);
 	BUG_ON(!vm);
 	vm->flags |= VM_USERMAP;
