@@ -23,7 +23,6 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <signal.h>
-#include <bsd/string.h>
 
 #include <linux/genetlink.h>
 #include <linux/taskstats.h>
@@ -300,7 +299,7 @@ int main(int argc, char *argv[])
 			break;
 		case 'C':
 			containerset = 1;
-			strlcpy(containerpath, optarg, sizeof(containerpath));
+			strncpy(containerpath, optarg, strlen(optarg) + 1);
 			break;
 		case 'w':
 			logfile = strdup(optarg);
