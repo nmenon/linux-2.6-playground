@@ -6,12 +6,14 @@
 #include <linux/kernel.h>
 #include <linux/export.h>
 #include <linux/sched.h>
-#include <asm/processor.h>
-#include <asm/atomic.h>
-
-#ifdef CONFIG_SMP
 #include <linux/smp.h>
-#endif
+#include <linux/atomic.h>
+
+static void __dump_stack(void)
+{
+	dump_stack_print_info(KERN_DEFAULT);
+	show_stack(NULL, NULL);
+}
 
 /**
  * dump_stack - dump the current task information and its stack trace
@@ -27,10 +29,10 @@ void dump_stack(void)
 	int old;
 	int cpu;
 
-        /*
-         * Permit this cpu to perform nested stack dumps while serialising
-         * against other CPUs
-         */
+	/*
+	 * Permit this cpu to perform nested stack dumps while serialising
+	 * against other CPUs
+	 */
 	preempt_disable();
 
 retry:
@@ -59,9 +61,3 @@ void dump_stack(void)
 }
 #endif
 EXPORT_SYMBOL(dump_stack);
-
-static void __dump_stack(void)
-{
-	dump_stack_print_info(KERN_DEFAULT);
-	show_stack(NULL, NULL);
-}
