@@ -824,7 +824,7 @@ struct pagemapread {
 #define __PM_PSHIFT(x)      (((u64) (x) << PM_PSHIFT_OFFSET) & PM_PSHIFT_MASK)
 #define PM_PFRAME_MASK      ((1LL << PM_PSHIFT_OFFSET) - 1)
 #define PM_PFRAME(x)        ((x) & PM_PFRAME_MASK)
-/* in pagemap2 pshift bits are occupied with more status bits */
+/* in "new" pagemap pshift bits are occupied with more status bits */
 #define PM_STATUS2(v2, x)   (__PM_PSHIFT(v2 ? x : PAGE_SHIFT))
 
 #define PM_PRESENT          PM_STATUS(4LL)
@@ -1028,8 +1028,8 @@ static int pagemap_hugetlb_range(pte_t *pte, unsigned long hmask,
  * determine which areas of memory are actually mapped and llseek to
  * skip over unmapped regions.
  */
-static ssize_t do_pagemap_read(struct file *file, char __user *buf,
-			    size_t count, loff_t *ppos, bool v2)
+static ssize_t pagemap_read(struct file *file, char __user *buf,
+			    size_t count, loff_t *ppos)
 {
 	struct task_struct *task = get_proc_task(file_inode(file));
 	struct mm_struct *mm;
@@ -1054,7 +1054,7 @@ static ssize_t do_pagemap_read(struct file *file, char __user *buf,
 	if (!count)
 		goto out_task;
 
-	pm.v2 = v2;
+	pm.v2 = false;
 	pm.len = PM_ENTRY_BYTES * (PAGEMAP_WALK_SIZE >> PAGE_SHIFT);
 	pm.buffer = kmalloc(pm.len, GFP_TEMPORARY);
 	ret = -ENOMEM;
@@ -1125,12 +1125,6 @@ out_task:
 	put_task_struct(task);
 out:
 	return ret;
-}
-
-static ssize_t pagemap_read(struct file *file, char __user *buf,
-			    size_t count, loff_t *ppos)
-{
-	return do_pagemap_read(file, buf, count, ppos, false);
 }
 
 const struct file_operations proc_pagemap_operations = {
