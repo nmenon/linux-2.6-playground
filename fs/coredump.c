@@ -165,6 +165,7 @@ static int format_corename(struct core_name *cn, struct coredump_params *cprm)
 	cn->corename = NULL;
 	if (expand_corename(cn, core_name_size))
 		return -ENOMEM;
+	cn->corename[0] = '\0';
 
 	if (ispipe)
 		++pat_ptr;
