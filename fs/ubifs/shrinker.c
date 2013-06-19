@@ -280,7 +280,7 @@ static int kick_a_thread(void)
 unsigned long ubifs_shrink_count(struct shrinker *shrink,
 				 struct shrink_control *sc)
 {
-	unsigned long clean_zn_cnt = atomic_long_read(&ubifs_clean_zn_cnt);
+	long clean_zn_cnt = atomic_long_read(&ubifs_clean_zn_cnt);
 
 	/*
 	 * Due to the way UBIFS updates the clean znode counter it may
