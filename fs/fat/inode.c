@@ -152,11 +152,64 @@ static void fat_write_failed(struct address_space *mapping, loff_t to)
 	}
 }
 
+static int fat_zero_falloc_area(struct file *file,
+				struct address_space *mapping, loff_t pos)
+{
+	struct page *page;
+	struct inode *inode = mapping->host;
+	loff_t curpos = i_size_read(inode);
+	size_t count = pos - curpos;
+	int err;
+
+	do {
+		unsigned offset, bytes;
+		void *fsdata;
+
+		offset = (curpos & (PAGE_CACHE_SIZE - 1));
+		bytes = PAGE_CACHE_SIZE - offset;
+		bytes = min(bytes, count);
+
+		err = pagecache_write_begin(NULL, mapping, curpos, bytes,
+					AOP_FLAG_UNINTERRUPTIBLE,
+					&page, &fsdata);
+		if (err)
+			break;
+
+		zero_user(page, offset, bytes);
+
+		err = pagecache_write_end(NULL, mapping, curpos, bytes, bytes,
+					page, fsdata);
+		if (err < 0)
+			break;
+		curpos += bytes;
+		count -= bytes;
+		err = 0;
+	} while (count);
+
+	return err;
+}
+
 static int fat_write_begin(struct file *file, struct address_space *mapping,
 			loff_t pos, unsigned len, unsigned flags,
 			struct page **pagep, void **fsdata)
 {
 	int err;
+	loff_t mmu_private_ideal, mmu_private_actual;
+	loff_t size;
+	struct inode *inode = mapping->host;
+	struct super_block *sb = inode->i_sb;
+
+	size = i_size_read(inode);
+	mmu_private_actual = MSDOS_I(inode)->mmu_private;
+	mmu_private_ideal = round_up(size, sb->s_blocksize);
+	if ((mmu_private_actual > mmu_private_ideal) && (pos > size)) {
+		err = fat_zero_falloc_area(file, mapping, pos);
+		if (err) {
+			fat_msg(sb, KERN_ERR,
+				"Error (%d) zeroing fallocated area", err);
+			return err;
+		}
+	}
 
 	*pagep = NULL;
 	err = cont_write_begin(file, mapping, pos, len, flags,
