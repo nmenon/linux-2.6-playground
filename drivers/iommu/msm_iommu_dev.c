@@ -294,22 +294,20 @@ static int msm_iommu_ctx_probe(struct platform_device *pdev)
 	struct msm_iommu_ctx_drvdata *ctx_drvdata = NULL;
 	int i, ret;
 	if (!c || !pdev->dev.parent) {
-		ret = -EINVAL;
-		goto fail;
+		return -EINVAL;
 	}
 
 	drvdata = dev_get_drvdata(pdev->dev.parent);
 
 	if (!drvdata) {
-		ret = -ENODEV;
-		goto fail;
+		return -ENODEV;
 	}
 
 	ctx_drvdata = kzalloc(sizeof(*ctx_drvdata), GFP_KERNEL);
 	if (!ctx_drvdata) {
-		ret = -ENOMEM;
-		goto fail;
+		return -ENOMEM;
 	}
+
 	ctx_drvdata->num = c->num;
 	ctx_drvdata->pdev = pdev;
 
@@ -403,6 +401,7 @@ static int __init msm_iommu_driver_init(void)
 
 	ret = platform_driver_register(&msm_iommu_ctx_driver);
 	if (ret != 0) {
+		platform_driver_unregister(&msm_iommu_driver);
 		pr_err("Failed to register IOMMU context driver\n");
 		goto error;
 	}
