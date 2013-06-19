@@ -1963,7 +1963,7 @@ static void nfs_access_free_list(struct list_head *head)
 	}
 }
 
-long
+unsigned long
 nfs_access_cache_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
 	LIST_HEAD(head);
@@ -2008,7 +2008,7 @@ remove_lru_entry:
 	return freed;
 }
 
-long
+unsigned long
 nfs_access_cache_count(struct shrinker *shrink, struct shrink_control *sc)
 {
 	return vfs_pressure_ratio(atomic_long_read(&nfs_access_nr_entries));

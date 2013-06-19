@@ -1457,16 +1457,16 @@ static long gfs2_scan_glock_lru(int nr)
 	return freed;
 }
 
-static long gfs2_glock_shrink_scan(struct shrinker *shrink,
-				   struct shrink_control *sc)
+static unsigned long gfs2_glock_shrink_scan(struct shrinker *shrink,
+					    struct shrink_control *sc)
 {
 	if (!(sc->gfp_mask & __GFP_FS))
 		return SHRINK_STOP;
 	return gfs2_scan_glock_lru(sc->nr_to_scan);
 }
 
-static long gfs2_glock_shrink_count(struct shrinker *shrink,
-				    struct shrink_control *sc)
+static unsigned long gfs2_glock_shrink_count(struct shrinker *shrink,
+					     struct shrink_control *sc)
 {
 	return vfs_pressure_ratio(atomic_read(&lru_count));
 }
