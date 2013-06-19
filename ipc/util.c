@@ -246,7 +246,7 @@ int ipc_get_maxid(struct ipc_ids *ids)
  *	is returned. The 'new' entry is returned in a locked state on success.
  *	On failure the entry is not locked and a negative err-code is returned.
  *
- *	Called with RCU read lock and writer ipc_ids.rw_mutex held.
+ *	Called with writer ipc_ids.rw_mutex held.
  */
 int ipc_addid(struct ipc_ids* ids, struct kern_ipc_perm* new, int size)
 {
@@ -265,6 +265,7 @@ int ipc_addid(struct ipc_ids* ids, struct kern_ipc_perm* new, int size)
 
 	spin_lock_init(&new->lock);
 	new->deleted = 0;
+	rcu_read_lock();
 	spin_lock(&new->lock);
 
 	id = idr_alloc(&ids->ipcs_idr, new,
