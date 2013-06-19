@@ -162,7 +162,8 @@ static int fat_zero_falloc_area(struct file *file,
 	int err;
 
 	do {
-		unsigned offset, bytes;
+		unsigned offset;
+		size_t bytes;
 		void *fsdata;
 
 		offset = (curpos & (PAGE_CACHE_SIZE - 1));
