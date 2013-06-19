@@ -142,9 +142,7 @@ static ssize_t read_vmcore(struct file *file, char __user *buffer,
 
 	/* Read ELF core header */
 	if (*fpos < elfcorebuf_sz) {
-		tsz = elfcorebuf_sz - *fpos;
-		if (buflen < tsz)
-			tsz = buflen;
+		tsz = min(elfcorebuf_sz - (size_t)*fpos, buflen);
 		if (copy_to_user(buffer, elfcorebuf + *fpos, tsz))
 			return -EFAULT;
 		buflen -= tsz;
@@ -161,9 +159,7 @@ static ssize_t read_vmcore(struct file *file, char __user *buffer,
 	if (*fpos < elfcorebuf_sz + elfnotes_sz) {
 		void *kaddr;
 
-		tsz = elfcorebuf_sz + elfnotes_sz - *fpos;
-		if (buflen < tsz)
-			tsz = buflen;
+		tsz = min(elfcorebuf_sz + elfnotes_sz - (size_t)*fpos, buflen);
 		kaddr = elfnotes_buf + *fpos - elfcorebuf_sz;
 		if (copy_to_user(buffer, kaddr, tsz))
 			return -EFAULT;
@@ -179,9 +175,7 @@ static ssize_t read_vmcore(struct file *file, char __user *buffer,
 
 	list_for_each_entry(m, &vmcore_list, list) {
 		if (*fpos < m->offset + m->size) {
-			tsz = m->offset + m->size - *fpos;
-			if (buflen < tsz)
-				tsz = buflen;
+			tsz = min_t(size_t, m->offset + m->size - *fpos, buflen);
 			start = m->paddr + *fpos - m->offset;
 			tmp = read_from_oldmem(buffer, tsz, &start, 1);
 			if (tmp < 0)
@@ -710,6 +704,8 @@ static void free_elfcorebuf(void)
 {
 	free_pages((unsigned long)elfcorebuf, get_order(elfcorebuf_sz_orig));
 	elfcorebuf = NULL;
+	vfree(elfnotes_buf);
+	elfnotes_buf = NULL;
 }
 
 static int __init parse_crash_elf64_headers(void)
@@ -898,8 +894,6 @@ void vmcore_cleanup(void)
 		list_del(&m->list);
 		kfree(m);
 	}
-	vfree(elfnotes_buf);
-	elfnotes_buf = NULL;
 	free_elfcorebuf();
 }
 EXPORT_SYMBOL_GPL(vmcore_cleanup);
