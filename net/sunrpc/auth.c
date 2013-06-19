@@ -454,12 +454,12 @@ rpcauth_prune_expired(struct list_head *free, int nr_to_scan)
 /*
  * Run memory cache shrinker.
  */
-static long
+static unsigned long
 rpcauth_cache_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 
 {
 	LIST_HEAD(free);
-	long freed;
+	unsigned long freed;
 
 	if ((sc->gfp_mask & GFP_KERNEL) != GFP_KERNEL)
 		return SHRINK_STOP;
@@ -476,7 +476,7 @@ rpcauth_cache_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 	return freed;
 }
 
-static long
+static unsigned long
 rpcauth_cache_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
 
 {
