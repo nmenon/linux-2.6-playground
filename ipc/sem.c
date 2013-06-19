@@ -407,8 +407,10 @@ static int newary(struct ipc_namespace *ns, struct ipc_params *params)
 		return retval;
 	}
 
+	rcu_read_lock();
 	id = ipc_addid(&sem_ids(ns), &sma->sem_perm, ns->sc_semmni);
 	if (id < 0) {
+		rcu_read_unlock();
 		security_sem_free(sma);
 		ipc_rcu_putref(sma);
 		return id;
