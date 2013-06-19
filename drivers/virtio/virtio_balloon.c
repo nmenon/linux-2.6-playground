@@ -160,11 +160,10 @@ static void fill_balloon(struct virtio_balloon *vb, size_t num)
 static void release_pages_by_pfn(const u32 pfns[], unsigned int num)
 {
 	unsigned int i;
-	struct page *page;
 
 	/* Find pfns pointing at start of each page, get pages and free them. */
 	for (i = 0; i < num; i += VIRTIO_BALLOON_PAGES_PER_PAGE) {
-		page = balloon_pfn_to_page(pfns[i]);
+		struct page *page = balloon_pfn_to_page(pfns[i]);
 		balloon_page_free(page);
 		adjust_managed_page_count(page, 1);
 	}
