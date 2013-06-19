@@ -486,12 +486,12 @@ void *ipc_rcu_alloc(int size)
 	if (unlikely(!out))
 		return NULL;
 	atomic_set(&out->refcount, 1);
-	return out+1;
+	return out + 1;
 }
 
 int ipc_rcu_getref(void *ptr)
 {
-	struct ipc_rcu *p = ((struct ipc_rcu*)ptr)-1;
+	struct ipc_rcu *p = ((struct ipc_rcu *)ptr) - 1;
 
 	return atomic_inc_not_zero(&p->refcount);
 }
@@ -507,7 +507,7 @@ static void ipc_schedule_free(struct rcu_head *head)
 
 void ipc_rcu_putref(void *ptr)
 {
-	struct ipc_rcu *p = ((struct ipc_rcu*)ptr)-1;
+	struct ipc_rcu *p = ((struct ipc_rcu *)ptr) - 1;
 
 	if (!atomic_dec_and_test(&p->refcount))
 		return;
