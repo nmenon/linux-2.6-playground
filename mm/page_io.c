@@ -88,20 +88,20 @@ void end_swap_bio_read(struct bio *bio, int err)
 		sis = page_swap_info(page);
 		if (sis->flags & SWP_BLKDEV) {
 			/*
-			 * Swap subsystem does lazy swap slot free with
-			 * expecting the page would be swapped out again
-			 * so we can avoid unnecessary write if the page
-			 * isn't redirty.
-			 * It's good for real swap storage  because we can
+			 * The swap subsystem performs lazy swap slot freeing,
+			 * expecting that the page will be swapped out again.
+			 * So we can avoid an unnecessary write if the page
+			 * isn't redirtied.
+			 * This is good for real swap storage because we can
 			 * reduce unnecessary I/O and enhance wear-leveling
-			 * if you use SSD as swap device.
-			 * But if you use in-memory swap device(ex, zram),
-			 * it causes duplicated copy between uncompressed
+			 * if an SSD is used as the as swap device.
+			 * But if in-memory swap device (eg zram) is used,
+			 * this causes a duplicated copy between uncompressed
 			 * data in VM-owned memory and compressed data in
-			 * zram-owned memory. So let's free zram-owned memory
-			 * and make the VM-owned decompressed page *dirty*
-			 * so the page should be swap out somewhere again if
-			 * we want to reclaim it, again.
+			 * zram-owned memory.  So let's free zram-owned memory
+			 * and make the VM-owned decompressed page *dirty*,
+			 * so the page should be swapped out somewhere again if
+			 * we again wish to reclaim it.
 			 */
 			struct gendisk *disk = sis->bdev->bd_disk;
 			if (disk->fops->swap_slot_free_notify) {
