@@ -960,7 +960,7 @@ static int imxfb_remove(struct platform_device *pdev)
 	return 0;
 }
 
-void  imxfb_shutdown(struct platform_device * dev)
+static void imxfb_shutdown(struct platform_device *dev)
 {
 	struct fb_info *info = platform_get_drvdata(dev);
 	struct imxfb_info *fbi = info->par;
@@ -999,7 +999,7 @@ static int imxfb_setup(void)
 	return 0;
 }
 
-int __init imxfb_init(void)
+static int __init imxfb_init(void)
 {
 	int ret = imxfb_setup();
 
