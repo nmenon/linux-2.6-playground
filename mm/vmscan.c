@@ -732,9 +732,11 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 		 *    under writeback and this page is both under writeback and
 		 *    PageReclaim then it indicates that pages are being queued
 		 *    for IO but are being recycled through the LRU before the
-		 *    IO can complete. In this case, wait on the IO to complete
-		 *    and then clear the ZONE_WRITEBACK flag to recheck if the
-		 *    condition exists.
+		 *    IO can complete. Waiting on the page itself risks an
+		 *    indefinite stall if it is impossible to writeback the
+		 *    page due to IO error or disconnected storage so instead
+		 *    block for HZ/10 or until some IO completes then clear the
+		 *    ZONE_WRITEBACK flag to recheck if the condition exists.
 		 *
 		 * 2) Global reclaim encounters a page, memcg encounters a
 		 *    page that is not marked for immediate reclaim or
@@ -764,7 +766,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 			if (current_is_kswapd() &&
 			    PageReclaim(page) &&
 			    zone_is_reclaim_writeback(zone)) {
-				wait_on_page_writeback(page);
+				congestion_wait(BLK_RW_ASYNC, HZ/10);
 				zone_clear_flag(zone, ZONE_WRITEBACK);
 
 			/* Case 2 above */
