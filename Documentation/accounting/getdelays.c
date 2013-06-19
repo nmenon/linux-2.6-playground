@@ -299,7 +299,7 @@ int main(int argc, char *argv[])
 			break;
 		case 'C':
 			containerset = 1;
-			containerpath = strdup(optarg);
+			containerpath = optarg;
 			break;
 		case 'w':
 			logfile = strdup(optarg);
