@@ -766,8 +766,10 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 			if (current_is_kswapd() &&
 			    PageReclaim(page) &&
 			    zone_is_reclaim_writeback(zone)) {
+				unlock_page(page);
 				congestion_wait(BLK_RW_ASYNC, HZ/10);
 				zone_clear_flag(zone, ZONE_WRITEBACK);
+				goto keep;
 
 			/* Case 2 above */
 			} else if (global_reclaim(sc) ||
