@@ -92,12 +92,13 @@ static u64 last_lba(struct block_device *bdev)
  * Description:  Reads @count bytes from @state->bdev into @buffer.
  * Returns number of bytes read on success, 0 on error.
  */
-static size_t read_lba(struct parsed_partitions *state, u64 lba, u8 * buffer, size_t count)
+static size_t read_lba(struct parsed_partitions *state, u64 lba, u8 *buffer,
+			size_t count)
 {
 	size_t totalreadcount = 0;
 
 	if (!buffer || lba + count / 512 > last_lba(state->bdev))
-                return 0;
+		return 0;
 
 	while (count) {
 		int copied = 512;
@@ -110,7 +111,7 @@ static size_t read_lba(struct parsed_partitions *state, u64 lba, u8 * buffer, si
 		memcpy(buffer, data, copied);
 		put_dev_sector(sect);
 		buffer += copied;
-		totalreadcount +=copied;
+		totalreadcount += copied;
 		count -= copied;
 	}
 	return totalreadcount;
@@ -268,9 +269,10 @@ int aix_partition(struct parsed_partitions *state)
 				char tmp[70];
 
 				put_partition(state, lv_ix + 1,
-					(i + 1 - lp_ix) * pp_blocks_size + psn_part1,
-					lvip[lv_ix].pps_per_lv * pp_blocks_size);
-				snprintf(tmp, sizeof(tmp), " <%s>\n", n[lv_ix].name);
+				  (i + 1 - lp_ix) * pp_blocks_size + psn_part1,
+				  lvip[lv_ix].pps_per_lv * pp_blocks_size);
+				snprintf(tmp, sizeof(tmp), " <%s>\n",
+					 n[lv_ix].name);
 				strlcat(state->pp_buf, tmp, PAGE_SIZE);
 				lvip[lv_ix].lv_is_contiguous = 1;
 				ret = 1;
@@ -280,12 +282,12 @@ int aix_partition(struct parsed_partitions *state)
 		}
 		for (i = 0; i < state->limit; i += 1)
 			if (lvip[i].pps_found && !lvip[i].lv_is_contiguous)
-				printk("partition %s (%u pp's found) is not contiguous\n",
+				pr_warn("partition %s (%u pp's found) is "
+					"not contiguous\n",
 					n[i].name, lvip[i].pps_found);
 		kfree(pvd);
 	}
-	if (n)
-		kfree(n);
+	kfree(n);
 	kfree(lvip);
 	return ret;
 }
