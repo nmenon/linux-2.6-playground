@@ -5209,6 +5209,7 @@ void adjust_managed_page_count(struct page *page, long count)
 #endif
 	spin_unlock(&managed_page_count_lock);
 }
+EXPORT_SYMBOL(adjust_managed_page_count);
 
 unsigned long free_reserved_area(void *start, void *end, int poison, char *s)
 {
