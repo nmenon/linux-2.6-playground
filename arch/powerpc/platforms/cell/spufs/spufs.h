@@ -252,7 +252,7 @@ long spufs_create(struct path *nd, struct dentry *dentry, unsigned int flags,
 			umode_t mode, struct file *filp);
 /* ELF coredump callbacks for writing SPU ELF notes */
 extern int spufs_coredump_extra_notes_size(void);
-extern int spufs_coredump_extra_notes_write(struct file *file, loff_t *foffset);
+extern int spufs_coredump_extra_notes_write(struct coredump_params *);
 
 extern const struct file_operations spufs_context_fops;
 

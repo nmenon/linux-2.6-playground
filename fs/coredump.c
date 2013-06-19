@@ -678,45 +678,59 @@ fail:
 	return;
 }
 
-/*
- * Core dumping helper functions.  These are the only things you should
- * do on a core-file: use only these functions to write out all the
- * necessary info.
- */
-int dump_write(struct file *file, const void *addr, int nr)
+bool dump_emit(struct coredump_params *cprm, const void *addr, size_t size)
 {
-	return !dump_interrupted() &&
-		access_ok(VERIFY_READ, addr, nr) &&
-		file->f_op->write(file, addr, nr, &file->f_pos) == nr;
+	struct file *file;
+	loff_t pos;
+	if (size > cprm->limit - cprm->written || dump_interrupted() ||
+	    !access_ok(VERIFY_READ, addr, size))
+		return false;
+	file = cprm->file;
+	pos = file->f_pos;
+	if (file->f_op->write(file, addr, size, &pos) != size)
+		return false;
+	file->f_pos = pos;
+	cprm->written += size;
+	return true;
 }
-EXPORT_SYMBOL(dump_write);
+EXPORT_SYMBOL(dump_emit);
 
-int dump_seek(struct file *file, loff_t off)
+bool dump_skip(struct coredump_params *cprm, size_t off)
 {
-	int ret = 1;
+	loff_t new = cprm->written + off;
+	struct file *file = cprm->file;
+
+	if (!off)
+		return true;
+
+	if (new > cprm->limit)
+		return false;
 
 	if (file->f_op->llseek && file->f_op->llseek != no_llseek) {
 		if (dump_interrupted() ||
-		    file->f_op->llseek(file, off, SEEK_CUR) < 0)
-			return 0;
+		    file->f_op->llseek(file, new, SEEK_SET) < 0)
+			return false;
+		cprm->written = new;
 	} else {
 		char *buf = (char *)get_zeroed_page(GFP_KERNEL);
-
 		if (!buf)
-			return 0;
-		while (off > 0) {
+			return false;
+		while (off) {
 			unsigned long n = off;
-
 			if (n > PAGE_SIZE)
 				n = PAGE_SIZE;
-			if (!dump_write(file, buf, n)) {
-				ret = 0;
-				break;
-			}
+			if (!dump_emit(cprm, buf, n))
+				return false;
 			off -= n;
 		}
 		free_page((unsigned long)buf);
 	}
-	return ret;
+	return true;
 }
-EXPORT_SYMBOL(dump_seek);
+EXPORT_SYMBOL(dump_skip);
+
+bool dump_align(struct coredump_params *cprm, int align)
+{
+	return dump_skip(cprm, roundup(cprm->written, align) - cprm->written);
+}
+EXPORT_SYMBOL(dump_align);
