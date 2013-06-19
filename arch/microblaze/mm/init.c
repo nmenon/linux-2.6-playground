@@ -246,7 +246,7 @@ void __init mem_init(void)
 	highmem_setup();
 #endif
 
-	mem_init_print_info(str);
+	mem_init_print_info(NULL);
 #ifdef CONFIG_MMU
 	pr_info("Kernel virtual memory layout:\n");
 	pr_info("  * 0x%08lx..0x%08lx  : fixmap\n", FIXADDR_START, FIXADDR_TOP);
