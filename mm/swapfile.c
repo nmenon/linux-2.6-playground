@@ -2140,17 +2140,17 @@ SYSCALL_DEFINE2(swapon, const char __user *, specialfile, int, swap_flags)
 
 		if ((swap_flags & SWAP_FLAG_DISCARD) && swap_discardable(p)) {
 			/*
-			 * When discard is enabled for swap, with no particular
-			 * policy flagged, we set all swap discard flags here
-			 * in order to sustain backward compatibility with
-			 * older swapon(8) releases.
+			 * When discard is enabled for swap with no particular
+			 * policy flagged, we set all swap discard flags here in
+			 * order to sustain backward compatibility with older
+			 * swapon(8) releases.
 			 */
 			p->flags |= (SWP_DISCARDABLE | SWP_AREA_DISCARD |
 				     SWP_PAGE_DISCARD);
 
 			/*
 			 * By flagging sys_swapon, a sysadmin can tell us to
-			 * either do sinle-time area discards only, or to just
+			 * either do single-time area discards only, or to just
 			 * perform discards for released swap page-clusters.
 			 * Now it's time to adjust the p->flags accordingly.
 			 */
