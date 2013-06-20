@@ -140,6 +140,8 @@ static struct sh_mmcif_plat_data sh_mmcif_plat = {
 			  MMC_CAP_NEEDS_POLL,
 };
 
+static struct rcar_phy_platform_data usb_phy_platform_data __initdata;
+
 static const struct pinctrl_map bockw_pinctrl_map[] = {
 	/* Ether */
 	PIN_MAP_MUX_GROUP_DEFAULT("r8a777x-ether", "pfc-r8a7778",
@@ -160,6 +162,10 @@ static const struct pinctrl_map bockw_pinctrl_map[] = {
 	/* SDHI0 */
 	PIN_MAP_MUX_GROUP_DEFAULT("sh_mobile_sdhi.0", "pfc-r8a7778",
 				  "sdhi0", "sdhi0"),
+	PIN_MAP_MUX_GROUP_DEFAULT("ehci-platform", "pfc-r8a7778",
+				  "usb0", "usb0"),
+	PIN_MAP_MUX_GROUP_DEFAULT("ehci-platform", "pfc-r8a7778",
+				  "usb1", "usb1"),
 };
 
 #define FPGA	0x18200000
@@ -177,6 +183,7 @@ static void __init bockw_init(void)
 	r8a7778_add_i2c_device(0);
 	r8a7778_add_hspi_device(0);
 	r8a7778_add_mmc_device(&sh_mmcif_plat);
+	r8a7778_add_usb_phy_device(&usb_phy_platform_data);
 
 	i2c_register_board_info(0, i2c0_devices,
 				ARRAY_SIZE(i2c0_devices));
@@ -236,4 +243,5 @@ DT_MACHINE_START(BOCKW_DT, "bockw")
 	.init_machine	= bockw_init,
 	.init_time	= shmobile_timer_init,
 	.dt_compat	= bockw_boards_compat_dt,
+	.init_late      = r8a7778_init_late,
 MACHINE_END
