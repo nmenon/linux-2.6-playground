@@ -30,7 +30,7 @@ extern void iscsi_dump_sess_ops(struct iscsi_sess_ops *);
 extern void iscsi_print_params(struct iscsi_param_list *);
 extern int iscsi_create_default_params(struct iscsi_param_list **);
 extern int iscsi_set_keys_to_negotiate(struct iscsi_param_list *, bool);
-extern int iscsi_set_keys_irrelevant_for_discovery(struct iscsi_param_list *);
+extern int iscsi_set_keys_irrelevant_for_discovery(struct iscsi_param_list *, bool);
 extern int iscsi_copy_param_list(struct iscsi_param_list **,
 			struct iscsi_param_list *, int);
 extern int iscsi_change_param_value(char *, struct iscsi_param_list *, int);
