@@ -1025,15 +1025,24 @@ isert_handle_text_cmd(struct isert_conn *isert_conn, struct isert_cmd *isert_cmd
 {
 	struct iscsi_cmd *cmd = &isert_cmd->iscsi_cmd;
 	struct iscsi_conn *conn = isert_conn->conn;
+	u32 payload_length = ntoh24(hdr->dlength);
 	int rc;
+	unsigned char *text_in;
 
 	rc = iscsit_setup_text_cmd(conn, cmd, hdr);
 	if (rc < 0)
 		return rc;
 
-	/*
-	 * FIXME: Add support for TEXT payload parsing
-	 */
+	text_in = kzalloc(payload_length, GFP_KERNEL);
+	if (!text_in) {
+		pr_err("Unable to allocate text_in of payload_length: %u\n",
+		       payload_length);
+		return -ENOMEM;
+	}
+	cmd->text_in_ptr = text_in;
+
+	memcpy(cmd->text_in_ptr, &rx_desc->data[0], payload_length);
+
 	return iscsit_process_text_cmd(conn, cmd, hdr);
 }
 
