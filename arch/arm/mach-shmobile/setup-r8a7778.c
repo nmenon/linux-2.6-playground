@@ -24,6 +24,7 @@
 #include <linux/irqchip/arm-gic.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
+#include <linux/platform_data/gpio-rcar.h>
 #include <linux/platform_data/irq-renesas-intc-irqpin.h>
 #include <linux/platform_device.h>
 #include <linux/irqchip.h>
@@ -80,12 +81,6 @@ static struct sh_timer_config sh_tmu1_platform_data = {
 	.clocksource_rating	= 200,
 };
 
-/* Ether */
-static struct resource ether_resources[] = {
-	DEFINE_RES_MEM(0xfde00000, 0x400),
-	DEFINE_RES_IRQ(gic_iid(0x89)),
-};
-
 #define r8a7778_register_tmu(idx)			\
 	platform_device_register_resndata(		\
 		&platform_bus, "sh_tmu", idx,		\
@@ -93,6 +88,151 @@ static struct resource ether_resources[] = {
 		ARRAY_SIZE(sh_tmu##idx##_resources),	\
 		&sh_tmu##idx##_platform_data,		\
 		sizeof(sh_tmu##idx##_platform_data))
+
+/* Ether */
+static struct resource ether_resources[] = {
+	DEFINE_RES_MEM(0xfde00000, 0x400),
+	DEFINE_RES_IRQ(gic_iid(0x89)),
+};
+
+void __init r8a7778_add_ether_device(struct sh_eth_plat_data *pdata)
+{
+	platform_device_register_resndata(&platform_bus, "r8a777x-ether", -1,
+					  ether_resources,
+					  ARRAY_SIZE(ether_resources),
+					  pdata, sizeof(*pdata));
+}
+
+/* PFC/GPIO */
+static struct resource pfc_resources[] = {
+	DEFINE_RES_MEM(0xfffc0000, 0x118),
+};
+
+#define R8A7778_GPIO(idx)						\
+static struct resource r8a7778_gpio##idx##_resources[] = {		\
+	DEFINE_RES_MEM(0xffc40000 + 0x1000 * (idx), 0x30),		\
+	DEFINE_RES_IRQ(gic_iid(0x87)),					\
+};									\
+									\
+static struct gpio_rcar_config r8a7778_gpio##idx##_platform_data = {	\
+	.gpio_base	= 32 * (idx),					\
+	.irq_base	= GPIO_IRQ_BASE(idx),				\
+	.number_of_pins	= 32,						\
+	.pctl_name	= "pfc-r8a7778",				\
+}
+
+R8A7778_GPIO(0);
+R8A7778_GPIO(1);
+R8A7778_GPIO(2);
+R8A7778_GPIO(3);
+R8A7778_GPIO(4);
+
+#define r8a7778_register_gpio(idx)				\
+	platform_device_register_resndata(			\
+		&platform_bus, "gpio_rcar", idx,		\
+		r8a7778_gpio##idx##_resources,			\
+		ARRAY_SIZE(r8a7778_gpio##idx##_resources),	\
+		&r8a7778_gpio##idx##_platform_data,		\
+		sizeof(r8a7778_gpio##idx##_platform_data))
+
+void __init r8a7778_pinmux_init(void)
+{
+	platform_device_register_simple(
+		"pfc-r8a7778", -1,
+		pfc_resources,
+		ARRAY_SIZE(pfc_resources));
+
+	r8a7778_register_gpio(0);
+	r8a7778_register_gpio(1);
+	r8a7778_register_gpio(2);
+	r8a7778_register_gpio(3);
+	r8a7778_register_gpio(4);
+};
+
+/* SDHI */
+static struct resource sdhi_resources[] = {
+	/* SDHI0 */
+	DEFINE_RES_MEM(0xFFE4C000, 0x100),
+	DEFINE_RES_IRQ(gic_iid(0x77)),
+	/* SDHI1 */
+	DEFINE_RES_MEM(0xFFE4D000, 0x100),
+	DEFINE_RES_IRQ(gic_iid(0x78)),
+	/* SDHI2 */
+	DEFINE_RES_MEM(0xFFE4F000, 0x100),
+	DEFINE_RES_IRQ(gic_iid(0x76)),
+};
+
+void __init r8a7778_sdhi_init(int id,
+			      struct sh_mobile_sdhi_info *info)
+{
+	BUG_ON(id < 0 || id > 2);
+
+	platform_device_register_resndata(
+		&platform_bus, "sh_mobile_sdhi", id,
+		sdhi_resources + (2 * id), 2,
+		info, sizeof(*info));
+}
+
+/* I2C */
+static struct resource i2c_resources[] __initdata = {
+	/* I2C0 */
+	DEFINE_RES_MEM(0xffc70000, 0x1000),
+	DEFINE_RES_IRQ(gic_iid(0x63)),
+	/* I2C1 */
+	DEFINE_RES_MEM(0xffc71000, 0x1000),
+	DEFINE_RES_IRQ(gic_iid(0x6e)),
+	/* I2C2 */
+	DEFINE_RES_MEM(0xffc72000, 0x1000),
+	DEFINE_RES_IRQ(gic_iid(0x6c)),
+	/* I2C3 */
+	DEFINE_RES_MEM(0xffc73000, 0x1000),
+	DEFINE_RES_IRQ(gic_iid(0x6d)),
+};
+
+void __init r8a7778_add_i2c_device(int id)
+{
+	BUG_ON(id < 0 || id > 3);
+
+	platform_device_register_simple(
+		"i2c-rcar", id,
+		i2c_resources + (2 * id), 2);
+}
+
+/* HSPI */
+static struct resource hspi_resources[] __initdata = {
+	/* HSPI0 */
+	DEFINE_RES_MEM(0xfffc7000, 0x18),
+	DEFINE_RES_IRQ(gic_iid(0x5f)),
+	/* HSPI1 */
+	DEFINE_RES_MEM(0xfffc8000, 0x18),
+	DEFINE_RES_IRQ(gic_iid(0x74)),
+	/* HSPI2 */
+	DEFINE_RES_MEM(0xfffc6000, 0x18),
+	DEFINE_RES_IRQ(gic_iid(0x75)),
+};
+
+void __init r8a7778_add_hspi_device(int id)
+{
+	BUG_ON(id < 0 || id > 2);
+
+	platform_device_register_simple(
+		"sh-hspi", id,
+		hspi_resources + (2 * id), 2);
+}
+
+/* MMC */
+static struct resource mmc_resources[] __initdata = {
+	DEFINE_RES_MEM(0xffe4e000, 0x100),
+	DEFINE_RES_IRQ(gic_iid(0x5d)),
+};
+
+void __init r8a7778_add_mmc_device(struct sh_mmcif_plat_data *info)
+{
+	platform_device_register_resndata(
+		&platform_bus, "sh_mmcif", -1,
+		mmc_resources, ARRAY_SIZE(mmc_resources),
+		info, sizeof(*info));
+}
 
 void __init r8a7778_add_standard_devices(void)
 {
@@ -116,14 +256,6 @@ void __init r8a7778_add_standard_devices(void)
 
 	r8a7778_register_tmu(0);
 	r8a7778_register_tmu(1);
-}
-
-void __init r8a7778_add_ether_device(struct sh_eth_plat_data *pdata)
-{
-	platform_device_register_resndata(&platform_bus, "sh_eth", -1,
-					  ether_resources,
-					  ARRAY_SIZE(ether_resources),
-					  pdata, sizeof(*pdata));
 }
 
 static struct renesas_intc_irqpin_config irqpin_platform_data = {
