@@ -111,6 +111,9 @@ enum exynos5420_clks {
 	aclk333_g2d = 480, g2d, aclk333_432_gscl = 490, smmu_3aa, smmu_fimcl0,
 	smmu_fimcl1, smmu_fimcl3, fimc_lite3, aclk_g3d = 500, g3d, smmu_tv,
 
+	/* mux clocks */
+	mout_hdmi = 1024,
+
 	nr_clks,
 };
 
@@ -371,7 +374,7 @@ struct samsung_mux_clock exynos5420_mux_clks[] __initdata = {
 	MUX(none, "mout_mipi1", group2_p, SRC_DISP10, 16, 3),
 	MUX(none, "mout_dp1", group2_p, SRC_DISP10, 20, 3),
 	MUX(none, "mout_pixel", group2_p, SRC_DISP10, 24, 3),
-	MUX(none, "mout_hdmi", hdmi_p, SRC_DISP10, 28, 1),
+	MUX(mout_hdmi, "mout_hdmi", hdmi_p, SRC_DISP10, 28, 1),
 
 	/* MAU Block */
 	MUX(none, "mout_maudio0", maudio0_p, SRC_MAU, 28, 3),
