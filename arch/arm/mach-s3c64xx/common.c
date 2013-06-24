@@ -42,7 +42,6 @@
 #include <plat/pm.h>
 #include <plat/gpio-cfg.h>
 #include <plat/irq-uart.h>
-#include <plat/irq-vic-timer.h>
 #include <plat/pwm-core.h>
 #include <plat/regs-irqtype.h>
 #include <plat/regs-serial.h>
@@ -222,9 +221,6 @@ void __init s3c64xx_init_irq(u32 vic0_valid, u32 vic1_valid)
 	/* initialise the pair of VICs */
 	vic_init(VA_VIC0, IRQ_VIC0_BASE, vic0_valid, IRQ_VIC0_RESUME);
 	vic_init(VA_VIC1, IRQ_VIC1_BASE, vic1_valid, IRQ_VIC1_RESUME);
-
-	/* add the timer sub-irqs */
-	s3c_init_vic_timer_irq(5, IRQ_TIMER0);
 }
 
 #define eint_offset(irq)	((irq) - IRQ_EINT(0))
