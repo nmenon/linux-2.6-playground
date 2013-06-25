@@ -8721,8 +8721,8 @@ static int intel_crtc_set_config(struct drm_mode_set *set)
 		ret = intel_set_mode(set->crtc, set->mode,
 				     set->x, set->y, set->fb);
 		if (ret) {
-			DRM_ERROR("failed to set mode on [CRTC:%d], err = %d\n",
-				  set->crtc->base.id, ret);
+			DRM_DEBUG_KMS("failed to set mode on [CRTC:%d], err = %d\n",
+				      set->crtc->base.id, ret);
 			goto fail;
 		}
 	} else if (config->fb_changed) {
