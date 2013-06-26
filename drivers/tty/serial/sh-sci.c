@@ -147,6 +147,7 @@ static struct plat_sci_reg sci_regmap[SCIx_NR_REGTYPES][SCIx_NR_REGS] = {
 		[SCRFDR]	= sci_reg_invalid,
 		[SCSPTR]	= sci_reg_invalid,
 		[SCLSR]		= sci_reg_invalid,
+		[HSSRR]		= sci_reg_invalid,
 	},
 
 	/*
@@ -166,6 +167,7 @@ static struct plat_sci_reg sci_regmap[SCIx_NR_REGTYPES][SCIx_NR_REGS] = {
 		[SCRFDR]	= sci_reg_invalid,
 		[SCSPTR]	= sci_reg_invalid,
 		[SCLSR]		= sci_reg_invalid,
+		[HSSRR]		= sci_reg_invalid,
 	},
 
 	/*
@@ -184,6 +186,7 @@ static struct plat_sci_reg sci_regmap[SCIx_NR_REGTYPES][SCIx_NR_REGS] = {
 		[SCRFDR]	= sci_reg_invalid,
 		[SCSPTR]	= sci_reg_invalid,
 		[SCLSR]		= sci_reg_invalid,
+		[HSSRR]		= sci_reg_invalid,
 	},
 
 	/*
@@ -202,6 +205,7 @@ static struct plat_sci_reg sci_regmap[SCIx_NR_REGTYPES][SCIx_NR_REGS] = {
 		[SCRFDR]	= { 0x3c, 16 },
 		[SCSPTR]	= sci_reg_invalid,
 		[SCLSR]		= sci_reg_invalid,
+		[HSSRR]		= sci_reg_invalid,
 	},
 
 	/*
@@ -221,6 +225,7 @@ static struct plat_sci_reg sci_regmap[SCIx_NR_REGTYPES][SCIx_NR_REGS] = {
 		[SCRFDR]	= sci_reg_invalid,
 		[SCSPTR]	= { 0x20, 16 },
 		[SCLSR]		= { 0x24, 16 },
+		[HSSRR]		= sci_reg_invalid,
 	},
 
 	/*
@@ -239,6 +244,7 @@ static struct plat_sci_reg sci_regmap[SCIx_NR_REGTYPES][SCIx_NR_REGS] = {
 		[SCRFDR]	= sci_reg_invalid,
 		[SCSPTR]	= sci_reg_invalid,
 		[SCLSR]		= sci_reg_invalid,
+		[HSSRR]		= sci_reg_invalid,
 	},
 
 	/*
@@ -257,6 +263,26 @@ static struct plat_sci_reg sci_regmap[SCIx_NR_REGTYPES][SCIx_NR_REGS] = {
 		[SCRFDR]	= sci_reg_invalid,
 		[SCSPTR]	= { 0x20, 16 },
 		[SCLSR]		= { 0x24, 16 },
+		[HSSRR]		= sci_reg_invalid,
+	},
+
+	/*
+	 * Common HSCIF definitions.
+	 */
+	[SCIx_HSCIF_REGTYPE] = {
+		[SCSMR]		= { 0x00, 16 },
+		[SCBRR]		= { 0x04,  8 },
+		[SCSCR]		= { 0x08, 16 },
+		[SCxTDR]	= { 0x0c,  8 },
+		[SCxSR]		= { 0x10, 16 },
+		[SCxRDR]	= { 0x14,  8 },
+		[SCFCR]		= { 0x18, 16 },
+		[SCFDR]		= { 0x1c, 16 },
+		[SCTFDR]	= sci_reg_invalid,
+		[SCRFDR]	= sci_reg_invalid,
+		[SCSPTR]	= { 0x20, 16 },
+		[SCLSR]		= { 0x24, 16 },
+		[HSSRR]		= { 0x40, 16 },
 	},
 
 	/*
@@ -276,6 +302,7 @@ static struct plat_sci_reg sci_regmap[SCIx_NR_REGTYPES][SCIx_NR_REGS] = {
 		[SCRFDR]	= sci_reg_invalid,
 		[SCSPTR]	= sci_reg_invalid,
 		[SCLSR]		= { 0x24, 16 },
+		[HSSRR]		= sci_reg_invalid,
 	},
 
 	/*
@@ -295,6 +322,7 @@ static struct plat_sci_reg sci_regmap[SCIx_NR_REGTYPES][SCIx_NR_REGS] = {
 		[SCRFDR]	= { 0x20, 16 },
 		[SCSPTR]	= { 0x24, 16 },
 		[SCLSR]		= { 0x28, 16 },
+		[HSSRR]		= sci_reg_invalid,
 	},
 
 	/*
@@ -314,6 +342,7 @@ static struct plat_sci_reg sci_regmap[SCIx_NR_REGTYPES][SCIx_NR_REGS] = {
 		[SCRFDR]	= sci_reg_invalid,
 		[SCSPTR]	= sci_reg_invalid,
 		[SCLSR]		= sci_reg_invalid,
+		[HSSRR]		= sci_reg_invalid,
 	},
 };
 
@@ -374,6 +403,9 @@ static int sci_probe_regmap(struct plat_sci_port *cfg)
 		 * remains the dominant model for all SCIFs.
 		 */
 		cfg->regtype = SCIx_SH4_SCIF_REGTYPE;
+		break;
+	case PORT_HSCIF:
+		cfg->regtype = SCIx_HSCIF_REGTYPE;
 		break;
 	default:
 		printk(KERN_ERR "Can't probe register map for given port\n");
@@ -1799,6 +1831,42 @@ static unsigned int sci_scbrr_calc(unsigned int algo_id, unsigned int bps,
 	return ((freq + 16 * bps) / (32 * bps) - 1);
 }
 
+/* calculate sample rate, BRR, and clock select for HSCIF */
+static void sci_baud_calc_hscif(unsigned int bps, unsigned long freq,
+				int *brr, unsigned int *srr,
+				unsigned int *cks)
+{
+	int sr, c, br, err;
+	int min_err = 1000; /* 100% */
+
+	/* Find the combination of sample rate and clock select with the
+	   smallest deviation from the desired baud rate. */
+	for (sr = 8; sr <= 32; sr++) {
+		for (c = 0; c <= 3; c++) {
+			/* integerized formulas from HSCIF documentation */
+			br = freq / (sr * (1 << (2 * c + 1)) * bps) - 1;
+			if (br < 0 || br > 255)
+				continue;
+			err = freq / ((br + 1) * bps * sr *
+			      (1 << (2 * c + 1)) / 1000) - 1000;
+			if (min_err > err) {
+				min_err = err;
+				*brr = br;
+				*srr = sr - 1;
+				*cks = c;
+			}
+		}
+	}
+
+	if (min_err == 1000) {
+		WARN_ON(1);
+		/* use defaults */
+		*brr = 255;
+		*srr = 15;
+		*cks = 0;
+	}
+}
+
 static void sci_reset(struct uart_port *port)
 {
 	struct plat_sci_reg *reg;
@@ -1822,6 +1890,7 @@ static void sci_set_termios(struct uart_port *port, struct ktermios *termios,
 	struct plat_sci_reg *reg;
 	unsigned int baud, smr_val, max_baud, cks;
 	int t = -1;
+	unsigned int srr;
 
 	/*
 	 * earlyprintk comes here early on with port->uartclk set to zero.
@@ -1834,8 +1903,17 @@ static void sci_set_termios(struct uart_port *port, struct ktermios *termios,
 	max_baud = port->uartclk ? port->uartclk / 16 : 115200;
 
 	baud = uart_get_baud_rate(port, termios, old, 0, max_baud);
-	if (likely(baud && port->uartclk))
-		t = sci_scbrr_calc(s->cfg->scbrr_algo_id, baud, port->uartclk);
+	if (likely(baud && port->uartclk)) {
+		if (s->cfg->scbrr_algo_id == SCBRR_ALGO_6) {
+			sci_baud_calc_hscif(baud, port->uartclk, &t, &srr,
+					    &cks);
+		} else {
+			t = sci_scbrr_calc(s->cfg->scbrr_algo_id, baud,
+					   port->uartclk);
+			for (cks = 0; t >= 256 && cks <= 3; cks++)
+				t >>= 2;
+		}
+	}
 
 	sci_port_enable(s);
 
@@ -1854,15 +1932,15 @@ static void sci_set_termios(struct uart_port *port, struct ktermios *termios,
 
 	uart_update_timeout(port, termios->c_cflag, baud);
 
-	for (cks = 0; t >= 256 && cks <= 3; cks++)
-		t >>= 2;
-
 	dev_dbg(port->dev, "%s: SMR %x, cks %x, t %x, SCSCR %x\n",
 		__func__, smr_val, cks, t, s->cfg->scscr);
 
 	if (t >= 0) {
 		serial_port_out(port, SCSMR, (smr_val & ~3) | cks);
 		serial_port_out(port, SCBRR, t);
+		reg = sci_getreg(port, HSSRR);
+		if (reg->size)
+			serial_port_out(port, HSSRR, srr | HSCIF_SRE);
 		udelay((1000000+(baud-1)) / baud); /* Wait one bit interval */
 	} else
 		serial_port_out(port, SCSMR, smr_val);
@@ -1948,6 +2026,8 @@ static const char *sci_type(struct uart_port *port)
 		return "scifa";
 	case PORT_SCIFB:
 		return "scifb";
+	case PORT_HSCIF:
+		return "hscif";
 	}
 
 	return NULL;
@@ -1961,7 +2041,10 @@ static inline unsigned long sci_port_size(struct uart_port *port)
 	 * from platform resource data at such a time that ports begin to
 	 * behave more erratically.
 	 */
-	return 64;
+	if (port->type == PORT_HSCIF)
+		return 96;
+	else
+		return 64;
 }
 
 static int sci_remap_port(struct uart_port *port)
@@ -2085,6 +2168,9 @@ static int sci_init_single(struct platform_device *dev,
 	switch (p->type) {
 	case PORT_SCIFB:
 		port->fifosize = 256;
+		break;
+	case PORT_HSCIF:
+		port->fifosize = 128;
 		break;
 	case PORT_SCIFA:
 		port->fifosize = 64;
@@ -2326,7 +2412,7 @@ static inline int sci_probe_earlyprintk(struct platform_device *pdev)
 #endif /* CONFIG_SERIAL_SH_SCI_CONSOLE */
 
 static char banner[] __initdata =
-	KERN_INFO "SuperH SCI(F) driver initialized\n";
+	KERN_INFO "SuperH (H)SCI(F) driver initialized\n";
 
 static struct uart_driver sci_uart_driver = {
 	.owner		= THIS_MODULE,
@@ -2603,4 +2689,4 @@ module_exit(sci_exit);
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:sh-sci");
 MODULE_AUTHOR("Paul Mundt");
-MODULE_DESCRIPTION("SuperH SCI(F) serial driver");
+MODULE_DESCRIPTION("SuperH (H)SCI(F) serial driver");
