@@ -145,15 +145,15 @@ static struct notifier_block sctp_inet6addr_notifier = {
 };
 
 /* ICMP error handler. */
-SCTP_STATIC void sctp_v6_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
-			     u8 type, u8 code, int offset, __be32 info)
+static void sctp_v6_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
+			u8 type, u8 code, int offset, __be32 info)
 {
 	struct inet6_dev *idev;
 	struct sock *sk;
 	struct sctp_association *asoc;
 	struct sctp_transport *transport;
 	struct ipv6_pinfo *np;
-	sk_buff_data_t saveip, savesctp;
+	__u16 saveip, savesctp;
 	int err;
 	struct net *net = dev_net(skb->dev);
 
@@ -402,7 +402,7 @@ static void sctp_v6_copy_addrlist(struct list_head *addrlist,
 	read_lock_bh(&in6_dev->lock);
 	list_for_each_entry(ifp, &in6_dev->addr_list, if_list) {
 		/* Add the address to the local list.  */
-		addr = t_new(struct sctp_sockaddr_entry, GFP_ATOMIC);
+		addr = kzalloc(sizeof(*addr), GFP_ATOMIC);
 		if (addr) {
 			addr->a.v6.sin6_family = AF_INET6;
 			addr->a.v6.sin6_port = 0;

@@ -153,7 +153,7 @@ static void sctp_v4_copy_addrlist(struct list_head *addrlist,
 
 	for (ifa = in_dev->ifa_list; ifa; ifa = ifa->ifa_next) {
 		/* Add the address to the local list.  */
-		addr = t_new(struct sctp_sockaddr_entry, GFP_ATOMIC);
+		addr = kzalloc(sizeof(*addr), GFP_ATOMIC);
 		if (addr) {
 			addr->a.v4.sin_family = AF_INET;
 			addr->a.v4.sin_port = 0;
@@ -178,7 +178,7 @@ static void sctp_get_local_addr_list(struct net *net)
 
 	rcu_read_lock();
 	for_each_netdev_rcu(net, dev) {
-		__list_for_each(pos, &sctp_address_families) {
+		list_for_each(pos, &sctp_address_families) {
 			af = list_entry(pos, struct sctp_af, list);
 			af->copy_addrlist(&net->sctp.local_addr_list, dev);
 		}
@@ -1312,7 +1312,7 @@ static struct pernet_operations sctp_net_ops = {
 };
 
 /* Initialize the universe into something sensible.  */
-SCTP_STATIC __init int sctp_init(void)
+static __init int sctp_init(void)
 {
 	int i;
 	int status = -EINVAL;
@@ -1499,7 +1499,7 @@ err_chunk_cachep:
 }
 
 /* Exit handler for the SCTP protocol.  */
-SCTP_STATIC __exit void sctp_exit(void)
+static __exit void sctp_exit(void)
 {
 	/* BUG.  This should probably do something useful like clean
 	 * up all the remaining associations and all that memory.

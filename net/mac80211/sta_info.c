@@ -358,6 +358,8 @@ struct sta_info *sta_info_alloc(struct ieee80211_sub_if_data *sdata,
 	do_posix_clock_monotonic_gettime(&uptime);
 	sta->last_connected = uptime.tv_sec;
 	ewma_init(&sta->avg_signal, 1024, 8);
+	for (i = 0; i < ARRAY_SIZE(sta->chain_signal_avg); i++)
+		ewma_init(&sta->chain_signal_avg[i], 1024, 8);
 
 	if (sta_prepare_rate_control(local, sta, gfp)) {
 		kfree(sta);
@@ -1130,6 +1132,7 @@ static void ieee80211_send_null_response(struct ieee80211_sub_if_data *sdata,
 	 * ends the poll/service period.
 	 */
 	info->flags |= IEEE80211_TX_CTL_NO_PS_BUFFER |
+		       IEEE80211_TX_CTL_PS_RESPONSE |
 		       IEEE80211_TX_STATUS_EOSP |
 		       IEEE80211_TX_CTL_REQ_TX_STATUS;
 
@@ -1267,7 +1270,8 @@ ieee80211_sta_ps_deliver_response(struct sta_info *sta,
 			 * STA may still remain is PS mode after this frame
 			 * exchange.
 			 */
-			info->flags |= IEEE80211_TX_CTL_NO_PS_BUFFER;
+			info->flags |= IEEE80211_TX_CTL_NO_PS_BUFFER |
+				       IEEE80211_TX_CTL_PS_RESPONSE;
 
 			/*
 			 * Use MoreData flag to indicate whether there are

@@ -46,6 +46,7 @@ struct netlink_kernel_cfg {
 	void		(*input)(struct sk_buff *skb);
 	struct mutex	*cb_mutex;
 	void		(*bind)(int group);
+	bool		(*compare)(struct net *net, struct sock *sk);
 };
 
 extern struct sock *__netlink_kernel_create(struct net *net, int unit,
@@ -143,5 +144,15 @@ static inline int netlink_dump_start(struct sock *ssk, struct sk_buff *skb,
 
 	return __netlink_dump_start(ssk, skb, nlh, control);
 }
+
+struct netlink_tap {
+	struct net_device *dev;
+	struct module *module;
+	struct list_head list;
+};
+
+extern int netlink_add_tap(struct netlink_tap *nt);
+extern int __netlink_remove_tap(struct netlink_tap *nt);
+extern int netlink_remove_tap(struct netlink_tap *nt);
 
 #endif	/* __LINUX_NETLINK_H */

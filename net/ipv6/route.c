@@ -1649,7 +1649,7 @@ static void rt6_do_redirect(struct dst_entry *dst, struct sock *sk, struct sk_bu
 	int optlen, on_link;
 	u8 *lladdr;
 
-	optlen = skb->tail - skb->transport_header;
+	optlen = skb_tail_pointer(skb) - skb_transport_header(skb);
 	optlen -= sizeof(*msg);
 
 	if (optlen < 0) {
@@ -2681,9 +2681,9 @@ errout:
 }
 
 static int ip6_route_dev_notify(struct notifier_block *this,
-				unsigned long event, void *data)
+				unsigned long event, void *ptr)
 {
-	struct net_device *dev = (struct net_device *)data;
+	struct net_device *dev = netdev_notifier_info_to_dev(ptr);
 	struct net *net = dev_net(dev);
 
 	if (event == NETDEV_REGISTER && (dev->flags & IFF_LOOPBACK)) {
@@ -2790,7 +2790,7 @@ static const struct file_operations rt6_stats_seq_fops = {
 #ifdef CONFIG_SYSCTL
 
 static
-int ipv6_sysctl_rtcache_flush(ctl_table *ctl, int write,
+int ipv6_sysctl_rtcache_flush(struct ctl_table *ctl, int write,
 			      void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	struct net *net;
@@ -2805,7 +2805,7 @@ int ipv6_sysctl_rtcache_flush(ctl_table *ctl, int write,
 	return 0;
 }
 
-ctl_table ipv6_route_table_template[] = {
+struct ctl_table ipv6_route_table_template[] = {
 	{
 		.procname	=	"flush",
 		.data		=	&init_net.ipv6.sysctl.flush_delay,

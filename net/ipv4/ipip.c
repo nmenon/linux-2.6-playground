@@ -188,8 +188,12 @@ static int ipip_rcv(struct sk_buff *skb)
 	struct net *net = dev_net(skb->dev);
 	struct ip_tunnel_net *itn = net_generic(net, ipip_net_id);
 	struct ip_tunnel *tunnel;
-	const struct iphdr *iph = ip_hdr(skb);
+	const struct iphdr *iph;
 
+	if (iptunnel_pull_header(skb, 0, tpi.proto))
+		goto drop;
+
+	iph = ip_hdr(skb);
 	tunnel = ip_tunnel_lookup(itn, skb->dev->ifindex, TUNNEL_NO_KEY,
 			iph->saddr, iph->daddr, 0);
 	if (tunnel) {
@@ -222,7 +226,7 @@ static netdev_tx_t ipip_tunnel_xmit(struct sk_buff *skb, struct net_device *dev)
 		skb->encapsulation = 1;
 	}
 
-	ip_tunnel_xmit(skb, dev, tiph);
+	ip_tunnel_xmit(skb, dev, tiph, tiph->protocol);
 	return NETDEV_TX_OK;
 
 tx_error:

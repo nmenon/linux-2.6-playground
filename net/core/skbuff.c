@@ -199,9 +199,7 @@ struct sk_buff *__alloc_skb_head(gfp_t gfp_mask, int node)
 	skb->truesize = sizeof(struct sk_buff);
 	atomic_set(&skb->users, 1);
 
-#ifdef NET_SKBUFF_DATA_USES_OFFSET
-	skb->mac_header = ~0U;
-#endif
+	skb->mac_header = (typeof(skb->mac_header))~0U;
 out:
 	return skb;
 }
@@ -275,10 +273,8 @@ struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
 	skb->data = data;
 	skb_reset_tail_pointer(skb);
 	skb->end = skb->tail + size;
-#ifdef NET_SKBUFF_DATA_USES_OFFSET
-	skb->mac_header = ~0U;
-	skb->transport_header = ~0U;
-#endif
+	skb->mac_header = (typeof(skb->mac_header))~0U;
+	skb->transport_header = (typeof(skb->transport_header))~0U;
 
 	/* make sure we initialize shinfo sequentially */
 	shinfo = skb_shinfo(skb);
@@ -344,10 +340,8 @@ struct sk_buff *build_skb(void *data, unsigned int frag_size)
 	skb->data = data;
 	skb_reset_tail_pointer(skb);
 	skb->end = skb->tail + size;
-#ifdef NET_SKBUFF_DATA_USES_OFFSET
-	skb->mac_header = ~0U;
-	skb->transport_header = ~0U;
-#endif
+	skb->mac_header = (typeof(skb->mac_header))~0U;
+	skb->transport_header = (typeof(skb->transport_header))~0U;
 
 	/* make sure we initialize shinfo sequentially */
 	shinfo = skb_shinfo(skb);
@@ -743,6 +737,10 @@ static void __copy_skb_header(struct sk_buff *new, const struct sk_buff *old)
 	new->vlan_tci		= old->vlan_tci;
 
 	skb_copy_secmark(new, old);
+
+#ifdef CONFIG_NET_LL_RX_POLL
+	new->napi_id	= old->napi_id;
+#endif
 }
 
 /*
@@ -915,18 +913,8 @@ static void skb_headers_offset_update(struct sk_buff *skb, int off)
 
 static void copy_skb_header(struct sk_buff *new, const struct sk_buff *old)
 {
-#ifndef NET_SKBUFF_DATA_USES_OFFSET
-	/*
-	 *	Shift between the two data areas in bytes
-	 */
-	unsigned long offset = new->data - old->data;
-#endif
-
 	__copy_skb_header(new, old);
 
-#ifndef NET_SKBUFF_DATA_USES_OFFSET
-	skb_headers_offset_update(new, offset);
-#endif
 	skb_shinfo(new)->gso_size = skb_shinfo(old)->gso_size;
 	skb_shinfo(new)->gso_segs = skb_shinfo(old)->gso_segs;
 	skb_shinfo(new)->gso_type = skb_shinfo(old)->gso_type;
@@ -1118,7 +1106,7 @@ int pskb_expand_head(struct sk_buff *skb, int nhead, int ntail,
 	skb->end      = skb->head + size;
 #endif
 	skb->tail	      += off;
-	skb_headers_offset_update(skb, off);
+	skb_headers_offset_update(skb, nhead);
 	/* Only adjust this if it actually is csum_start rather than csum */
 	if (skb->ip_summed == CHECKSUM_PARTIAL)
 		skb->csum_start += nhead;
@@ -1213,9 +1201,8 @@ struct sk_buff *skb_copy_expand(const struct sk_buff *skb,
 	off                  = newheadroom - oldheadroom;
 	if (n->ip_summed == CHECKSUM_PARTIAL)
 		n->csum_start += off;
-#ifdef NET_SKBUFF_DATA_USES_OFFSET
+
 	skb_headers_offset_update(n, off);
-#endif
 
 	return n;
 }
@@ -2558,8 +2545,13 @@ unsigned int skb_seq_read(unsigned int consumed, const u8 **data,
 	unsigned int block_limit, abs_offset = consumed + st->lower_offset;
 	skb_frag_t *frag;
 
-	if (unlikely(abs_offset >= st->upper_offset))
+	if (unlikely(abs_offset >= st->upper_offset)) {
+		if (st->frag_data) {
+			kunmap_atomic(st->frag_data);
+			st->frag_data = NULL;
+		}
 		return 0;
+	}
 
 next_skb:
 	block_limit = skb_headlen(st->cur_skb) + st->stepped_offset;
@@ -2857,7 +2849,7 @@ struct sk_buff *skb_segment(struct sk_buff *skb, netdev_features_t features)
 						 doffset + tnl_hlen);
 
 		if (fskb != skb_shinfo(skb)->frag_list)
-			continue;
+			goto perform_csum_check;
 
 		if (!sg) {
 			nskb->ip_summed = CHECKSUM_NONE;
@@ -2921,6 +2913,7 @@ skip_fraglist:
 		nskb->len += nskb->data_len;
 		nskb->truesize += nskb->data_len;
 
+perform_csum_check:
 		if (!csum) {
 			nskb->csum = skb_checksum(nskb, doffset,
 						  nskb->len - doffset, 0);

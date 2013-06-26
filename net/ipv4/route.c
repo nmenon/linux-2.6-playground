@@ -594,11 +594,25 @@ static inline u32 fnhe_hashfun(__be32 daddr)
 	return hval & (FNHE_HASH_SIZE - 1);
 }
 
+static void fill_route_from_fnhe(struct rtable *rt, struct fib_nh_exception *fnhe)
+{
+	rt->rt_pmtu = fnhe->fnhe_pmtu;
+	rt->dst.expires = fnhe->fnhe_expires;
+
+	if (fnhe->fnhe_gw) {
+		rt->rt_flags |= RTCF_REDIRECTED;
+		rt->rt_gateway = fnhe->fnhe_gw;
+		rt->rt_uses_gateway = 1;
+	}
+}
+
 static void update_or_create_fnhe(struct fib_nh *nh, __be32 daddr, __be32 gw,
 				  u32 pmtu, unsigned long expires)
 {
 	struct fnhe_hash_bucket *hash;
 	struct fib_nh_exception *fnhe;
+	struct rtable *rt;
+	unsigned int i;
 	int depth;
 	u32 hval = fnhe_hashfun(daddr);
 
@@ -627,8 +641,12 @@ static void update_or_create_fnhe(struct fib_nh *nh, __be32 daddr, __be32 gw,
 			fnhe->fnhe_gw = gw;
 		if (pmtu) {
 			fnhe->fnhe_pmtu = pmtu;
-			fnhe->fnhe_expires = expires;
+			fnhe->fnhe_expires = max(1UL, expires);
 		}
+		/* Update all cached dsts too */
+		rt = rcu_dereference(fnhe->fnhe_rth);
+		if (rt)
+			fill_route_from_fnhe(rt, fnhe);
 	} else {
 		if (depth > FNHE_RECLAIM_DEPTH)
 			fnhe = fnhe_oldest(hash);
@@ -640,10 +658,23 @@ static void update_or_create_fnhe(struct fib_nh *nh, __be32 daddr, __be32 gw,
 			fnhe->fnhe_next = hash->chain;
 			rcu_assign_pointer(hash->chain, fnhe);
 		}
+		fnhe->fnhe_genid = fnhe_genid(dev_net(nh->nh_dev));
 		fnhe->fnhe_daddr = daddr;
 		fnhe->fnhe_gw = gw;
 		fnhe->fnhe_pmtu = pmtu;
 		fnhe->fnhe_expires = expires;
+
+		/* Exception created; mark the cached routes for the nexthop
+		 * stale, so anyone caching it rechecks if this exception
+		 * applies to them.
+		 */
+		for_each_possible_cpu(i) {
+			struct rtable __rcu **prt;
+			prt = per_cpu_ptr(nh->nh_pcpu_rth_output, i);
+			rt = rcu_dereference(*prt);
+			if (rt)
+				rt->dst.obsolete = DST_OBSOLETE_KILL;
+		}
 	}
 
 	fnhe->fnhe_stamp = jiffies;
@@ -922,12 +953,9 @@ static void __ip_rt_update_pmtu(struct rtable *rt, struct flowi4 *fl4, u32 mtu)
 	if (mtu < ip_rt_min_pmtu)
 		mtu = ip_rt_min_pmtu;
 
-	if (!rt->rt_pmtu) {
-		dst->obsolete = DST_OBSOLETE_KILL;
-	} else {
-		rt->rt_pmtu = mtu;
-		dst->expires = max(1UL, jiffies + ip_rt_mtu_expires);
-	}
+	if (rt->rt_pmtu == mtu &&
+	    time_before(jiffies, dst->expires - ip_rt_mtu_expires / 2))
+		return;
 
 	rcu_read_lock();
 	if (fib_lookup(dev_net(dst->dev), fl4, &res) == 0) {
@@ -1068,11 +1096,11 @@ static struct dst_entry *ipv4_dst_check(struct dst_entry *dst, u32 cookie)
 	 * DST_OBSOLETE_FORCE_CHK which forces validation calls down
 	 * into this function always.
 	 *
-	 * When a PMTU/redirect information update invalidates a
-	 * route, this is indicated by setting obsolete to
-	 * DST_OBSOLETE_KILL.
+	 * When a PMTU/redirect information update invalidates a route,
+	 * this is indicated by setting obsolete to DST_OBSOLETE_KILL or
+	 * DST_OBSOLETE_DEAD by dst_free().
 	 */
-	if (dst->obsolete == DST_OBSOLETE_KILL || rt_is_expired(rt))
+	if (dst->obsolete != DST_OBSOLETE_FORCE_CHK || rt_is_expired(rt))
 		return NULL;
 	return dst;
 }
@@ -1214,26 +1242,17 @@ static bool rt_bind_exception(struct rtable *rt, struct fib_nh_exception *fnhe,
 	spin_lock_bh(&fnhe_lock);
 
 	if (daddr == fnhe->fnhe_daddr) {
+		int genid = fnhe_genid(dev_net(rt->dst.dev));
 		struct rtable *orig = rcu_dereference(fnhe->fnhe_rth);
-		if (orig && rt_is_expired(orig)) {
+
+		if (fnhe->fnhe_genid != genid) {
+			fnhe->fnhe_genid = genid;
 			fnhe->fnhe_gw = 0;
 			fnhe->fnhe_pmtu = 0;
 			fnhe->fnhe_expires = 0;
 		}
-		if (fnhe->fnhe_pmtu) {
-			unsigned long expires = fnhe->fnhe_expires;
-			unsigned long diff = expires - jiffies;
-
-			if (time_before(jiffies, expires)) {
-				rt->rt_pmtu = fnhe->fnhe_pmtu;
-				dst_set_expires(&rt->dst, diff);
-			}
-		}
-		if (fnhe->fnhe_gw) {
-			rt->rt_flags |= RTCF_REDIRECTED;
-			rt->rt_gateway = fnhe->fnhe_gw;
-			rt->rt_uses_gateway = 1;
-		} else if (!rt->rt_gateway)
+		fill_route_from_fnhe(rt, fnhe);
+		if (!rt->rt_gateway)
 			rt->rt_gateway = daddr;
 
 		rcu_assign_pointer(fnhe->fnhe_rth, rt);
@@ -2429,19 +2448,22 @@ static int ip_rt_gc_interval __read_mostly  = 60 * HZ;
 static int ip_rt_gc_min_interval __read_mostly	= HZ / 2;
 static int ip_rt_gc_elasticity __read_mostly	= 8;
 
-static int ipv4_sysctl_rtcache_flush(ctl_table *__ctl, int write,
+static int ipv4_sysctl_rtcache_flush(struct ctl_table *__ctl, int write,
 					void __user *buffer,
 					size_t *lenp, loff_t *ppos)
 {
+	struct net *net = (struct net *)__ctl->extra1;
+
 	if (write) {
-		rt_cache_flush((struct net *)__ctl->extra1);
+		rt_cache_flush(net);
+		fnhe_genid_bump(net);
 		return 0;
 	}
 
 	return -EINVAL;
 }
 
-static ctl_table ipv4_route_table[] = {
+static struct ctl_table ipv4_route_table[] = {
 	{
 		.procname	= "gc_thresh",
 		.data		= &ipv4_dst_ops.gc_thresh,
@@ -2609,6 +2631,7 @@ static __net_initdata struct pernet_operations sysctl_route_ops = {
 static __net_init int rt_genid_init(struct net *net)
 {
 	atomic_set(&net->rt_genid, 0);
+	atomic_set(&net->fnhe_genid, 0);
 	get_random_bytes(&net->ipv4.dev_addr_genid,
 			 sizeof(net->ipv4.dev_addr_genid));
 	return 0;

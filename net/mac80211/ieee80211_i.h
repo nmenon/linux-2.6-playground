@@ -366,7 +366,7 @@ struct ieee80211_mgd_assoc_data {
 	u8 ssid_len;
 	u8 supp_rates_len;
 	bool wmm, uapsd;
-	bool have_beacon, need_beacon;
+	bool need_beacon;
 	bool synced;
 	bool timeout_started;
 
@@ -394,7 +394,6 @@ struct ieee80211_if_managed {
 	bool nullfunc_failed;
 	bool connection_loss;
 
-	struct mutex mtx;
 	struct cfg80211_bss *associated;
 	struct ieee80211_mgd_auth_data *auth_data;
 	struct ieee80211_mgd_assoc_data *assoc_data;
@@ -405,6 +404,7 @@ struct ieee80211_if_managed {
 
 	bool powersave; /* powersave requested for this iface */
 	bool broken_ap; /* AP is broken -- turn off powersave */
+	bool have_beacon;
 	u8 dtim_period;
 	enum ieee80211_smps_mode req_smps, /* requested smps mode */
 				 driver_smps_mode; /* smps mode request */
@@ -487,8 +487,6 @@ struct ieee80211_if_managed {
 
 struct ieee80211_if_ibss {
 	struct timer_list timer;
-
-	struct mutex mtx;
 
 	unsigned long last_scan_completed;
 
@@ -580,8 +578,6 @@ struct ieee80211_if_mesh {
 	bool accepting_plinks;
 	int num_gates;
 	struct beacon_data __rcu *beacon;
-	/* just protects beacon updates for now */
-	struct mutex mtx;
 	const u8 *ie;
 	u8 ie_len;
 	enum {
@@ -776,6 +772,26 @@ static inline
 struct ieee80211_sub_if_data *vif_to_sdata(struct ieee80211_vif *p)
 {
 	return container_of(p, struct ieee80211_sub_if_data, vif);
+}
+
+static inline void sdata_lock(struct ieee80211_sub_if_data *sdata)
+	__acquires(&sdata->wdev.mtx)
+{
+	mutex_lock(&sdata->wdev.mtx);
+	__acquire(&sdata->wdev.mtx);
+}
+
+static inline void sdata_unlock(struct ieee80211_sub_if_data *sdata)
+	__releases(&sdata->wdev.mtx)
+{
+	mutex_unlock(&sdata->wdev.mtx);
+	__release(&sdata->wdev.mtx);
+}
+
+static inline void
+sdata_assert_lock(struct ieee80211_sub_if_data *sdata)
+{
+	lockdep_assert_held(&sdata->wdev.mtx);
 }
 
 static inline enum ieee80211_band
@@ -1506,9 +1522,6 @@ static inline void ieee802_11_parse_elems(const u8 *start, size_t len,
 {
 	ieee802_11_parse_elems_crc(start, len, action, elems, 0, 0);
 }
-
-u32 ieee80211_mandatory_rates(struct ieee80211_local *local,
-			      enum ieee80211_band band);
 
 void ieee80211_dynamic_ps_enable_work(struct work_struct *work);
 void ieee80211_dynamic_ps_disable_work(struct work_struct *work);

@@ -99,14 +99,6 @@
 #define SCTP_PROTOSW_FLAG INET_PROTOSW_PERMANENT
 #endif
 
-
-/* Certain internal static functions need to be exported when
- * compiled into the test frame.
- */
-#ifndef SCTP_STATIC
-#define SCTP_STATIC static
-#endif
-
 /*
  * Function declarations.
  */
@@ -196,11 +188,6 @@ extern struct kmem_cache *sctp_bucket_cachep __read_mostly;
  *  Section:  Macros, externs, and inlines
  */
 
-
-#ifdef TEST_FRAME
-#include <test_frame.h>
-#else
-
 /* spin lock wrappers. */
 #define sctp_spin_lock_irqsave(lock, flags) spin_lock_irqsave(lock, flags)
 #define sctp_spin_unlock_irqrestore(lock, flags)  \
@@ -225,8 +212,6 @@ extern struct kmem_cache *sctp_bucket_cachep __read_mostly;
 #define SCTP_INC_STATS_BH(net, field)   SNMP_INC_STATS_BH((net)->sctp.sctp_statistics, field)
 #define SCTP_INC_STATS_USER(net, field) SNMP_INC_STATS_USER((net)->sctp.sctp_statistics, field)
 #define SCTP_DEC_STATS(net, field)      SNMP_DEC_STATS((net)->sctp.sctp_statistics, field)
-
-#endif /* !TEST_FRAME */
 
 /* sctp mib definitions */
 enum {
@@ -574,27 +559,6 @@ for (pos = chunk->subh.fwdtsn_hdr->skip;\
 
 /* Round an int up to the next multiple of 4.  */
 #define WORD_ROUND(s) (((s)+3)&~3)
-
-/* Make a new instance of type.  */
-#define t_new(type, flags)	kzalloc(sizeof(type), flags)
-
-/* Compare two timevals.  */
-#define tv_lt(s, t) \
-   (s.tv_sec < t.tv_sec || (s.tv_sec == t.tv_sec && s.tv_usec < t.tv_usec))
-
-/* Add tv1 to tv2. */
-#define TIMEVAL_ADD(tv1, tv2) \
-({ \
-        suseconds_t usecs = (tv2).tv_usec + (tv1).tv_usec; \
-        time_t secs = (tv2).tv_sec + (tv1).tv_sec; \
-\
-        if (usecs >= 1000000) { \
-                usecs -= 1000000; \
-                secs++; \
-        } \
-        (tv2).tv_sec = secs; \
-        (tv2).tv_usec = usecs; \
-})
 
 /* External references. */
 
