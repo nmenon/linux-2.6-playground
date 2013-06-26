@@ -404,8 +404,10 @@ static int scs_probe(struct fw_unit *unit, const struct ieee1394_device_id *id)
 	scs->output_idle = true;
 
 	scs->buffer = kmalloc(HSS1394_MAX_PACKET_SIZE, GFP_KERNEL);
-	if (!scs->buffer)
+	if (!scs->buffer) {
+		err = -ENOMEM;
 		goto err_card;
+	}
 
 	scs->hss_handler.length = HSS1394_MAX_PACKET_SIZE;
 	scs->hss_handler.address_callback = handle_hss;
