@@ -102,12 +102,20 @@
 				clock-names = "ipg", "per";
 			};
 
-			pwm0: pwm@10006000 {
+			pwm: pwm@10006000 {
 				compatible = "fsl,imx27-pwm";
 				reg = <0x10006000 0x1000>;
 				interrupts = <23>;
 				clocks = <&clks 34>, <&clks 61>;
 				clock-names = "ipg", "per";
+			};
+
+			kpp: kpp@10008000 {
+				compatible = "fsl,imx27-kpp", "fsl,imx21-kpp";
+				reg = <0x10008000 0x1000>;
+				interrupts = <21>;
+				clocks = <&clks 37>;
+				status = "disabled";
 			};
 
 			uart1: serial@1000a000 {
@@ -260,6 +268,13 @@
 				#interrupt-cells = <2>;
 			};
 
+			audmux: audmux@10016000 {
+				compatible = "fsl,imx27-audmux", "fsl,imx21-audmux";
+				reg = <0x10016000 0x1000>;
+				clocks = <&clks 0>;
+				clock-names = "audmux";
+			};
+
 			cspi3: cspi@10017000 {
 				#address-cells = <1>;
 				#size-cells = <0>;
@@ -351,6 +366,14 @@
 				iram = <&iram>;
 			};
 
+			sahara2: sahara@10025000 {
+				compatible = "fsl,imx27-sahara";
+				reg = <0x10025000 0x1000>;
+				interrupts = <59>;
+				clocks = <&clks 32>, <&clks 64>;
+				clock-names = "ipg", "ahb";
+			};
+
 			clks: ccm@10027000{
 				compatible = "fsl,imx27-ccm";
 				reg = <0x10027000 0x1000>;
@@ -367,11 +390,6 @@
 			};
 		};
 
-		iram: iram@ffff4c00 {
-			compatible = "mmio-sram";
-			reg = <0xffff4c00 0xb400>;
-		};
-
 		nfc: nand@d8000000 {
 			#address-cells = <1>;
 			#size-cells = <1>;
@@ -380,6 +398,11 @@
 			interrupts = <29>;
 			clocks = <&clks 54>;
 			status = "disabled";
+		};
+
+		iram: iram@ffff4c00 {
+			compatible = "mmio-sram";
+			reg = <0xffff4c00 0xb400>;
 		};
 	};
 };
