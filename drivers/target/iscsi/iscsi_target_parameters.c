@@ -545,7 +545,8 @@ int iscsi_set_keys_to_negotiate(
 }
 
 int iscsi_set_keys_irrelevant_for_discovery(
-	struct iscsi_param_list *param_list)
+	struct iscsi_param_list *param_list,
+	bool iser)
 {
 	struct iscsi_param *param;
 
@@ -582,10 +583,15 @@ int iscsi_set_keys_irrelevant_for_discovery(
 			param->state &= ~PSTATE_NEGOTIATE;
 		else if (!strcmp(param->name, RDMAEXTENSIONS))
 			param->state &= ~PSTATE_NEGOTIATE;
-		else if (!strcmp(param->name, INITIATORRECVDATASEGMENTLENGTH))
+		else if (!strcmp(param->name, INITIATORRECVDATASEGMENTLENGTH)) {
+			if (!iser)
+				continue;
 			param->state &= ~PSTATE_NEGOTIATE;
-		else if (!strcmp(param->name, TARGETRECVDATASEGMENTLENGTH))
+		} else if (!strcmp(param->name, TARGETRECVDATASEGMENTLENGTH)) {
+			if (!iser)
+				continue;
 			param->state &= ~PSTATE_NEGOTIATE;
+		}
 	}
 
 	return 0;

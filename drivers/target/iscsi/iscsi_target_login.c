@@ -369,7 +369,7 @@ static int iscsi_login_zero_tsih_s2(
 
 	if (sess->sess_ops->SessionType)
 		return iscsi_set_keys_irrelevant_for_discovery(
-				conn->param_list);
+				conn->param_list, iser);
 
 	na = iscsit_tpg_get_node_attrib(sess);
 

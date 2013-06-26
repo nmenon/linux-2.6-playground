@@ -133,6 +133,8 @@ enum cmd_flags_table {
 	ICF_ATTACHED_TO_RQUEUE			= 0x00000040,
 	ICF_OOO_CMDSN				= 0x00000080,
 	ICF_REJECT_FAIL_CONN			= 0x00000100,
+	IFC_SENDTARGETS_ALL			= 0x00000200,
+	IFC_SENDTARGETS_SINGLE			= 0x00000400,
 };
 
 /* struct iscsi_cmd->i_state */
@@ -427,6 +429,8 @@ struct iscsi_cmd {
 	u32			tx_size;
 	/* Buffer used for various purposes */
 	void			*buf_ptr;
+	/* Used by SendTargets=[iqn.,eui.] discovery */
+	void			*text_in_ptr;
 	/* See include/linux/dma-mapping.h */
 	enum dma_data_direction	data_direction;
 	/* iSCSI PDU Header + CRC */
@@ -809,6 +813,7 @@ struct iscsi_portal_group {
 	struct mutex		tpg_access_lock;
 	struct mutex		np_login_lock;
 	struct iscsi_tpg_attrib	tpg_attrib;
+	struct iscsi_node_auth	tpg_demo_auth;
 	/* Pointer to default list of iSCSI parameters for TPG */
 	struct iscsi_param_list	*param_list;
 	struct iscsi_tiqn	*tpg_tiqn;
