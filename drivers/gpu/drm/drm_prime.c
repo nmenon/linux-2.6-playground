@@ -64,6 +64,29 @@ struct drm_prime_member {
 };
 static int drm_prime_add_buf_handle(struct drm_prime_file_private *prime_fpriv, struct dma_buf *dma_buf, uint32_t handle);
 
+static int drm_gem_map_attach(struct dma_buf *dma_buf,
+			      struct device *target_dev,
+			      struct dma_buf_attachment *attach)
+{
+	struct drm_gem_object *obj = dma_buf->priv;
+	struct drm_device *dev = obj->dev;
+
+	if (!dev->driver->gem_prime_pin)
+		return 0;
+
+	return dev->driver->gem_prime_pin(obj);
+}
+
+static void drm_gem_map_detach(struct dma_buf *dma_buf,
+			       struct dma_buf_attachment *attach)
+{
+	struct drm_gem_object *obj = dma_buf->priv;
+	struct drm_device *dev = obj->dev;
+
+	if (dev->driver->gem_prime_unpin)
+		dev->driver->gem_prime_unpin(obj);
+}
+
 static struct sg_table *drm_gem_map_dma_buf(struct dma_buf_attachment *attach,
 		enum dma_data_direction dir)
 {
@@ -146,6 +169,8 @@ static int drm_gem_dmabuf_mmap(struct dma_buf *dma_buf,
 }
 
 static const struct dma_buf_ops drm_gem_prime_dmabuf_ops =  {
+	.attach = drm_gem_map_attach,
+	.detach = drm_gem_map_detach,
 	.map_dma_buf = drm_gem_map_dma_buf,
 	.unmap_dma_buf = drm_gem_unmap_dma_buf,
 	.release = drm_gem_dmabuf_release,
@@ -185,11 +210,6 @@ static const struct dma_buf_ops drm_gem_prime_dmabuf_ops =  {
 struct dma_buf *drm_gem_prime_export(struct drm_device *dev,
 				     struct drm_gem_object *obj, int flags)
 {
-	if (dev->driver->gem_prime_pin) {
-		int ret = dev->driver->gem_prime_pin(obj);
-		if (ret)
-			return ERR_PTR(ret);
-	}
 	return dma_buf_export(obj, &drm_gem_prime_dmabuf_ops, obj->size, flags);
 }
 EXPORT_SYMBOL(drm_gem_prime_export);
@@ -276,7 +296,7 @@ struct drm_gem_object *drm_gem_prime_import(struct drm_device *dev,
 
 	attach = dma_buf_attach(dma_buf, dev->dev);
 	if (IS_ERR(attach))
-		return ERR_PTR(PTR_ERR(attach));
+		return ERR_CAST(attach);
 
 	get_dma_buf(dma_buf);
 

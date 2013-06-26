@@ -128,6 +128,10 @@ module_param_named(disable_power_well, i915_disable_power_well, int, 0600);
 MODULE_PARM_DESC(disable_power_well,
 		 "Disable the power well when possible (default: false)");
 
+int i915_enable_ips __read_mostly = 1;
+module_param_named(enable_ips, i915_enable_ips, int, 0600);
+MODULE_PARM_DESC(enable_ips, "Enable IPS (default: true)");
+
 static struct drm_driver driver;
 extern int intel_agp_enabled;
 
@@ -280,6 +284,7 @@ static const struct intel_device_info intel_ivybridge_m_info = {
 	GEN7_FEATURES,
 	.is_ivybridge = 1,
 	.is_mobile = 1,
+	.has_fbc = 1,
 };
 
 static const struct intel_device_info intel_ivybridge_q_info = {
@@ -308,12 +313,19 @@ static const struct intel_device_info intel_valleyview_d_info = {
 static const struct intel_device_info intel_haswell_d_info = {
 	GEN7_FEATURES,
 	.is_haswell = 1,
+	.has_ddi = 1,
+	.has_fpga_dbg = 1,
+	.has_vebox_ring = 1,
 };
 
 static const struct intel_device_info intel_haswell_m_info = {
 	GEN7_FEATURES,
 	.is_haswell = 1,
 	.is_mobile = 1,
+	.has_ddi = 1,
+	.has_fpga_dbg = 1,
+	.has_fbc = 1,
+	.has_vebox_ring = 1,
 };
 
 static const struct pci_device_id pciidlist[] = {		/* aka */
@@ -549,6 +561,8 @@ static int i915_drm_freeze(struct drm_device *dev)
 		 */
 		list_for_each_entry(crtc, &dev->mode_config.crtc_list, head)
 			dev_priv->display.crtc_disable(crtc);
+
+		intel_modeset_suspend_hw(dev);
 	}
 
 	i915_save_state(dev);
@@ -855,37 +869,14 @@ static int gen6_do_reset(struct drm_device *dev)
 
 int intel_gpu_reset(struct drm_device *dev)
 {
-	struct drm_i915_private *dev_priv = dev->dev_private;
-	int ret = -ENODEV;
-
 	switch (INTEL_INFO(dev)->gen) {
 	case 7:
-	case 6:
-		ret = gen6_do_reset(dev);
-		break;
-	case 5:
-		ret = ironlake_do_reset(dev);
-		break;
-	case 4:
-		ret = i965_do_reset(dev);
-		break;
-	case 2:
-		ret = i8xx_do_reset(dev);
-		break;
+	case 6: return gen6_do_reset(dev);
+	case 5: return ironlake_do_reset(dev);
+	case 4: return i965_do_reset(dev);
+	case 2: return i8xx_do_reset(dev);
+	default: return -ENODEV;
 	}
-
-	/* Also reset the gpu hangman. */
-	if (dev_priv->gpu_error.stop_rings) {
-		DRM_INFO("Simulated gpu hang, resetting stop_rings\n");
-		dev_priv->gpu_error.stop_rings = 0;
-		if (ret == -ENODEV) {
-			DRM_ERROR("Reset not implemented, but ignoring "
-				  "error for simulated gpu hangs\n");
-			ret = 0;
-		}
-	}
-
-	return ret;
 }
 
 /**
@@ -906,6 +897,7 @@ int intel_gpu_reset(struct drm_device *dev)
 int i915_reset(struct drm_device *dev)
 {
 	drm_i915_private_t *dev_priv = dev->dev_private;
+	bool simulated;
 	int ret;
 
 	if (!i915_try_reset)
@@ -915,13 +907,26 @@ int i915_reset(struct drm_device *dev)
 
 	i915_gem_reset(dev);
 
-	ret = -ENODEV;
-	if (get_seconds() - dev_priv->gpu_error.last_reset < 5)
+	simulated = dev_priv->gpu_error.stop_rings != 0;
+
+	if (!simulated && get_seconds() - dev_priv->gpu_error.last_reset < 5) {
 		DRM_ERROR("GPU hanging too fast, declaring wedged!\n");
-	else
+		ret = -ENODEV;
+	} else {
 		ret = intel_gpu_reset(dev);
 
-	dev_priv->gpu_error.last_reset = get_seconds();
+		/* Also reset the gpu hangman. */
+		if (simulated) {
+			DRM_INFO("Simulated gpu hang, resetting stop_rings\n");
+			dev_priv->gpu_error.stop_rings = 0;
+			if (ret == -ENODEV) {
+				DRM_ERROR("Reset not implemented, but ignoring "
+					  "error for simulated gpu hangs\n");
+				ret = 0;
+			}
+		} else
+			dev_priv->gpu_error.last_reset = get_seconds();
+	}
 	if (ret) {
 		DRM_ERROR("Failed to reset chip.\n");
 		mutex_unlock(&dev->struct_mutex);
@@ -983,12 +988,6 @@ static int i915_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
 	struct intel_device_info *intel_info =
 		(struct intel_device_info *) ent->driver_data;
-
-	if (intel_info->is_valleyview)
-		if(!i915_preliminary_hw_support) {
-			DRM_ERROR("Preliminary hardware support disabled\n");
-			return -ENODEV;
-		}
 
 	/* Only bind to function 0 of the device. Early generations
 	 * used function 1 as a placeholder for multi-head. This causes
@@ -1218,16 +1217,16 @@ MODULE_LICENSE("GPL and additional rights");
 static void
 ilk_dummy_write(struct drm_i915_private *dev_priv)
 {
-	/* WaIssueDummyWriteToWakeupFromRC6: Issue a dummy write to wake up the
-	 * chip from rc6 before touching it for real. MI_MODE is masked, hence
-	 * harmless to write 0 into. */
+	/* WaIssueDummyWriteToWakeupFromRC6:ilk Issue a dummy write to wake up
+	 * the chip from rc6 before touching it for real. MI_MODE is masked,
+	 * hence harmless to write 0 into. */
 	I915_WRITE_NOTRACE(MI_MODE, 0);
 }
 
 static void
 hsw_unclaimed_reg_clear(struct drm_i915_private *dev_priv, u32 reg)
 {
-	if (IS_HASWELL(dev_priv->dev) &&
+	if (HAS_FPGA_DBG_UNCLAIMED(dev_priv->dev) &&
 	    (I915_READ_NOTRACE(FPGA_DBG) & FPGA_DBG_RM_NOCLAIM)) {
 		DRM_ERROR("Unknown unclaimed register before writing to %x\n",
 			  reg);
@@ -1238,7 +1237,7 @@ hsw_unclaimed_reg_clear(struct drm_i915_private *dev_priv, u32 reg)
 static void
 hsw_unclaimed_reg_check(struct drm_i915_private *dev_priv, u32 reg)
 {
-	if (IS_HASWELL(dev_priv->dev) &&
+	if (HAS_FPGA_DBG_UNCLAIMED(dev_priv->dev) &&
 	    (I915_READ_NOTRACE(FPGA_DBG) & FPGA_DBG_RM_NOCLAIM)) {
 		DRM_ERROR("Unclaimed write to %x\n", reg);
 		I915_WRITE_NOTRACE(FPGA_DBG, FPGA_DBG_RM_NOCLAIM);
