@@ -59,9 +59,7 @@ address.
 The remote host has several options to receive the kernel messages,
 for example:
 
-1) syslogd
-
-2) netcat
+1) netcat
 
    On distributions using a BSD-based netcat version (e.g. Fedora,
    openSUSE and Ubuntu) the listening port must be specified without
@@ -70,9 +68,19 @@ for example:
    'nc -u -l -p <port>' / 'nc -u -l <port>' or
    'netcat -u -l -p <port>' / 'netcat -u -l <port>'
 
-3) socat
+2) socat
 
    'socat udp-recv:<port> -'
+
+3) cancd
+
+   A daemon written specifically for netconsole that is good at capturing
+   output from many machines.  Using netcat for several machines either
+   interleaves output from all machines or requires the use of per-machine
+   ports.
+
+   https://git.kernel.org/cgit/linux/kernel/git/joern/cancd.git/
+   https://oss.oracle.com/projects/cancd/
 
 Dynamic reconfiguration:
 ========================
