@@ -612,9 +612,11 @@ retry:
 		__cap_delay_requeue(mdsc, ci);
 	}
 
-	if (flags & CEPH_CAP_FLAG_AUTH)
-		ci->i_auth_cap = cap;
-	else if (ci->i_auth_cap == cap) {
+	if (flags & CEPH_CAP_FLAG_AUTH) {
+		if (ci->i_auth_cap == NULL ||
+		    ceph_seq_cmp(ci->i_auth_cap->mseq, mseq) < 0)
+			ci->i_auth_cap = cap;
+	} else if (ci->i_auth_cap == cap) {
 		ci->i_auth_cap = NULL;
 		spin_lock(&mdsc->cap_dirty_lock);
 		if (!list_empty(&ci->i_dirty_item)) {
@@ -1980,8 +1982,15 @@ static void kick_flushing_inode_caps(struct ceph_mds_client *mdsc,
 	cap = ci->i_auth_cap;
 	dout("kick_flushing_inode_caps %p flushing %s flush_seq %lld\n", inode,
 	     ceph_cap_string(ci->i_flushing_caps), ci->i_cap_flush_seq);
+
 	__ceph_flush_snaps(ci, &session, 1);
+
 	if (ci->i_flushing_caps) {
+		spin_lock(&mdsc->cap_dirty_lock);
+		list_move_tail(&ci->i_flushing_item,
+			       &cap->session->s_cap_flushing);
+		spin_unlock(&mdsc->cap_dirty_lock);
+
 		delayed = __send_cap(mdsc, cap, CEPH_CAP_OP_FLUSH,
 				     __ceph_caps_used(ci),
 				     __ceph_caps_wanted(ci),
@@ -3042,21 +3051,19 @@ int ceph_encode_inode_release(void **p, struct inode *inode,
 		     (cap->issued & unless) == 0)) {
 			if ((cap->issued & drop) &&
 			    (cap->issued & unless) == 0) {
-				dout("encode_inode_release %p cap %p %s -> "
-				     "%s\n", inode, cap,
+				int wanted = __ceph_caps_wanted(ci);
+				if ((ci->i_ceph_flags & CEPH_I_NODELAY) == 0)
+					wanted |= cap->mds_wanted;
+				dout("encode_inode_release %p cap %p "
+				     "%s -> %s, wanted %s -> %s\n", inode, cap,
 				     ceph_cap_string(cap->issued),
-				     ceph_cap_string(cap->issued & ~drop));
+				     ceph_cap_string(cap->issued & ~drop),
+				     ceph_cap_string(cap->mds_wanted),
+				     ceph_cap_string(wanted));
+
 				cap->issued &= ~drop;
 				cap->implemented &= ~drop;
-				if (ci->i_ceph_flags & CEPH_I_NODELAY) {
-					int wanted = __ceph_caps_wanted(ci);
-					dout("  wanted %s -> %s (act %s)\n",
-					     ceph_cap_string(cap->mds_wanted),
-					     ceph_cap_string(cap->mds_wanted &
-							     ~wanted),
-					     ceph_cap_string(wanted));
-					cap->mds_wanted &= wanted;
-				}
+				cap->mds_wanted = wanted;
 			} else {
 				dout("encode_inode_release %p cap %p %s"
 				     " (force)\n", inode, cap,
