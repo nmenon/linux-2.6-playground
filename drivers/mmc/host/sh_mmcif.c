@@ -1244,7 +1244,8 @@ static irqreturn_t sh_mmcif_intr(int irq, void *dev_id)
 	u32 state;
 
 	state = sh_mmcif_readl(host->addr, MMCIF_CE_INT);
-	sh_mmcif_writel(host->addr, MMCIF_CE_INT, ~state);
+	sh_mmcif_writel(host->addr, MMCIF_CE_INT,
+			~(state & sh_mmcif_readl(host->addr, MMCIF_CE_INT_MASK)));
 	sh_mmcif_bitclr(host, MMCIF_CE_INT_MASK, state & MASK_CLEAN);
 
 	if (state & ~MASK_CLEAN)
@@ -1500,8 +1501,6 @@ static int sh_mmcif_remove(struct platform_device *pdev)
 	free_irq(irq[0], host);
 	if (irq[1] >= 0)
 		free_irq(irq[1], host);
-
-	platform_set_drvdata(pdev, NULL);
 
 	clk_disable(host->hclk);
 	mmc_free_host(host->mmc);

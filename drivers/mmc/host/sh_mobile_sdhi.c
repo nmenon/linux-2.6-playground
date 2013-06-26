@@ -46,8 +46,6 @@ static const struct sh_mobile_sdhi_of_data sh_mobile_sdhi_of_cfg[] = {
 struct sh_mobile_sdhi {
 	struct clk *clk;
 	struct tmio_mmc_data mmc_data;
-	struct sh_dmae_slave param_tx;
-	struct sh_dmae_slave param_rx;
 	struct tmio_mmc_dma dma_priv;
 };
 
@@ -146,6 +144,7 @@ static int sh_mobile_sdhi_probe(struct platform_device *pdev)
 	struct tmio_mmc_host *host;
 	int irq, ret, i = 0;
 	bool multiplexed_isr = true;
+	struct tmio_mmc_dma *dma_priv;
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(struct sh_mobile_sdhi), GFP_KERNEL);
 	if (priv == NULL) {
@@ -154,6 +153,7 @@ static int sh_mobile_sdhi_probe(struct platform_device *pdev)
 	}
 
 	mmc_data = &priv->mmc_data;
+	dma_priv = &priv->dma_priv;
 
 	if (p) {
 		if (p->init) {
@@ -186,14 +186,22 @@ static int sh_mobile_sdhi_probe(struct platform_device *pdev)
 			mmc_data->get_cd = sh_mobile_sdhi_get_cd;
 
 		if (p->dma_slave_tx > 0 && p->dma_slave_rx > 0) {
-			priv->param_tx.shdma_slave.slave_id = p->dma_slave_tx;
-			priv->param_rx.shdma_slave.slave_id = p->dma_slave_rx;
-			priv->dma_priv.chan_priv_tx = &priv->param_tx.shdma_slave;
-			priv->dma_priv.chan_priv_rx = &priv->param_rx.shdma_slave;
-			priv->dma_priv.alignment_shift = 1; /* 2-byte alignment */
-			mmc_data->dma = &priv->dma_priv;
+			/*
+			 * Yes, we have to provide slave IDs twice to TMIO:
+			 * once as a filter parameter and once for channel
+			 * configuration as an explicit slave ID
+			 */
+			dma_priv->chan_priv_tx = (void *)p->dma_slave_tx;
+			dma_priv->chan_priv_rx = (void *)p->dma_slave_rx;
+			dma_priv->slave_id_tx = p->dma_slave_tx;
+			dma_priv->slave_id_rx = p->dma_slave_rx;
 		}
 	}
+
+	dma_priv->alignment_shift = 1; /* 2-byte alignment */
+	dma_priv->filter = shdma_chan_filter;
+
+	mmc_data->dma = dma_priv;
 
 	/*
 	 * All SDHI blocks support 2-byte and larger block sizes in 4-bit

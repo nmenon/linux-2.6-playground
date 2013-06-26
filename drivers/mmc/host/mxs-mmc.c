@@ -639,6 +639,7 @@ static int mxs_mmc_probe(struct platform_device *pdev)
 	if (!ssp->dmach) {
 		dev_err(mmc_dev(host->mmc),
 			"%s: failed to request dma\n", __func__);
+		ret = -ENODEV;
 		goto out_clk_put;
 	}
 
@@ -707,8 +708,6 @@ static int mxs_mmc_remove(struct platform_device *pdev)
 	struct mxs_ssp *ssp = &host->ssp;
 
 	mmc_remove_host(mmc);
-
-	platform_set_drvdata(pdev, NULL);
 
 	if (ssp->dmach)
 		dma_release_channel(ssp->dmach);
