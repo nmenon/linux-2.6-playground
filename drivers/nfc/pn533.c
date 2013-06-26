@@ -1700,7 +1700,7 @@ static int pn533_poll_complete(struct pn533 *dev, void *arg,
 		goto done;
 
 	if (!dev->poll_mod_count) {
-		nfc_dev_dbg(&dev->interface->dev, "Polling has been stoped.");
+		nfc_dev_dbg(&dev->interface->dev, "Polling has been stopped.");
 		goto done;
 	}
 
