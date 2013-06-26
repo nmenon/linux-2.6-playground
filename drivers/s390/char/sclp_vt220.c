@@ -390,6 +390,8 @@ __sclp_vt220_write(const unsigned char *buf, int count, int do_schedule,
 	do {
 		/* Create an sclp output buffer if none exists yet */
 		if (sclp_vt220_current_request == NULL) {
+			if (list_empty(&sclp_vt220_empty))
+				sclp_console_pages_empty++;
 			while (list_empty(&sclp_vt220_empty)) {
 				spin_unlock_irqrestore(&sclp_vt220_lock, flags);
 				if (may_fail || sclp_vt220_suspended)
@@ -803,7 +805,7 @@ sclp_vt220_con_init(void)
 
 	if (!CONSOLE_IS_SCLP)
 		return 0;
-	rc = __sclp_vt220_init(MAX_CONSOLE_PAGES);
+	rc = __sclp_vt220_init(sclp_console_pages);
 	if (rc)
 		return rc;
 	/* Attach linux console */

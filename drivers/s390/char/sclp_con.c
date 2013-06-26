@@ -150,6 +150,8 @@ sclp_console_write(struct console *console, const char *message,
 	do {
 		/* make sure we have a console output buffer */
 		if (sclp_conbuf == NULL) {
+			if (list_empty(&sclp_con_pages))
+				sclp_console_pages_empty++;
 			while (list_empty(&sclp_con_pages)) {
 				if (sclp_con_suspended)
 					goto out;
@@ -297,7 +299,7 @@ sclp_console_init(void)
 		return rc;
 	/* Allocate pages for output buffering */
 	INIT_LIST_HEAD(&sclp_con_pages);
-	for (i = 0; i < MAX_CONSOLE_PAGES; i++) {
+	for (i = 0; i < sclp_console_pages; i++) {
 		page = (void *) get_zeroed_page(GFP_KERNEL | GFP_DMA);
 		list_add_tail(page, &sclp_con_pages);
 	}
