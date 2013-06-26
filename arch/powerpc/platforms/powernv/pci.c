@@ -20,6 +20,7 @@
 #include <linux/irq.h>
 #include <linux/io.h>
 #include <linux/msi.h>
+#include <linux/iommu.h>
 
 #include <asm/sections.h>
 #include <asm/io.h>
@@ -32,6 +33,8 @@
 #include <asm/iommu.h>
 #include <asm/tce.h>
 #include <asm/firmware.h>
+#include <asm/eeh_event.h>
+#include <asm/eeh.h>
 
 #include "powernv.h"
 #include "pci.h"
@@ -202,7 +205,8 @@ static void pnv_pci_handle_eeh_config(struct pnv_phb *phb, u32 pe_no)
 
 	spin_lock_irqsave(&phb->lock, flags);
 
-	rc = opal_pci_get_phb_diag_data(phb->opal_id, phb->diag.blob, PNV_PCI_DIAG_BUF_SIZE);
+	rc = opal_pci_get_phb_diag_data2(phb->opal_id, phb->diag.blob,
+					 PNV_PCI_DIAG_BUF_SIZE);
 	has_diag = (rc == OPAL_SUCCESS);
 
 	rc = opal_pci_eeh_freeze_clear(phb->opal_id, pe_no,
@@ -258,6 +262,10 @@ static int pnv_pci_read_config(struct pci_bus *bus,
 {
 	struct pci_controller *hose = pci_bus_to_host(bus);
 	struct pnv_phb *phb = hose->private_data;
+#ifdef CONFIG_EEH
+	struct device_node *busdn, *dn;
+	struct eeh_pe *phb_pe = NULL;
+#endif
 	u32 bdfn = (((uint64_t)bus->number) << 8) | devfn;
 	s64 rc;
 
@@ -290,8 +298,34 @@ static int pnv_pci_read_config(struct pci_bus *bus,
 	cfg_dbg("pnv_pci_read_config bus: %x devfn: %x +%x/%x -> %08x\n",
 		bus->number, devfn, where, size, *val);
 
-	/* Check if the PHB got frozen due to an error (no response) */
+	/*
+	 * Check if the specified PE has been put into frozen
+	 * state. On the other hand, we needn't do that while
+	 * the PHB has been put into frozen state because of
+	 * PHB-fatal errors.
+	 */
+#ifdef CONFIG_EEH
+	phb_pe = eeh_phb_pe_get(hose);
+	if (phb_pe && (phb_pe->state & EEH_PE_ISOLATED))
+		return PCIBIOS_SUCCESSFUL;
+
+	if (phb->eeh_enabled) {
+		if (*val == EEH_IO_ERROR_VALUE(size)) {
+			busdn = pci_bus_to_OF_node(bus);
+			for (dn = busdn->child; dn; dn = dn->sibling) {
+				struct pci_dn *pdn = PCI_DN(dn);
+
+				if (pdn && pdn->devfn == devfn &&
+				    eeh_dev_check_failure(of_node_to_eeh_dev(dn)))
+					return PCIBIOS_DEVICE_NOT_FOUND;
+			}
+		}
+	} else {
+		pnv_pci_config_check_eeh(phb, bus, bdfn);
+	}
+#else
 	pnv_pci_config_check_eeh(phb, bus, bdfn);
+#endif
 
 	return PCIBIOS_SUCCESSFUL;
 }
@@ -322,8 +356,14 @@ static int pnv_pci_write_config(struct pci_bus *bus,
 	default:
 		return PCIBIOS_FUNC_NOT_SUPPORTED;
 	}
+
 	/* Check if the PHB got frozen due to an error (no response) */
+#ifdef CONFIG_EEH
+	if (!phb->eeh_enabled)
+		pnv_pci_config_check_eeh(phb, bus, bdfn);
+#else
 	pnv_pci_config_check_eeh(phb, bus, bdfn);
+#endif
 
 	return PCIBIOS_SUCCESSFUL;
 }
@@ -412,6 +452,7 @@ static struct iommu_table *pnv_pci_setup_bml_iommu(struct pci_controller *hose)
 	pnv_pci_setup_iommu_table(tbl, __va(be64_to_cpup(basep)),
 				  be32_to_cpup(sizep), 0);
 	iommu_init_table(tbl, hose->node);
+	iommu_register_group(tbl, pci_domain_nr(hose->bus), 0);
 
 	/* Deal with SW invalidated TCEs when needed (BML way) */
 	swinvp = of_get_property(hose->dn, "linux,tce-sw-invalidate-info",

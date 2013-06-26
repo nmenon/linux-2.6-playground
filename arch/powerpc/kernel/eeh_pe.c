@@ -78,9 +78,7 @@ int eeh_phb_pe_create(struct pci_controller *phb)
 	}
 
 	/* Put it into the list */
-	eeh_lock();
 	list_add_tail(&pe->child, &eeh_phb_pe);
-	eeh_unlock();
 
 	pr_debug("EEH: Add PE for PHB#%d\n", phb->global_number);
 
@@ -95,7 +93,7 @@ int eeh_phb_pe_create(struct pci_controller *phb)
  * hierarchy tree is composed of PHB PEs. The function is used
  * to retrieve the corresponding PHB PE according to the given PHB.
  */
-static struct eeh_pe *eeh_phb_pe_get(struct pci_controller *phb)
+struct eeh_pe *eeh_phb_pe_get(struct pci_controller *phb)
 {
 	struct eeh_pe *pe;
 
@@ -185,20 +183,14 @@ void *eeh_pe_dev_traverse(struct eeh_pe *root,
 		return NULL;
 	}
 
-	eeh_lock();
-
 	/* Traverse root PE */
 	for (pe = root; pe; pe = eeh_pe_next(pe, root)) {
 		eeh_pe_for_each_dev(pe, edev) {
 			ret = fn(edev, flag);
-			if (ret) {
-				eeh_unlock();
+			if (ret)
 				return ret;
-			}
 		}
 	}
-
-	eeh_unlock();
 
 	return NULL;
 }
@@ -228,7 +220,7 @@ static void *__eeh_pe_get(void *data, void *flag)
 		return pe;
 
 	/* Try BDF address */
-	if (edev->pe_config_addr &&
+	if (edev->config_addr &&
 	   (edev->config_addr == pe->config_addr))
 		return pe;
 
@@ -246,7 +238,7 @@ static void *__eeh_pe_get(void *data, void *flag)
  * which is composed of PCI bus/device/function number, or unified
  * PE address.
  */
-static struct eeh_pe *eeh_pe_get(struct eeh_dev *edev)
+struct eeh_pe *eeh_pe_get(struct eeh_dev *edev)
 {
 	struct eeh_pe *root = eeh_phb_pe_get(edev->phb);
 	struct eeh_pe *pe;
@@ -305,8 +297,6 @@ int eeh_add_to_parent_pe(struct eeh_dev *edev)
 {
 	struct eeh_pe *pe, *parent;
 
-	eeh_lock();
-
 	/*
 	 * Search the PE has been existing or not according
 	 * to the PE address. If that has been existing, the
@@ -316,7 +306,6 @@ int eeh_add_to_parent_pe(struct eeh_dev *edev)
 	pe = eeh_pe_get(edev);
 	if (pe && !(pe->type & EEH_PE_INVALID)) {
 		if (!edev->pe_config_addr) {
-			eeh_unlock();
 			pr_err("%s: PE with addr 0x%x already exists\n",
 				__func__, edev->config_addr);
 			return -EEXIST;
@@ -328,7 +317,6 @@ int eeh_add_to_parent_pe(struct eeh_dev *edev)
 
 		/* Put the edev to PE */
 		list_add_tail(&edev->list, &pe->edevs);
-		eeh_unlock();
 		pr_debug("EEH: Add %s to Bus PE#%x\n",
 			edev->dn->full_name, pe->addr);
 
@@ -347,7 +335,6 @@ int eeh_add_to_parent_pe(struct eeh_dev *edev)
 			parent->type &= ~EEH_PE_INVALID;
 			parent = parent->parent;
 		}
-		eeh_unlock();
 		pr_debug("EEH: Add %s to Device PE#%x, Parent PE#%x\n",
 			edev->dn->full_name, pe->addr, pe->parent->addr);
 
@@ -357,12 +344,22 @@ int eeh_add_to_parent_pe(struct eeh_dev *edev)
 	/* Create a new EEH PE */
 	pe = eeh_pe_alloc(edev->phb, EEH_PE_DEVICE);
 	if (!pe) {
-		eeh_unlock();
 		pr_err("%s: out of memory!\n", __func__);
 		return -ENOMEM;
 	}
 	pe->addr	= edev->pe_config_addr;
 	pe->config_addr	= edev->config_addr;
+
+	/*
+	 * While doing PE reset, we probably hot-reset the
+	 * upstream bridge. However, the PCI devices including
+	 * the associated EEH devices might be removed when EEH
+	 * core is doing recovery. So that won't safe to retrieve
+	 * the bridge through downstream EEH device. We have to
+	 * trace the parent PCI bus, then the upstream bridge.
+	 */
+	if (eeh_probe_mode_dev())
+		pe->bus = eeh_dev_to_pci_dev(edev)->bus;
 
 	/*
 	 * Put the new EEH PE into hierarchy tree. If the parent
@@ -374,7 +371,6 @@ int eeh_add_to_parent_pe(struct eeh_dev *edev)
 	if (!parent) {
 		parent = eeh_phb_pe_get(edev->phb);
 		if (!parent) {
-			eeh_unlock();
 			pr_err("%s: No PHB PE is found (PHB Domain=%d)\n",
 				__func__, edev->phb->global_number);
 			edev->pe = NULL;
@@ -391,7 +387,6 @@ int eeh_add_to_parent_pe(struct eeh_dev *edev)
 	list_add_tail(&pe->child, &parent->child_list);
 	list_add_tail(&edev->list, &pe->edevs);
 	edev->pe = pe;
-	eeh_unlock();
 	pr_debug("EEH: Add %s to Device PE#%x, Parent PE#%x\n",
 		edev->dn->full_name, pe->addr, pe->parent->addr);
 
@@ -418,8 +413,6 @@ int eeh_rmv_from_parent_pe(struct eeh_dev *edev, int purge_pe)
 			__func__, edev->dn->full_name);
 		return -EEXIST;
 	}
-
-	eeh_lock();
 
 	/* Remove the EEH device */
 	pe = edev->pe;
@@ -465,9 +458,34 @@ int eeh_rmv_from_parent_pe(struct eeh_dev *edev, int purge_pe)
 		pe = parent;
 	}
 
-	eeh_unlock();
-
 	return 0;
+}
+
+/**
+ * eeh_pe_update_time_stamp - Update PE's frozen time stamp
+ * @pe: EEH PE
+ *
+ * We have time stamp for each PE to trace its time of getting
+ * frozen in last hour. The function should be called to update
+ * the time stamp on first error of the specific PE. On the other
+ * handle, we needn't account for errors happened in last hour.
+ */
+void eeh_pe_update_time_stamp(struct eeh_pe *pe)
+{
+	struct timeval tstamp;
+
+	if (!pe) return;
+
+	if (pe->freeze_count <= 0) {
+		pe->freeze_count = 0;
+		do_gettimeofday(&pe->tstamp);
+	} else {
+		do_gettimeofday(&tstamp);
+		if (tstamp.tv_sec - pe->tstamp.tv_sec > 3600) {
+			pe->tstamp = tstamp;
+			pe->freeze_count = 0;
+		}
+	}
 }
 
 /**
@@ -512,9 +530,7 @@ static void *__eeh_pe_state_mark(void *data, void *flag)
  */
 void eeh_pe_state_mark(struct eeh_pe *pe, int state)
 {
-	eeh_lock();
 	eeh_pe_traverse(pe, __eeh_pe_state_mark, &state);
-	eeh_unlock();
 }
 
 /**
@@ -548,9 +564,7 @@ static void *__eeh_pe_state_clear(void *data, void *flag)
  */
 void eeh_pe_state_clear(struct eeh_pe *pe, int state)
 {
-	eeh_lock();
 	eeh_pe_traverse(pe, __eeh_pe_state_clear, &state);
-	eeh_unlock();
 }
 
 /**
@@ -635,18 +649,21 @@ struct pci_bus *eeh_pe_bus_get(struct eeh_pe *pe)
 	struct eeh_dev *edev;
 	struct pci_dev *pdev;
 
-	eeh_lock();
-
 	if (pe->type & EEH_PE_PHB) {
 		bus = pe->phb->bus;
-	} else if (pe->type & EEH_PE_BUS) {
+	} else if (pe->type & EEH_PE_BUS ||
+		   pe->type & EEH_PE_DEVICE) {
+		if (pe->bus) {
+			bus = pe->bus;
+			goto out;
+		}
+
 		edev = list_first_entry(&pe->edevs, struct eeh_dev, list);
 		pdev = eeh_dev_to_pci_dev(edev);
 		if (pdev)
 			bus = pdev->bus;
 	}
 
-	eeh_unlock();
-
+out:
 	return bus;
 }
