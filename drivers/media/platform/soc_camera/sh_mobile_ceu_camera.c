@@ -27,6 +27,7 @@
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/moduleparam.h>
+#include <linux/of.h>
 #include <linux/time.h>
 #include <linux/slab.h>
 #include <linux/device.h>
@@ -35,6 +36,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/sched.h>
 
+#include <media/v4l2-async.h>
 #include <media/v4l2-common.h>
 #include <media/v4l2-dev.h>
 #include <media/soc_camera.h>
@@ -95,7 +97,10 @@ struct sh_mobile_ceu_buffer {
 
 struct sh_mobile_ceu_dev {
 	struct soc_camera_host ici;
-	struct soc_camera_device *icd;
+	/* Asynchronous CSI2 linking */
+	struct v4l2_async_subdev *csi2_asd;
+	struct v4l2_subdev *csi2_sd;
+	/* Synchronous probing compatibility */
 	struct platform_device *csi2_pdev;
 
 	unsigned int irq;
@@ -119,6 +124,7 @@ struct sh_mobile_ceu_dev {
 
 	enum v4l2_field field;
 	int sequence;
+	unsigned long flags;
 
 	unsigned int image_mode:1;
 	unsigned int is_16bit:1;
@@ -163,7 +169,6 @@ static u32 ceu_read(struct sh_mobile_ceu_dev *priv, unsigned long reg_offs)
 static int sh_mobile_ceu_soft_reset(struct sh_mobile_ceu_dev *pcdev)
 {
 	int i, success = 0;
-	struct soc_camera_device *icd = pcdev->icd;
 
 	ceu_write(pcdev, CAPSR, 1 << 16); /* reset */
 
@@ -185,9 +190,8 @@ static int sh_mobile_ceu_soft_reset(struct sh_mobile_ceu_dev *pcdev)
 		udelay(1);
 	}
 
-
 	if (2 != success) {
-		dev_warn(icd->pdev, "soft reset time out\n");
+		dev_warn(pcdev->ici.v4l2_dev.dev, "soft reset time out\n");
 		return -EIO;
 	}
 
@@ -277,7 +281,7 @@ static int sh_mobile_ceu_videobuf_setup(struct vb2_queue *vq,
  */
 static int sh_mobile_ceu_capture(struct sh_mobile_ceu_dev *pcdev)
 {
-	struct soc_camera_device *icd = pcdev->icd;
+	struct soc_camera_device *icd = pcdev->ici.icd;
 	dma_addr_t phys_addr_top, phys_addr_bottom;
 	unsigned long top1, top2;
 	unsigned long bottom1, bottom2;
@@ -534,30 +538,77 @@ static struct v4l2_subdev *find_csi2(struct sh_mobile_ceu_dev *pcdev)
 {
 	struct v4l2_subdev *sd;
 
-	if (!pcdev->csi2_pdev)
-		return NULL;
+	if (pcdev->csi2_sd)
+		return pcdev->csi2_sd;
 
-	v4l2_device_for_each_subdev(sd, &pcdev->ici.v4l2_dev)
-		if (&pcdev->csi2_pdev->dev == v4l2_get_subdevdata(sd))
-			return sd;
+	if (pcdev->csi2_asd) {
+		char name[] = "sh-mobile-csi2";
+		v4l2_device_for_each_subdev(sd, &pcdev->ici.v4l2_dev)
+			if (!strncmp(name, sd->name, sizeof(name) - 1)) {
+				pcdev->csi2_sd = sd;
+				return sd;
+			}
+	}
 
 	return NULL;
 }
 
-/* Called with .host_lock held */
+static struct v4l2_subdev *csi2_subdev(struct sh_mobile_ceu_dev *pcdev,
+				       struct soc_camera_device *icd)
+{
+	struct v4l2_subdev *sd = pcdev->csi2_sd;
+
+	return sd && sd->grp_id == soc_camera_grp_id(icd) ? sd : NULL;
+}
+
 static int sh_mobile_ceu_add_device(struct soc_camera_device *icd)
 {
 	struct soc_camera_host *ici = to_soc_camera_host(icd->parent);
 	struct sh_mobile_ceu_dev *pcdev = ici->priv;
-	struct v4l2_subdev *csi2_sd;
+	struct v4l2_subdev *csi2_sd = find_csi2(pcdev);
 	int ret;
 
-	if (pcdev->icd)
-		return -EBUSY;
+	if (csi2_sd) {
+		csi2_sd->grp_id = soc_camera_grp_id(icd);
+		v4l2_set_subdev_hostdata(csi2_sd, icd);
+	}
+
+	ret = v4l2_subdev_call(csi2_sd, core, s_power, 1);
+	if (ret < 0 && ret != -ENOIOCTLCMD && ret != -ENODEV)
+		return ret;
+
+	/*
+	 * -ENODEV is special: either csi2_sd == NULL or the CSI-2 driver
+	 * has not found this soc-camera device among its clients
+	 */
+	if (csi2_sd && ret == -ENODEV)
+		csi2_sd->grp_id = 0;
 
 	dev_info(icd->parent,
-		 "SuperH Mobile CEU driver attached to camera %d\n",
+		 "SuperH Mobile CEU%s driver attached to camera %d\n",
+		 csi2_sd && csi2_sd->grp_id ? "/CSI-2" : "", icd->devnum);
+
+	return 0;
+}
+
+static void sh_mobile_ceu_remove_device(struct soc_camera_device *icd)
+{
+	struct soc_camera_host *ici = to_soc_camera_host(icd->parent);
+	struct sh_mobile_ceu_dev *pcdev = ici->priv;
+	struct v4l2_subdev *csi2_sd = find_csi2(pcdev);
+
+	dev_info(icd->parent,
+		 "SuperH Mobile CEU driver detached from camera %d\n",
 		 icd->devnum);
+
+	v4l2_subdev_call(csi2_sd, core, s_power, 0);
+}
+
+/* Called with .host_lock held */
+static int sh_mobile_ceu_clock_start(struct soc_camera_host *ici)
+{
+	struct sh_mobile_ceu_dev *pcdev = ici->priv;
+	int ret;
 
 	pm_runtime_get_sync(ici->v4l2_dev.dev);
 
@@ -565,41 +616,14 @@ static int sh_mobile_ceu_add_device(struct soc_camera_device *icd)
 
 	ret = sh_mobile_ceu_soft_reset(pcdev);
 
-	csi2_sd = find_csi2(pcdev);
-	if (csi2_sd) {
-		csi2_sd->grp_id = soc_camera_grp_id(icd);
-		v4l2_set_subdev_hostdata(csi2_sd, icd);
-	}
-
-	ret = v4l2_subdev_call(csi2_sd, core, s_power, 1);
-	if (ret < 0 && ret != -ENOIOCTLCMD && ret != -ENODEV) {
-		pm_runtime_put(ici->v4l2_dev.dev);
-		return ret;
-	}
-
-	/*
-	 * -ENODEV is special: either csi2_sd == NULL or the CSI-2 driver
-	 * has not found this soc-camera device among its clients
-	 */
-	if (ret == -ENODEV && csi2_sd)
-		csi2_sd->grp_id = 0;
-	pcdev->icd = icd;
-
 	return 0;
 }
 
 /* Called with .host_lock held */
-static void sh_mobile_ceu_remove_device(struct soc_camera_device *icd)
+static void sh_mobile_ceu_clock_stop(struct soc_camera_host *ici)
 {
-	struct soc_camera_host *ici = to_soc_camera_host(icd->parent);
 	struct sh_mobile_ceu_dev *pcdev = ici->priv;
-	struct v4l2_subdev *csi2_sd = find_csi2(pcdev);
 
-	BUG_ON(icd != pcdev->icd);
-
-	v4l2_subdev_call(csi2_sd, core, s_power, 0);
-	if (csi2_sd)
-		csi2_sd->grp_id = 0;
 	/* disable capture, disable interrupts */
 	ceu_write(pcdev, CEIER, 0);
 	sh_mobile_ceu_soft_reset(pcdev);
@@ -614,12 +638,6 @@ static void sh_mobile_ceu_remove_device(struct soc_camera_device *icd)
 	spin_unlock_irq(&pcdev->lock);
 
 	pm_runtime_put(ici->v4l2_dev.dev);
-
-	dev_info(icd->parent,
-		 "SuperH Mobile CEU driver detached from camera %d\n",
-		 icd->devnum);
-
-	pcdev->icd = NULL;
 }
 
 /*
@@ -705,7 +723,7 @@ static void sh_mobile_ceu_set_rect(struct soc_camera_device *icd)
 	}
 
 	/* CSI2 special configuration */
-	if (pcdev->pdata->csi2) {
+	if (csi2_subdev(pcdev, icd)) {
 		in_width = ((in_width - 2) * 2);
 		left_offset *= 2;
 	}
@@ -762,13 +780,7 @@ static void capture_restore(struct sh_mobile_ceu_dev *pcdev, u32 capsr)
 static struct v4l2_subdev *find_bus_subdev(struct sh_mobile_ceu_dev *pcdev,
 					   struct soc_camera_device *icd)
 {
-	if (pcdev->csi2_pdev) {
-		struct v4l2_subdev *csi2_sd = find_csi2(pcdev);
-		if (csi2_sd && csi2_sd->grp_id == soc_camera_grp_id(icd))
-			return csi2_sd;
-	}
-
-	return soc_camera_to_subdev(icd);
+	return csi2_subdev(pcdev, icd) ? : soc_camera_to_subdev(icd);
 }
 
 #define CEU_BUS_FLAGS (V4L2_MBUS_MASTER |	\
@@ -809,7 +821,7 @@ static int sh_mobile_ceu_set_bus_param(struct soc_camera_device *icd)
 	/* Make choises, based on platform preferences */
 	if ((common_flags & V4L2_MBUS_HSYNC_ACTIVE_HIGH) &&
 	    (common_flags & V4L2_MBUS_HSYNC_ACTIVE_LOW)) {
-		if (pcdev->pdata->flags & SH_CEU_FLAG_HSYNC_LOW)
+		if (pcdev->flags & SH_CEU_FLAG_HSYNC_LOW)
 			common_flags &= ~V4L2_MBUS_HSYNC_ACTIVE_HIGH;
 		else
 			common_flags &= ~V4L2_MBUS_HSYNC_ACTIVE_LOW;
@@ -817,7 +829,7 @@ static int sh_mobile_ceu_set_bus_param(struct soc_camera_device *icd)
 
 	if ((common_flags & V4L2_MBUS_VSYNC_ACTIVE_HIGH) &&
 	    (common_flags & V4L2_MBUS_VSYNC_ACTIVE_LOW)) {
-		if (pcdev->pdata->flags & SH_CEU_FLAG_VSYNC_LOW)
+		if (pcdev->flags & SH_CEU_FLAG_VSYNC_LOW)
 			common_flags &= ~V4L2_MBUS_VSYNC_ACTIVE_HIGH;
 		else
 			common_flags &= ~V4L2_MBUS_VSYNC_ACTIVE_LOW;
@@ -872,11 +884,11 @@ static int sh_mobile_ceu_set_bus_param(struct soc_camera_device *icd)
 	value |= common_flags & V4L2_MBUS_VSYNC_ACTIVE_LOW ? 1 << 1 : 0;
 	value |= common_flags & V4L2_MBUS_HSYNC_ACTIVE_LOW ? 1 << 0 : 0;
 
-	if (pcdev->pdata->csi2) /* CSI2 mode */
+	if (csi2_subdev(pcdev, icd)) /* CSI2 mode */
 		value |= 3 << 12;
 	else if (pcdev->is_16bit)
 		value |= 1 << 12;
-	else if (pcdev->pdata->flags & SH_CEU_FLAG_LOWER_8BIT)
+	else if (pcdev->flags & SH_CEU_FLAG_LOWER_8BIT)
 		value |= 2 << 12;
 
 	ceu_write(pcdev, CAMCR, value);
@@ -1051,7 +1063,7 @@ static int sh_mobile_ceu_get_formats(struct soc_camera_device *icd, unsigned int
 		return 0;
 	}
 
-	if (!pcdev->pdata->csi2) {
+	if (!csi2_subdev(pcdev, icd)) {
 		/* Are there any restrictions in the CSI-2 case? */
 		ret = sh_mobile_ceu_try_bus_param(icd, fmt->bits_per_sample);
 		if (ret < 0)
@@ -2036,6 +2048,8 @@ static struct soc_camera_host_ops sh_mobile_ceu_host_ops = {
 	.owner		= THIS_MODULE,
 	.add		= sh_mobile_ceu_add_device,
 	.remove		= sh_mobile_ceu_remove_device,
+	.clock_start	= sh_mobile_ceu_clock_start,
+	.clock_stop	= sh_mobile_ceu_clock_stop,
 	.get_formats	= sh_mobile_ceu_get_formats,
 	.put_formats	= sh_mobile_ceu_put_formats,
 	.get_crop	= sh_mobile_ceu_get_crop,
@@ -2079,7 +2093,7 @@ static int sh_mobile_ceu_probe(struct platform_device *pdev)
 	struct resource *res;
 	void __iomem *base;
 	unsigned int irq;
-	int err = 0;
+	int err, i;
 	struct bus_wait wait = {
 		.completion = COMPLETION_INITIALIZER_ONSTACK(wait.completion),
 		.notifier.notifier_call = bus_notify,
@@ -2104,13 +2118,36 @@ static int sh_mobile_ceu_probe(struct platform_device *pdev)
 	init_completion(&pcdev->complete);
 
 	pcdev->pdata = pdev->dev.platform_data;
-	if (!pcdev->pdata) {
+	if (!pcdev->pdata && !pdev->dev.of_node) {
 		dev_err(&pdev->dev, "CEU platform data not set.\n");
 		return -EINVAL;
 	}
 
-	pcdev->max_width = pcdev->pdata->max_width ? : 2560;
-	pcdev->max_height = pcdev->pdata->max_height ? : 1920;
+	/* TODO: implement per-device bus flags */
+	if (pcdev->pdata) {
+		pcdev->max_width = pcdev->pdata->max_width;
+		pcdev->max_height = pcdev->pdata->max_height;
+		pcdev->flags = pcdev->pdata->flags;
+	}
+
+	if (!pcdev->max_width) {
+		unsigned int v;
+		err = of_property_read_u32(pdev->dev.of_node, "renesas,max-width", &v);
+		if (!err)
+			pcdev->max_width = v;
+
+		if (!pcdev->max_width)
+			pcdev->max_width = 2560;
+	}
+	if (!pcdev->max_height) {
+		unsigned int v;
+		err = of_property_read_u32(pdev->dev.of_node, "renesas,max-height", &v);
+		if (!err)
+			pcdev->max_height = v;
+
+		if (!pcdev->max_height)
+			pcdev->max_height = 1920;
+	}
 
 	base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(base))
@@ -2160,30 +2197,59 @@ static int sh_mobile_ceu_probe(struct platform_device *pdev)
 		goto exit_free_clk;
 	}
 
-	err = soc_camera_host_register(&pcdev->ici);
-	if (err)
-		goto exit_free_ctx;
+	if (pcdev->pdata && pcdev->pdata->asd_sizes) {
+		struct v4l2_async_subdev **asd;
+		char name[] = "sh-mobile-csi2";
+		int j;
 
-	/* CSI2 interfacing */
-	csi2 = pcdev->pdata->csi2;
+		/*
+		 * CSI2 interfacing: several groups can use CSI2, pick up the
+		 * first one
+		 */
+		asd = pcdev->pdata->asd;
+		for (j = 0; pcdev->pdata->asd_sizes[j]; j++) {
+			for (i = 0; i < pcdev->pdata->asd_sizes[j]; i++, asd++) {
+				dev_dbg(&pdev->dev, "%s(): subdev #%d, type %u\n",
+					__func__, i, (*asd)->bus_type);
+				if ((*asd)->bus_type == V4L2_ASYNC_BUS_PLATFORM &&
+				    !strncmp(name, (*asd)->match.platform.name,
+					     sizeof(name) - 1)) {
+					pcdev->csi2_asd = *asd;
+					break;
+				}
+			}
+			if (pcdev->csi2_asd)
+				break;
+		}
+
+		pcdev->ici.asd = pcdev->pdata->asd;
+		pcdev->ici.asd_sizes = pcdev->pdata->asd_sizes;
+	}
+
+	/* Legacy CSI2 interfacing */
+	csi2 = pcdev->pdata ? pcdev->pdata->csi2 : NULL;
 	if (csi2) {
+		/*
+		 * TODO: remove this once all users are converted to
+		 * asynchronous CSI2 probing. If it has to be kept, csi2
+		 * platform device resources have to be added, using
+		 * platform_device_add_resources()
+		 */
 		struct platform_device *csi2_pdev =
 			platform_device_alloc("sh-mobile-csi2", csi2->id);
 		struct sh_csi2_pdata *csi2_pdata = csi2->platform_data;
 
 		if (!csi2_pdev) {
 			err = -ENOMEM;
-			goto exit_host_unregister;
+			goto exit_free_ctx;
 		}
 
 		pcdev->csi2_pdev		= csi2_pdev;
 
-		err = platform_device_add_data(csi2_pdev, csi2_pdata, sizeof(*csi2_pdata));
+		err = platform_device_add_data(csi2_pdev, csi2_pdata,
+					       sizeof(*csi2_pdata));
 		if (err < 0)
 			goto exit_pdev_put;
-
-		csi2_pdata			= csi2_pdev->dev.platform_data;
-		csi2_pdata->v4l2_dev		= &pcdev->ici.v4l2_dev;
 
 		csi2_pdev->resource		= csi2->resource;
 		csi2_pdev->num_resources	= csi2->num_resources;
@@ -2226,17 +2292,38 @@ static int sh_mobile_ceu_probe(struct platform_device *pdev)
 			err = -ENODEV;
 			goto exit_pdev_unregister;
 		}
+
+		pcdev->csi2_sd = platform_get_drvdata(csi2_pdev);
+	}
+
+	err = soc_camera_host_register(&pcdev->ici);
+	if (err)
+		goto exit_csi2_unregister;
+
+	if (csi2) {
+		err = v4l2_device_register_subdev(&pcdev->ici.v4l2_dev,
+						  pcdev->csi2_sd);
+		dev_dbg(&pdev->dev, "%s(): ret(register_subdev) = %d\n",
+			__func__, err);
+		if (err < 0)
+			goto exit_host_unregister;
+		/* v4l2_device_register_subdev() took a reference too */
+		module_put(pcdev->csi2_sd->owner);
 	}
 
 	return 0;
 
-exit_pdev_unregister:
-	platform_device_del(pcdev->csi2_pdev);
-exit_pdev_put:
-	pcdev->csi2_pdev->resource = NULL;
-	platform_device_put(pcdev->csi2_pdev);
 exit_host_unregister:
 	soc_camera_host_unregister(&pcdev->ici);
+exit_csi2_unregister:
+	if (csi2) {
+		module_put(pcdev->csi2_pdev->dev.driver->owner);
+exit_pdev_unregister:
+		platform_device_del(pcdev->csi2_pdev);
+exit_pdev_put:
+		pcdev->csi2_pdev->resource = NULL;
+		platform_device_put(pcdev->csi2_pdev);
+	}
 exit_free_ctx:
 	vb2_dma_contig_cleanup_ctx(pcdev->alloc_ctx);
 exit_free_clk:
@@ -2287,10 +2374,18 @@ static const struct dev_pm_ops sh_mobile_ceu_dev_pm_ops = {
 	.runtime_resume = sh_mobile_ceu_runtime_nop,
 };
 
+static const struct of_device_id sh_mobile_ceu_of_match[] = {
+	{ .compatible = "renesas,sh-mobile-ceu" },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, sh_mobile_ceu_of_match);
+
 static struct platform_driver sh_mobile_ceu_driver = {
 	.driver		= {
 		.name	= "sh_mobile_ceu",
+		.owner	= THIS_MODULE,
 		.pm	= &sh_mobile_ceu_dev_pm_ops,
+		.of_match_table = sh_mobile_ceu_of_match,
 	},
 	.probe		= sh_mobile_ceu_probe,
 	.remove		= sh_mobile_ceu_remove,
@@ -2314,5 +2409,5 @@ module_exit(sh_mobile_ceu_exit);
 MODULE_DESCRIPTION("SuperH Mobile CEU driver");
 MODULE_AUTHOR("Magnus Damm");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("0.0.6");
+MODULE_VERSION("0.1.0");
 MODULE_ALIAS("platform:sh_mobile_ceu");

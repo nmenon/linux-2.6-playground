@@ -95,8 +95,8 @@ struct flite_buffer {
  * struct fimc_lite - fimc lite structure
  * @pdev: pointer to FIMC-LITE platform device
  * @dd: SoC specific driver data structure
+ * @ve: exynos video device entity structure
  * @v4l2_dev: pointer to top the level v4l2_device
- * @vfd: video device node
  * @fh: v4l2 file handle
  * @alloc_ctx: videobuf2 memory allocator context
  * @subdev: FIMC-LITE subdev
@@ -125,13 +125,12 @@ struct flite_buffer {
  * @active_buf_count: number of video buffers scheduled in hardware
  * @frame_count: the captured frames counter
  * @reqbufs_count: the number of buffers requested with REQBUFS ioctl
- * @ref_count: driver's private reference counter
  */
 struct fimc_lite {
 	struct platform_device	*pdev;
 	struct flite_drvdata	*dd;
+	struct exynos_video_entity ve;
 	struct v4l2_device	*v4l2_dev;
-	struct video_device	vfd;
 	struct v4l2_fh		fh;
 	struct vb2_alloc_ctx	*alloc_ctx;
 	struct v4l2_subdev	subdev;
@@ -141,8 +140,6 @@ struct fimc_lite {
 	struct v4l2_ctrl_handler ctrl_handler;
 	struct v4l2_ctrl	*test_pattern;
 	int			index;
-	struct fimc_pipeline	pipeline;
-	const struct fimc_pipeline_ops *pipeline_ops;
 
 	struct mutex		lock;
 	spinlock_t		slock;
@@ -163,7 +160,6 @@ struct fimc_lite {
 	struct vb2_queue	vb_queue;
 	unsigned int		frame_count;
 	unsigned int		reqbufs_count;
-	int			ref_count;
 
 	struct fimc_lite_events	events;
 	bool			streaming;

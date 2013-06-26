@@ -1,8 +1,8 @@
 /*
  * Samsung EXYNOS FIMC-LITE (camera host interface) driver
 *
- * Copyright (C) 2012 Samsung Electronics Co., Ltd.
- * Sylwester Nawrocki <s.nawrocki@samsung.com>
+ * Copyright (C) 2012 - 2013 Samsung Electronics Co., Ltd.
+ * Author: Sylwester Nawrocki <s.nawrocki@samsung.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -32,6 +32,7 @@
 #include <media/videobuf2-dma-contig.h>
 #include <media/s5p_fimc.h>
 
+#include "common.h"
 #include "fimc-core.h"
 #include "fimc-lite.h"
 #include "fimc-lite-reg.h"
@@ -131,30 +132,6 @@ static const struct fimc_fmt *fimc_lite_find_format(const u32 *pixelformat,
 	return def_fmt;
 }
 
-/* Called with the media graph mutex held or @me stream_count > 0. */
-static struct v4l2_subdev *__find_remote_sensor(struct media_entity *me)
-{
-	struct media_pad *pad = &me->pads[0];
-	struct v4l2_subdev *sd;
-
-	while (pad->flags & MEDIA_PAD_FL_SINK) {
-		/* source pad */
-		pad = media_entity_remote_source(pad);
-		if (pad == NULL ||
-		    media_entity_type(pad->entity) != MEDIA_ENT_T_V4L2_SUBDEV)
-			break;
-
-		sd = media_entity_to_v4l2_subdev(pad->entity);
-
-		if (sd->grp_id == GRP_ID_FIMC_IS_SENSOR ||
-		    sd->grp_id == GRP_ID_SENSOR)
-			return sd;
-		/* sink pad */
-		pad = &sd->entity.pads[0];
-	}
-	return NULL;
-}
-
 static int fimc_lite_hw_init(struct fimc_lite *fimc, bool isp_output)
 {
 	struct fimc_source_info *si;
@@ -233,7 +210,7 @@ static int fimc_lite_reinit(struct fimc_lite *fimc, bool suspend)
 	if (!streaming)
 		return 0;
 
-	return fimc_pipeline_call(fimc, set_stream, &fimc->pipeline, 0);
+	return fimc_pipeline_call(&fimc->ve, set_stream, 0);
 }
 
 static int fimc_lite_stop_capture(struct fimc_lite *fimc, bool suspend)
@@ -347,8 +324,7 @@ static int start_streaming(struct vb2_queue *q, unsigned int count)
 		flite_hw_capture_start(fimc);
 
 		if (!test_and_set_bit(ST_SENSOR_STREAM, &fimc->state))
-			fimc_pipeline_call(fimc, set_stream,
-					   &fimc->pipeline, 1);
+			fimc_pipeline_call(&fimc->ve, set_stream, 1);
 	}
 	if (debug > 0)
 		flite_hw_dump_regs(fimc, __func__);
@@ -415,7 +391,7 @@ static int buffer_prepare(struct vb2_buffer *vb)
 		unsigned long size = fimc->payload[i];
 
 		if (vb2_plane_size(vb, i) < size) {
-			v4l2_err(&fimc->vfd,
+			v4l2_err(&fimc->ve.vdev,
 				 "User buffer too small (%ld < %ld)\n",
 				 vb2_plane_size(vb, i), size);
 			return -EINVAL;
@@ -452,8 +428,7 @@ static void buffer_queue(struct vb2_buffer *vb)
 		spin_unlock_irqrestore(&fimc->slock, flags);
 
 		if (!test_and_set_bit(ST_SENSOR_STREAM, &fimc->state))
-			fimc_pipeline_call(fimc, set_stream,
-					   &fimc->pipeline, 1);
+			fimc_pipeline_call(&fimc->ve, set_stream, 1);
 		return;
 	}
 	spin_unlock_irqrestore(&fimc->slock, flags);
@@ -481,10 +456,8 @@ static void fimc_lite_clear_event_counters(struct fimc_lite *fimc)
 static int fimc_lite_open(struct file *file)
 {
 	struct fimc_lite *fimc = video_drvdata(file);
-	struct media_entity *me = &fimc->vfd.entity;
+	struct media_entity *me = &fimc->ve.vdev.entity;
 	int ret;
-
-	mutex_lock(&me->parent->graph_mutex);
 
 	mutex_lock(&fimc->lock);
 	if (atomic_read(&fimc->out_path) != FIMC_IO_DMA) {
@@ -505,11 +478,18 @@ static int fimc_lite_open(struct file *file)
 	    atomic_read(&fimc->out_path) != FIMC_IO_DMA)
 		goto unlock;
 
-	ret = fimc_pipeline_call(fimc, open, &fimc->pipeline,
-						me, true);
+	mutex_lock(&me->parent->graph_mutex);
+
+	ret = fimc_pipeline_call(&fimc->ve, open, me, true);
+
+	/* Mark video pipeline ending at this video node as in use. */
+	if (ret == 0)
+		me->use_count++;
+
+	mutex_unlock(&me->parent->graph_mutex);
+
 	if (!ret) {
 		fimc_lite_clear_event_counters(fimc);
-		fimc->ref_count++;
 		goto unlock;
 	}
 
@@ -519,26 +499,29 @@ err_pm:
 	clear_bit(ST_FLITE_IN_USE, &fimc->state);
 unlock:
 	mutex_unlock(&fimc->lock);
-	mutex_unlock(&me->parent->graph_mutex);
 	return ret;
 }
 
 static int fimc_lite_release(struct file *file)
 {
 	struct fimc_lite *fimc = video_drvdata(file);
+	struct media_entity *entity = &fimc->ve.vdev.entity;
 
 	mutex_lock(&fimc->lock);
 
 	if (v4l2_fh_is_singular_file(file) &&
 	    atomic_read(&fimc->out_path) == FIMC_IO_DMA) {
 		if (fimc->streaming) {
-			media_entity_pipeline_stop(&fimc->vfd.entity);
+			media_entity_pipeline_stop(entity);
 			fimc->streaming = false;
 		}
-		clear_bit(ST_FLITE_IN_USE, &fimc->state);
 		fimc_lite_stop_capture(fimc, false);
-		fimc_pipeline_call(fimc, close, &fimc->pipeline);
-		fimc->ref_count--;
+		fimc_pipeline_call(&fimc->ve, close);
+		clear_bit(ST_FLITE_IN_USE, &fimc->state);
+
+		mutex_lock(&entity->parent->graph_mutex);
+		entity->use_count--;
+		mutex_unlock(&entity->parent->graph_mutex);
 	}
 
 	vb2_fop_release(file);
@@ -637,13 +620,18 @@ static void fimc_lite_try_compose(struct fimc_lite *fimc, struct v4l2_rect *r)
 /*
  * Video node ioctl operations
  */
-static int fimc_vidioc_querycap_capture(struct file *file, void *priv,
+static int fimc_lite_querycap(struct file *file, void *priv,
 					struct v4l2_capability *cap)
 {
+	struct fimc_lite *fimc = video_drvdata(file);
+
 	strlcpy(cap->driver, FIMC_LITE_DRV_NAME, sizeof(cap->driver));
-	cap->bus_info[0] = 0;
-	cap->card[0] = 0;
-	cap->capabilities = V4L2_CAP_STREAMING;
+	strlcpy(cap->card, FIMC_LITE_DRV_NAME, sizeof(cap->card));
+	snprintf(cap->bus_info, sizeof(cap->bus_info), "platform:%s",
+					dev_name(&fimc->pdev->dev));
+
+	cap->device_caps = V4L2_CAP_STREAMING;
+	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
 	return 0;
 }
 
@@ -786,7 +774,7 @@ static int fimc_pipeline_validate(struct fimc_lite *fimc)
 				return -EPIPE;
 		}
 		/* Retrieve format at the source pad */
-		pad = media_entity_remote_source(pad);
+		pad = media_entity_remote_pad(pad);
 		if (pad == NULL ||
 		    media_entity_type(pad->entity) != MEDIA_ENT_T_V4L2_SUBDEV)
 			break;
@@ -810,14 +798,13 @@ static int fimc_lite_streamon(struct file *file, void *priv,
 			      enum v4l2_buf_type type)
 {
 	struct fimc_lite *fimc = video_drvdata(file);
-	struct media_entity *entity = &fimc->vfd.entity;
-	struct fimc_pipeline *p = &fimc->pipeline;
+	struct media_entity *entity = &fimc->ve.vdev.entity;
 	int ret;
 
 	if (fimc_lite_active(fimc))
 		return -EBUSY;
 
-	ret = media_entity_pipeline_start(entity, p->m_pipeline);
+	ret = media_entity_pipeline_start(entity, &fimc->ve.pipe->mp);
 	if (ret < 0)
 		return ret;
 
@@ -825,7 +812,7 @@ static int fimc_lite_streamon(struct file *file, void *priv,
 	if (ret < 0)
 		goto err_p_stop;
 
-	fimc->sensor = __find_remote_sensor(&fimc->subdev.entity);
+	fimc->sensor = fimc_find_remote_sensor(&fimc->subdev.entity);
 
 	ret = vb2_ioctl_streamon(file, priv, type);
 	if (!ret) {
@@ -848,7 +835,7 @@ static int fimc_lite_streamoff(struct file *file, void *priv,
 	if (ret < 0)
 		return ret;
 
-	media_entity_pipeline_stop(&fimc->vfd.entity);
+	media_entity_pipeline_stop(&fimc->ve.vdev.entity);
 	fimc->streaming = false;
 	return 0;
 }
@@ -938,7 +925,7 @@ static int fimc_lite_s_selection(struct file *file, void *fh,
 }
 
 static const struct v4l2_ioctl_ops fimc_lite_ioctl_ops = {
-	.vidioc_querycap		= fimc_vidioc_querycap_capture,
+	.vidioc_querycap		= fimc_lite_querycap,
 	.vidioc_enum_fmt_vid_cap_mplane	= fimc_lite_enum_fmt_mplane,
 	.vidioc_try_fmt_vid_cap_mplane	= fimc_lite_try_fmt_mplane,
 	.vidioc_s_fmt_vid_cap_mplane	= fimc_lite_s_fmt_mplane,
@@ -971,8 +958,6 @@ static int fimc_lite_link_setup(struct media_entity *entity,
 	v4l2_dbg(1, debug, sd, "%s: %s --> %s, flags: 0x%x. source_id: 0x%x\n",
 		 __func__, remote->entity->name, local->entity->name,
 		 flags, fimc->source_subdev_grp_id);
-
-	mutex_lock(&fimc->lock);
 
 	switch (local->index) {
 	case FLITE_SD_PAD_SINK:
@@ -1015,7 +1000,6 @@ static int fimc_lite_link_setup(struct media_entity *entity,
 	}
 	mb();
 
-	mutex_unlock(&fimc->lock);
 	return ret;
 }
 
@@ -1207,7 +1191,7 @@ static int fimc_lite_subdev_s_stream(struct v4l2_subdev *sd, int on)
 	 * The pipeline links are protected through entity.stream_count
 	 * so there is no need to take the media graph mutex here.
 	 */
-	fimc->sensor = __find_remote_sensor(&sd->entity);
+	fimc->sensor = fimc_find_remote_sensor(&sd->entity);
 
 	if (atomic_read(&fimc->out_path) != FIMC_IO_ISP)
 		return -ENOIOCTLCMD;
@@ -1252,7 +1236,7 @@ static int fimc_lite_subdev_registered(struct v4l2_subdev *sd)
 {
 	struct fimc_lite *fimc = v4l2_get_subdevdata(sd);
 	struct vb2_queue *q = &fimc->vb_queue;
-	struct video_device *vfd = &fimc->vfd;
+	struct video_device *vfd = &fimc->ve.vdev;
 	int ret;
 
 	memset(vfd, 0, sizeof(*vfd));
@@ -1295,12 +1279,12 @@ static int fimc_lite_subdev_registered(struct v4l2_subdev *sd)
 		return ret;
 
 	video_set_drvdata(vfd, fimc);
-	fimc->pipeline_ops = v4l2_get_subdev_hostdata(sd);
+	fimc->ve.pipe = v4l2_get_subdev_hostdata(sd);
 
 	ret = video_register_device(vfd, VFL_TYPE_GRABBER, -1);
 	if (ret < 0) {
 		media_entity_cleanup(&vfd->entity);
-		fimc->pipeline_ops = NULL;
+		fimc->ve.pipe = NULL;
 		return ret;
 	}
 
@@ -1316,11 +1300,15 @@ static void fimc_lite_subdev_unregistered(struct v4l2_subdev *sd)
 	if (fimc == NULL)
 		return;
 
-	if (video_is_registered(&fimc->vfd)) {
-		video_unregister_device(&fimc->vfd);
-		media_entity_cleanup(&fimc->vfd.entity);
-		fimc->pipeline_ops = NULL;
+	mutex_lock(&fimc->lock);
+
+	if (video_is_registered(&fimc->ve.vdev)) {
+		video_unregister_device(&fimc->ve.vdev);
+		media_entity_cleanup(&fimc->ve.vdev.entity);
+		fimc->ve.pipe = NULL;
 	}
+
+	mutex_unlock(&fimc->lock);
 }
 
 static const struct v4l2_subdev_internal_ops fimc_lite_subdev_internal_ops = {
@@ -1417,12 +1405,12 @@ static void fimc_lite_unregister_capture_subdev(struct fimc_lite *fimc)
 
 static void fimc_lite_clk_put(struct fimc_lite *fimc)
 {
-	if (IS_ERR_OR_NULL(fimc->clock))
+	if (IS_ERR(fimc->clock))
 		return;
 
 	clk_unprepare(fimc->clock);
 	clk_put(fimc->clock);
-	fimc->clock = NULL;
+	fimc->clock = ERR_PTR(-EINVAL);
 }
 
 static int fimc_lite_clk_get(struct fimc_lite *fimc)
@@ -1436,7 +1424,7 @@ static int fimc_lite_clk_get(struct fimc_lite *fimc)
 	ret = clk_prepare(fimc->clock);
 	if (ret < 0) {
 		clk_put(fimc->clock);
-		fimc->clock = NULL;
+		fimc->clock = ERR_PTR(-EINVAL);
 	}
 	return ret;
 }
@@ -1565,8 +1553,8 @@ static int fimc_lite_resume(struct device *dev)
 		return 0;
 
 	INIT_LIST_HEAD(&fimc->active_buf_q);
-	fimc_pipeline_call(fimc, open, &fimc->pipeline,
-			   &fimc->vfd.entity, false);
+	fimc_pipeline_call(&fimc->ve, open,
+			   &fimc->ve.vdev.entity, false);
 	fimc_lite_hw_init(fimc, atomic_read(&fimc->out_path) == FIMC_IO_ISP);
 	clear_bit(ST_FLITE_SUSPENDED, &fimc->state);
 
@@ -1592,7 +1580,7 @@ static int fimc_lite_suspend(struct device *dev)
 	if (ret < 0 || !fimc_lite_active(fimc))
 		return ret;
 
-	return fimc_pipeline_call(fimc, close, &fimc->pipeline);
+	return fimc_pipeline_call(&fimc->ve, close);
 }
 #endif /* CONFIG_PM_SLEEP */
 
@@ -1626,15 +1614,6 @@ static struct flite_drvdata fimc_lite_drvdata_exynos4 = {
 	.out_hor_offs_align	= 8,
 };
 
-static struct platform_device_id fimc_lite_driver_ids[] = {
-	{
-		.name		= "exynos-fimc-lite",
-		.driver_data	= (unsigned long)&fimc_lite_drvdata_exynos4,
-	},
-	{ /* sentinel */ },
-};
-MODULE_DEVICE_TABLE(platform, fimc_lite_driver_ids);
-
 static const struct of_device_id flite_of_match[] = {
 	{
 		.compatible = "samsung,exynos4212-fimc-lite",
@@ -1647,7 +1626,6 @@ MODULE_DEVICE_TABLE(of, flite_of_match);
 static struct platform_driver fimc_lite_driver = {
 	.probe		= fimc_lite_probe,
 	.remove		= fimc_lite_remove,
-	.id_table	= fimc_lite_driver_ids,
 	.driver = {
 		.of_match_table = flite_of_match,
 		.name		= FIMC_LITE_DRV_NAME,
