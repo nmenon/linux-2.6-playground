@@ -346,8 +346,6 @@ config ETRAX_STREAMCOPROC
 	  This option enables a driver for the stream co-processor
 	  for cryptographic operations.
 
-source drivers/mmc/Kconfig
-
 config ETRAX_MMC_IOP
 	tristate "MMC/SD host driver using IO-processor"
 	depends on ETRAX_ARCH_V32 && MMC
@@ -439,10 +437,5 @@ config ETRAX_SPI_GPIO
 	  protocol on general I/O pins.  Slow and slows down the system.
 	  Say m to build it as a module, which will be called spi_crisv32_gpio.
 	  (You need to select MMC separately.)
-
-# Avoid choices causing non-working configs by conditionalizing the inclusion.
-if ETRAX_SPI_MMC
-source drivers/spi/Kconfig
-endif
 
 endif
