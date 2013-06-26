@@ -56,7 +56,7 @@ extern int nand_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len);
  * is supported now. If you add a chip with bigger oobsize/page
  * adjust this accordingly.
  */
-#define NAND_MAX_OOBSIZE	640
+#define NAND_MAX_OOBSIZE	744
 #define NAND_MAX_PAGESIZE	8192
 
 /*
@@ -216,6 +216,9 @@ struct nand_chip;
 
 /* ONFI subfeature parameters length */
 #define ONFI_SUBFEATURE_PARAM_LEN	4
+
+/* ONFI optional commands SET/GET FEATURES supported? */
+#define ONFI_OPT_CMD_SET_GET_FEATURES	(1 << 2)
 
 struct nand_onfi_params {
 	/* rev info and features block */
@@ -390,8 +393,8 @@ struct nand_buffers {
  * @write_buf:		[REPLACEABLE] write data from the buffer to the chip
  * @read_buf:		[REPLACEABLE] read data from the chip into the buffer
  * @select_chip:	[REPLACEABLE] select chip nr
- * @block_bad:		[REPLACEABLE] check, if the block is bad
- * @block_markbad:	[REPLACEABLE] mark the block bad
+ * @block_bad:		[REPLACEABLE] check if a block is bad, using OOB markers
+ * @block_markbad:	[REPLACEABLE] mark a block bad
  * @cmd_ctrl:		[BOARDSPECIFIC] hardwarespecific function for controlling
  *			ALE/CLE/nCE. Also used to write command and address
  * @init_size:		[BOARDSPECIFIC] hardwarespecific function for setting
