@@ -712,5 +712,34 @@
 			interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
 			compatible = "ti,omap5430-bandgap";
 		};
+
+		vc: vc@4ae07c88 {
+			compatible = "ti,omap5-vc";
+			/* TBD: clocks = <&sysclk_in>; */
+			reg = <0x4AE07C88 0x30>;
+			reg-names = "base-address";
+
+			vc_mpu: vc_mpu {
+				compatible = "ti,omap5-vc-channel-mpu";
+				ti,master-channel;
+
+				ti,retention-micro-volts = <700000>;
+				ti,off-micro-volts = <0>;
+			};
+
+			vc_mm: vc_mm {
+				compatible = "ti,omap5-vc-channel-mm";
+
+				ti,retention-micro-volts = <700000>;
+				ti,off-micro-volts = <0>;
+			};
+
+			vc_core: vc_core {
+				compatible = "ti,omap5-vc-channel-core";
+
+				ti,retention-micro-volts = <810000>;
+				ti,off-micro-volts = <0>;
+			};
+		};
 	};
 };
