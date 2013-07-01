@@ -712,5 +712,27 @@
 			interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
 			compatible = "ti,omap5430-bandgap";
 		};
+
+		vc: vc@4ae07c88 {
+			compatible = "ti,omap5-vc";
+			//clocks = <&sysclk_in>;
+			reg = <0x4AE07C88 0x30>;
+			reg-names = "base-address";
+
+			ti,i2c-high-speed; /* belongs to board file */
+			vc_mpu: vc_mpu {
+				compatible = "ti,omap5-vc-channel-mpu";
+				ti,master-channel;
+			};
+
+			vc_mm: vc_mm {
+				compatible = "ti,omap5-vc-channel-mm";
+			};
+
+			vc_core: vc_core {
+				compatible = "ti,omap5-vc-channel-core";
+			};
+		};
+
 	};
 };
