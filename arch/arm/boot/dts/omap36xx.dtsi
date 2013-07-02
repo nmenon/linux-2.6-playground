@@ -46,3 +46,13 @@
 	ti,retention-micro-volts = <800000>;
 	ti,off-micro-volts = <600000>;
 };
+
+&vp_mpu {
+	ti,min-micro-volts = <900000>;
+	ti,max-micro-volts = <1380000>;
+};
+
+&vp_core {
+	ti,min-micro-volts = <900000>;
+	ti,max-micro-volts = <1200000>;
+};
