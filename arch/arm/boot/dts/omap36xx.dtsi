@@ -36,3 +36,13 @@
 		};
 	};
 };
+
+&vc_mpu {
+	ti,retention-micro-volts = <800000>;
+	ti,off-micro-volts = <600000>;
+};
+
+&vc_core {
+	ti,retention-micro-volts = <800000>;
+	ti,off-micro-volts = <600000>;
+};
