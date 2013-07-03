@@ -331,7 +331,6 @@
 					regulator-name = "smps9";
 					regulator-min-microvolt = <2100000>;
 					regulator-max-microvolt = <2100000>;
-					regulator-always-on;
 					regulator-boot-on;
 					ti,smps-range = <0x80>;
 				};
@@ -395,7 +394,6 @@
 					regulator-name = "ldo6";
 					regulator-min-microvolt = <1500000>;
 					regulator-max-microvolt = <1500000>;
-					regulator-always-on;
 					regulator-boot-on;
 				};
 
@@ -431,7 +429,6 @@
 					regulator-name = "ldoln";
 					regulator-min-microvolt = <1800000>;
 					regulator-max-microvolt = <1800000>;
-					regulator-always-on;
 					regulator-boot-on;
 				};
 
