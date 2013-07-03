@@ -1140,23 +1140,19 @@ static bool zcache_freeze;
  * pageframes in use.  FIXME POLICY: Probably the writeback should only occur
  * if the eviction doesn't free enough pages.
  */
-static int shrink_zcache_memory(struct shrinker *shrink,
-				struct shrink_control *sc)
+static long scan_zcache_memory(struct shrinker *shrink,
+			       struct shrink_control *sc)
 {
 	static bool in_progress;
-	int ret = -1;
-	int nr = sc->nr_to_scan;
 	int nr_evict = 0;
 	int nr_writeback = 0;
 	struct page *page;
 	int  file_pageframes_inuse, anon_pageframes_inuse;
-
-	if (nr <= 0)
-		goto skip_evict;
+	long freed = 0;
 
 	/* don't allow more than one eviction thread at a time */
 	if (in_progress)
-		goto skip_evict;
+		return 0;
 
 	in_progress = true;
 
@@ -1176,6 +1172,7 @@ static int shrink_zcache_memory(struct shrinker *shrink,
 		if (page == NULL)
 			break;
 		zcache_free_page(page);
+		freed++;
 	}
 
 	zcache_last_active_anon_pageframes =
@@ -1192,13 +1189,22 @@ static int shrink_zcache_memory(struct shrinker *shrink,
 #ifdef CONFIG_ZCACHE_WRITEBACK
 		int writeback_ret;
 		writeback_ret = zcache_frontswap_writeback();
-		if (writeback_ret == -ENOMEM)
+		if (writeback_ret != -ENOMEM)
+			freed++;
+		else
 #endif
 			break;
 	}
 	in_progress = false;
 
-skip_evict:
+	return freed;
+}
+
+static long count_zcache_memory(struct shrinker *shrink,
+				struct shrink_control *sc)
+{
+	int ret = -1;
+
 	/* resample: has changed, but maybe not all the way yet */
 	zcache_last_active_file_pageframes =
 		global_page_state(NR_LRU_BASE + LRU_ACTIVE_FILE);
@@ -1212,7 +1218,8 @@ skip_evict:
 }
 
 static struct shrinker zcache_shrinker = {
-	.shrink = shrink_zcache_memory,
+	.scan_objects = scan_zcache_memory,
+	.count_objects = count_zcache_memory,
 	.seeks = DEFAULT_SEEKS,
 };
 
