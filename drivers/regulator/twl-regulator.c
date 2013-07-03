@@ -112,9 +112,19 @@ struct twlreg_info {
 /* twl6025 SMPS EPROM values */
 #define TWL6030_SMPS_OFFSET		0xB0
 #define TWL6030_SMPS_MULT		0xB3
+/* TWL6032 register bits */
 #define SMPS_MULTOFFSET_SMPS4	BIT(0)
 #define SMPS_MULTOFFSET_VIO	BIT(1)
 #define SMPS_MULTOFFSET_SMPS3	BIT(6)
+/* TWL6030 register bits */
+#define SMPS_MULTOFFSET_V1V29	BIT(0)
+#define SMPS_MULTOFFSET_V1V8	BIT(1)
+#define SMPS_MULTOFFSET_V2V1	BIT(2)
+#define SMPS_MULTOFFSET_VCORE1	BIT(3)
+#define SMPS_MULTOFFSET_VCORE2	BIT(4)
+#define SMPS_MULTOFFSET_VCORE3	BIT(5)
+#define SMPS_MULTOFFSET_VMEM	BIT(6)
+#define SMPS_OFFSET_RW_ACCESS_MASK	BIT(7)
 
 static inline int
 twlreg_read(struct twlreg_info *info, unsigned slave_subgp, unsigned offset)
@@ -1023,6 +1033,66 @@ static u8 twl_get_smps_mult(void)
 	return value;
 }
 
+static int twl603x_set_offset(int id)
+{
+	u8 smps_offset_val;
+	int i;
+	u8 map[] = {
+		TWL6030_REG_VDD1,
+		TWL6030_REG_VDD2,
+		TWL6030_REG_VDD3,
+		TWL6030_REG_VMEM,
+		TWL6030_REG_V2V1,
+		TWL6030_REG_V1V29,
+		TWL6030_REG_V1V8,
+
+		TWL6032_REG_SMPS3,
+		TWL6032_REG_SMPS4,
+		TWL6032_REG_VIO,
+	};
+	/* Keep this in sync with map[] */
+	u8 val[] = {
+		SMPS_MULTOFFSET_VCORE1,
+		SMPS_MULTOFFSET_VCORE2,
+		SMPS_MULTOFFSET_VCORE3,
+		SMPS_MULTOFFSET_VMEM,
+		SMPS_MULTOFFSET_V2V1,
+		SMPS_MULTOFFSET_V1V29,
+		SMPS_MULTOFFSET_V1V8,
+
+		SMPS_MULTOFFSET_SMPS3,
+		SMPS_MULTOFFSET_SMPS4,
+		SMPS_MULTOFFSET_VIO,
+	};
+
+	for (i = 0; i < ARRAY_SIZE(map); i++)
+		if (map[i] == id)
+			break;
+
+	if (i == ARRAY_SIZE(map))
+		return -EINVAL;
+
+	/*
+	 * In TWL603[02] depending on the value of SMPS_OFFSET efuse register
+	 * the voltage range supported in standard mode can be either
+	 * between 0.6V - 1.3V or 0.7V - 1.4V. Access may be prevented
+	 * by TWL firmware.
+	 */
+	smps_offset_val = twl_get_smps_offset();
+
+	/* If offset already set, nothing more to do */
+	if (val[i] & smps_offset_val)
+		return 0;
+
+	/* Check if TWL firmware allows us to write */
+	if (!(smps_offset_val & SMPS_OFFSET_RW_ACCESS_MASK))
+		return -EACCES;
+
+	smps_offset_val |= val[i];
+	return twl_i2c_write_u8(TWL_MODULE_PM_RECEIVER, smps_offset_val,
+				TWL6030_SMPS_OFFSET);
+}
+
 #define TWL_OF_MATCH(comp, family, label) \
 	{ \
 		.compatible = comp, \
@@ -1138,6 +1208,17 @@ static int twlreg_probe(struct platform_device *pdev)
 		info->data = drvdata->data;
 		info->set_voltage = drvdata->set_voltage;
 		info->get_voltage = drvdata->get_voltage;
+	}
+
+	if (twl_class_is_6030() && pdev->dev.of_node) {
+		int r = 0;
+
+		if (of_property_read_bool(pdev->dev.of_node,
+					  "ti,twl603x_enable_offset"))
+			r = twl603x_set_offset(id);
+
+		if (r)
+			dev_err(&pdev->dev, "failed to set offset %d\n", r);
 	}
 
 	/* Constrain board-specific capabilities according to what
