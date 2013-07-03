@@ -75,7 +75,8 @@ static LIST_HEAD(qd_lru_list);
 static atomic_t qd_lru_count = ATOMIC_INIT(0);
 static DEFINE_SPINLOCK(qd_lru_lock);
 
-long gfs2_qd_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
+unsigned long gfs2_qd_shrink_scan(struct shrinker *shrink,
+				  struct shrink_control *sc)
 {
 	struct gfs2_quota_data *qd;
 	struct gfs2_sbd *sdp;
@@ -114,7 +115,8 @@ long gfs2_qd_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 	return freed;
 }
 
-long gfs2_qd_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
+unsigned long gfs2_qd_shrink_count(struct shrinker *shrink,
+				   struct shrink_control *sc)
 {
 	return vfs_pressure_ratio(atomic_read(&qd_lru_count));
 }

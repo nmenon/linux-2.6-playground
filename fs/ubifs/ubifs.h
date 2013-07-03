@@ -1624,8 +1624,10 @@ int ubifs_tnc_start_commit(struct ubifs_info *c, struct ubifs_zbranch *zroot);
 int ubifs_tnc_end_commit(struct ubifs_info *c);
 
 /* shrinker.c */
-long ubifs_shrink_scan(struct shrinker *shrink, struct shrink_control *sc);
-long ubifs_shrink_count(struct shrinker *shrink, struct shrink_control *sc);
+unsigned long ubifs_shrink_scan(struct shrinker *shrink,
+				struct shrink_control *sc);
+unsigned long ubifs_shrink_count(struct shrinker *shrink,
+				 struct shrink_control *sc);
 
 /* commit.c */
 int ubifs_bg_thread(void *info);

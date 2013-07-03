@@ -891,18 +891,20 @@ static int ext4_inode_touch_time_cmp(void *priv, struct list_head *a,
 		return -1;
 }
 
-static long ext4_es_count(struct shrinker *shrink, struct shrink_control *sc)
+static unsigned long ext4_es_count(struct shrinker *shrink,
+				   struct shrink_control *sc)
 {
-	long nr;
-	struct ext4_sb_info *sbi = container_of(shrink,
-					struct ext4_sb_info, s_es_shrinker);
+	unsigned long nr;
+	struct ext4_sb_info *sbi;
 
+	sbi = container_of(shrink, struct ext4_sb_info, s_es_shrinker);
 	nr = percpu_counter_read_positive(&sbi->s_extent_cache_cnt);
 	trace_ext4_es_shrink_enter(sbi->s_sb, sc->nr_to_scan, nr);
 	return nr;
 }
 
-static long ext4_es_scan(struct shrinker *shrink, struct shrink_control *sc)
+static unsigned long ext4_es_scan(struct shrinker *shrink,
+				  struct shrink_control *sc)
 {
 	struct ext4_sb_info *sbi = container_of(shrink,
 					struct ext4_sb_info, s_es_shrinker);
@@ -910,7 +912,8 @@ static long ext4_es_scan(struct shrinker *shrink, struct shrink_control *sc)
 	struct list_head *cur, *tmp;
 	LIST_HEAD(skiped);
 	int nr_to_scan = sc->nr_to_scan;
-	int ret = 0, nr_shrunk = 0;
+	int ret = 0;
+	unsigned long nr_shrunk = 0;
 
 	spin_lock(&sbi->s_es_lru_lock);
 

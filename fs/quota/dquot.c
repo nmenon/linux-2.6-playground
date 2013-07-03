@@ -687,12 +687,12 @@ int dquot_quota_sync(struct super_block *sb, int type)
 }
 EXPORT_SYMBOL(dquot_quota_sync);
 
-static long
+static unsigned long
 dqcache_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
 	struct list_head *head;
 	struct dquot *dquot;
-	long freed = 0;
+	unsigned long freed = 0;
 
 	head = free_dquots.prev;
 	while (head != &free_dquots && sc->nr_to_scan) {
@@ -708,7 +708,7 @@ dqcache_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 	return freed;
 }
 
-static long
+static unsigned long
 dqcache_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
 {
 	return vfs_pressure_ratio(

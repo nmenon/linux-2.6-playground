@@ -149,14 +149,14 @@ forget:
  *
  * Returns the number of objects freed.
  */
-static long
+static unsigned long
 mb_cache_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
 	LIST_HEAD(free_list);
 	struct mb_cache_entry *entry, *tmp;
 	int nr_to_scan = sc->nr_to_scan;
 	gfp_t gfp_mask = sc->gfp_mask;
-	long freed = 0;
+	unsigned long freed = 0;
 
 	mb_debug("trying to free %d entries", nr_to_scan);
 	spin_lock(&mb_cache_spinlock);
@@ -175,11 +175,11 @@ mb_cache_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 	return freed;
 }
 
-static long
+static unsigned long
 mb_cache_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
 {
 	struct mb_cache *cache;
-	long count = 0;
+	unsigned long count = 0;
 
 	spin_lock(&mb_cache_spinlock);
 	list_for_each_entry(cache, &mb_cache_list, c_cache_list) {
