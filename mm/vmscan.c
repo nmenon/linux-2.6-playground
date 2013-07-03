@@ -261,11 +261,10 @@ shrink_slab_node(struct shrink_control *shrinkctl, struct shrinker *shrinker,
 				max_pass, delta, total_scan);
 
 	while (total_scan >= batch_size) {
-
 		unsigned long ret;
+
 		shrinkctl->nr_to_scan = batch_size;
 		ret = shrinker->scan_objects(shrinker, shrinkctl);
-
 		if (ret == SHRINK_STOP)
 			break;
 		freed += ret;
