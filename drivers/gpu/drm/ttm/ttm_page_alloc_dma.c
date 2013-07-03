@@ -1000,7 +1000,7 @@ EXPORT_SYMBOL_GPL(ttm_dma_unpopulate);
  * I'm getting sadder as I hear more pathetical whimpers about needing per-pool
  * shrinkers
  */
-static long
+static unsigned long
 ttm_dma_pool_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
 	static atomic_t start_pool = ATOMIC_INIT(0);
@@ -1008,7 +1008,7 @@ ttm_dma_pool_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 	unsigned pool_offset = atomic_add_return(1, &start_pool);
 	unsigned shrink_pages = sc->nr_to_scan;
 	struct device_pools *p;
-	long freed = 0;
+	unsigned long freed = 0;
 
 	if (list_empty(&_manager->pools))
 		return SHRINK_STOP;
@@ -1037,11 +1037,11 @@ ttm_dma_pool_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 	return freed;
 }
 
-static long
+static unsigned long
 ttm_dma_pool_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
 {
 	struct device_pools *p;
-	long count = 0;
+	unsigned long count = 0;
 
 	mutex_lock(&_manager->lock);
 	list_for_each_entry(p, &_manager->pools, pools)
@@ -1052,7 +1052,7 @@ ttm_dma_pool_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
 
 static void ttm_dma_pool_mm_shrink_init(struct ttm_pool_manager *manager)
 {
-	manager->mm_shrink.count_objects = &ttm_dma_pool_shrink_count;
+	manager->mm_shrink.count_objects = ttm_dma_pool_shrink_count;
 	manager->mm_shrink.scan_objects = &ttm_dma_pool_shrink_scan;
 	manager->mm_shrink.seeks = 1;
 	register_shrinker(&manager->mm_shrink);
