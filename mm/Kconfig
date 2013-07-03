@@ -490,7 +490,7 @@ config ZBUD
 
 config ZSWAP
 	bool "Compressed cache for swap pages (EXPERIMENTAL)"
-	depends on FRONTSWAP && CRYPTO
+	depends on FRONTSWAP && CRYPTO=y
 	select CRYPTO_LZO
 	select ZBUD
 	default n
