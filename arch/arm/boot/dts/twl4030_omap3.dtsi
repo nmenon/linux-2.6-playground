@@ -9,6 +9,24 @@
 &twl {
 	pinctrl-names = "default";
 	pinctrl-0 = <&twl4030_pins>;
+
+	ti,twl4030_use_sr;
+
+	omap_twl4030_vdd1: vdd1 {
+		compatible = "ti,omap-twl4030-vdd1";
+		ti,boot-voltage-micro-volts = <1200000>; /* TBD: verify */
+		ti,vp = <&vp_mpu>;
+	};
+
+	omap_twl4030_vdd2: vcore2 {
+		compatible = "ti,omap-twl6030-vdd2";
+		ti,boot-voltage-micro-volts = <1200000>; /* TBD: verify */
+		ti,vp = <&vp_core>;
+	};
+};
+
+&vc {
+	ti,i2c-high-speed;
 };
 
 &omap3_pmx_core {
