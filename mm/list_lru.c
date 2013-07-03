@@ -15,7 +15,7 @@ bool list_lru_add(struct list_lru *lru, struct list_head *item)
 	struct list_lru_node *nlru = &lru->node[nid];
 
 	spin_lock(&nlru->lock);
-	BUG_ON(nlru->nr_items < 0);
+	WARN_ON_ONCE(nlru->nr_items < 0);
 	if (list_empty(item)) {
 		list_add_tail(item, &nlru->list);
 		if (nlru->nr_items++ == 0)
@@ -38,7 +38,7 @@ bool list_lru_del(struct list_lru *lru, struct list_head *item)
 		list_del_init(item);
 		if (--nlru->nr_items == 0)
 			node_clear(nid, lru->active_nodes);
-		BUG_ON(nlru->nr_items < 0);
+		WARN_ON_ONCE(nlru->nr_items < 0);
 		spin_unlock(&nlru->lock);
 		return true;
 	}
@@ -56,7 +56,7 @@ unsigned long list_lru_count(struct list_lru *lru)
 		struct list_lru_node *nlru = &lru->node[nid];
 
 		spin_lock(&nlru->lock);
-		BUG_ON(nlru->nr_items < 0);
+		WARN_ON_ONCE(nlru->nr_items < 0);
 		count += nlru->nr_items;
 		spin_unlock(&nlru->lock);
 	}
@@ -91,7 +91,7 @@ restart:
 		case LRU_REMOVED:
 			if (--nlru->nr_items == 0)
 				node_clear(nid, lru->active_nodes);
-			BUG_ON(nlru->nr_items < 0);
+			WARN_ON_ONCE(nlru->nr_items < 0);
 			isolated++;
 			break;
 		case LRU_ROTATE:
