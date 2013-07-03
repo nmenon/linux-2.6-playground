@@ -53,10 +53,10 @@ static void i915_gem_object_update_fence(struct drm_i915_gem_object *obj,
 					 struct drm_i915_fence_reg *fence,
 					 bool enable);
 
-static long i915_gem_inactive_count(struct shrinker *shrinker,
-				    struct shrink_control *sc);
-static long i915_gem_inactive_scan(struct shrinker *shrinker,
-				   struct shrink_control *sc);
+static unsigned long i915_gem_inactive_count(struct shrinker *shrinker,
+					     struct shrink_control *sc);
+static unsigned long i915_gem_inactive_scan(struct shrinker *shrinker,
+					    struct shrink_control *sc);
 static long i915_gem_purge(struct drm_i915_private *dev_priv, long target);
 static long i915_gem_shrink_all(struct drm_i915_private *dev_priv);
 static void i915_gem_object_truncate(struct drm_i915_gem_object *obj);
@@ -4583,7 +4583,7 @@ static bool mutex_is_locked_by(struct mutex *mutex, struct task_struct *task)
 #endif
 }
 
-static long
+static unsigned long
 i915_gem_inactive_count(struct shrinker *shrinker, struct shrink_control *sc)
 {
 	struct drm_i915_private *dev_priv =
@@ -4593,7 +4593,7 @@ i915_gem_inactive_count(struct shrinker *shrinker, struct shrink_control *sc)
 	struct drm_device *dev = dev_priv->dev;
 	struct drm_i915_gem_object *obj;
 	bool unlock = true;
-	long cnt;
+	unsigned long count;
 
 	if (!mutex_trylock(&dev->struct_mutex)) {
 		if (!mutex_is_locked_by(&dev->struct_mutex, current))
@@ -4605,19 +4605,20 @@ i915_gem_inactive_count(struct shrinker *shrinker, struct shrink_control *sc)
 		unlock = false;
 	}
 
-	cnt = 0;
+	count = 0;
 	list_for_each_entry(obj, &dev_priv->mm.unbound_list, global_list)
 		if (obj->pages_pin_count == 0)
-			cnt += obj->base.size >> PAGE_SHIFT;
+			count += obj->base.size >> PAGE_SHIFT;
 	list_for_each_entry(obj, &dev_priv->mm.inactive_list, mm_list)
 		if (obj->pin_count == 0 && obj->pages_pin_count == 0)
-			cnt += obj->base.size >> PAGE_SHIFT;
+			count += obj->base.size >> PAGE_SHIFT;
 
 	if (unlock)
 		mutex_unlock(&dev->struct_mutex);
-	return cnt;
+	return count;
 }
-static long
+
+static unsigned long
 i915_gem_inactive_scan(struct shrinker *shrinker, struct shrink_control *sc)
 {
 	struct drm_i915_private *dev_priv =
@@ -4626,7 +4627,7 @@ i915_gem_inactive_scan(struct shrinker *shrinker, struct shrink_control *sc)
 			     mm.inactive_shrinker);
 	struct drm_device *dev = dev_priv->dev;
 	int nr_to_scan = sc->nr_to_scan;
-	long freed;
+	unsigned long freed;
 	bool unlock = true;
 
 	if (!mutex_trylock(&dev->struct_mutex)) {

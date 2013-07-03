@@ -1462,13 +1462,13 @@ static long __scan(struct dm_bufio_client *c, unsigned long nr_to_scan,
 	return freed;
 }
 
-static long
+static unsigned long
 dm_bufio_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
-	struct dm_bufio_client *c =
-	    container_of(shrink, struct dm_bufio_client, shrinker);
-	long freed;
+	struct dm_bufio_client *c;
+	unsigned long freed;
 
+	c = container_of(shrink, struct dm_bufio_client, shrinker);
 	if (sc->gfp_mask & __GFP_IO)
 		dm_bufio_lock(c);
 	else if (!dm_bufio_trylock(c))
@@ -1479,13 +1479,13 @@ dm_bufio_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 	return freed;
 }
 
-static long
+static unsigned long
 dm_bufio_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
 {
-	struct dm_bufio_client *c =
-	    container_of(shrink, struct dm_bufio_client, shrinker);
-	long count;
+	struct dm_bufio_client *c;
+	unsigned long count;
 
+	c = container_of(shrink, struct dm_bufio_client, shrinker);
 	if (sc->gfp_mask & __GFP_IO)
 		dm_bufio_lock(c);
 	else if (!dm_bufio_trylock(c))
@@ -1494,7 +1494,6 @@ dm_bufio_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
 	count = c->n_buffers[LIST_CLEAN] + c->n_buffers[LIST_DIRTY];
 	dm_bufio_unlock(c);
 	return count;
-
 }
 
 /*
