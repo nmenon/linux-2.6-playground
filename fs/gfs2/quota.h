@@ -53,7 +53,9 @@ static inline int gfs2_quota_lock_check(struct gfs2_inode *ip)
 	return ret;
 }
 
-extern int gfs2_shrink_qd_memory(struct shrinker *shrink,
+extern long gfs2_qd_shrink_count(struct shrinker *shrink,
+				 struct shrink_control *sc);
+extern long gfs2_qd_shrink_scan(struct shrinker *shrink,
 				 struct shrink_control *sc);
 extern const struct quotactl_ops gfs2_quotactl_ops;
 

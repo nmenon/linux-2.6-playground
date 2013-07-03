@@ -277,18 +277,22 @@ static int kick_a_thread(void)
 	return 0;
 }
 
-int ubifs_shrinker(struct shrinker *shrink, struct shrink_control *sc)
+long ubifs_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
+{
+	long clean_zn_cnt = atomic_long_read(&ubifs_clean_zn_cnt);
+
+	/*
+	 * Due to the way UBIFS updates the clean znode counter it may
+	 * temporarily be negative.
+	 */
+	return clean_zn_cnt >= 0 ? clean_zn_cnt : 1;
+}
+
+long ubifs_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
 	int nr = sc->nr_to_scan;
 	int freed, contention = 0;
 	long clean_zn_cnt = atomic_long_read(&ubifs_clean_zn_cnt);
-
-	if (nr == 0)
-		/*
-		 * Due to the way UBIFS updates the clean znode counter it may
-		 * temporarily be negative.
-		 */
-		return clean_zn_cnt >= 0 ? clean_zn_cnt : 1;
 
 	if (!clean_zn_cnt) {
 		/*
@@ -316,7 +320,7 @@ int ubifs_shrinker(struct shrinker *shrink, struct shrink_control *sc)
 
 	if (!freed && contention) {
 		dbg_tnc("freed nothing, but contention");
-		return -1;
+		return SHRINK_STOP;
 	}
 
 out:
