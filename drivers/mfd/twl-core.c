@@ -1267,6 +1267,22 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		twl_i2c_write_u8(TWL4030_MODULE_INTBR, temp, REG_GPPUPDCTR1);
 	}
 
+	/* Program 4030 in I2C4(SR) mode if required */
+	if (twl_class_is_4030() && node) {
+		u8 temp;
+
+		twl_i2c_read_u8(TWL_MODULE_PM_RECEIVER, &temp,
+				TWL4030_PM_RECIEVER_DCDC_GLOBAL_CFG);
+
+		if (of_property_read_bool(node, "ti,twl4030_use_sr"))
+			temp |= TWL4030_SR_ENABLE;
+		else
+			temp &= ~TWL4030_SR_ENABLE;
+
+		twl_i2c_write_u8(TWL_MODULE_PM_RECEIVER, temp,
+				 TWL4030_PM_RECIEVER_DCDC_GLOBAL_CFG);
+	}
+
 	if (node)
 		status = of_platform_populate(node, NULL, NULL, &client->dev);
 	else

@@ -22,7 +22,7 @@ Optional node:
 - Child nodes contain in the twl. The twl family is made of several variants
   that support a different number of features.
   The children nodes will thus depend of the capability of the variant.
-
+- ti,twl4030_use_sr : bool to indicate VDD1,2 is available only over SR path.
 
 Example:
 /*
