@@ -53,7 +53,8 @@ static char *sb_writers_name[SB_FREEZE_LEVELS] = {
  * shrinker path and that leads to deadlock on the shrinker_rwsem. Hence we
  * take a passive reference to the superblock to avoid this from occurring.
  */
-static long super_cache_scan(struct shrinker *shrink, struct shrink_control *sc)
+static unsigned long super_cache_scan(struct shrinker *shrink,
+				      struct shrink_control *sc)
 {
 	struct super_block *sb;
 	long	fs_objects = 0;
@@ -103,7 +104,8 @@ static long super_cache_scan(struct shrinker *shrink, struct shrink_control *sc)
 	return freed;
 }
 
-static long super_cache_count(struct shrinker *shrink, struct shrink_control *sc)
+static unsigned long super_cache_count(struct shrinker *shrink,
+				       struct shrink_control *sc)
 {
 	struct super_block *sb;
 	long	total_objects = 0;
