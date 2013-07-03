@@ -344,16 +344,6 @@ static inline void enable_irq_lockdep_irqrestore(unsigned int irq, unsigned long
 /* IRQ wakeup (PM) control: */
 extern int irq_set_irq_wake(unsigned int irq, unsigned int on);
 
-static inline int enable_irq_wake(unsigned int irq)
-{
-	return irq_set_irq_wake(irq, 1);
-}
-
-static inline int disable_irq_wake(unsigned int irq)
-{
-	return irq_set_irq_wake(irq, 0);
-}
-
 #else /* !CONFIG_GENERIC_HARDIRQS */
 /*
  * NOTE: non-genirq architectures, if they want to support the lock
@@ -370,16 +360,23 @@ static inline int disable_irq_wake(unsigned int irq)
 						enable_irq(irq)
 # endif
 
-static inline int enable_irq_wake(unsigned int irq)
+/* IRQ wakeup (PM) control: */
+static inline int irq_set_irq_wake(unsigned int irq, unsigned int on)
 {
 	return 0;
 }
 
+#endif /* CONFIG_GENERIC_HARDIRQS */
+
+static inline int enable_irq_wake(unsigned int irq)
+{
+	return irq_set_irq_wake(irq, 1);
+}
+
 static inline int disable_irq_wake(unsigned int irq)
 {
-	return 0;
+	return irq_set_irq_wake(irq, 0);
 }
-#endif /* CONFIG_GENERIC_HARDIRQS */
 
 
 #ifdef CONFIG_IRQ_FORCED_THREADING
