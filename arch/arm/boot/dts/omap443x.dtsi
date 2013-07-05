@@ -12,7 +12,7 @@
 
 / {
 	cpus {
-		cpu@0 {
+		cpu0: cpu@0 {
 			/* OMAP443x variants OPP50-OPPNT */
 			operating-points = <
 				/* kHz    uV */
@@ -30,4 +30,34 @@
 		       0x4a00232C 0x4>;
 		compatible = "ti,omap4430-bandgap";
 	};
+};
+
+&vc_mpu {
+	ti,retention-micro-volts = <750000>;
+	ti,off-micro-volts = <0>;
+};
+
+&vc_iva {
+	ti,retention-micro-volts = <750000>;
+	ti,off-micro-volts = <0>;
+};
+
+&vc_core {
+	ti,retention-micro-volts = <750000>;
+	ti,off-micro-volts = <0>;
+};
+
+&vp_mpu {
+	ti,min-micro-volts = <750000>;
+	ti,max-micro-volts = <1388000>;
+};
+
+&vp_iva {
+	ti,min-micro-volts = <750000>;
+	ti,max-micro-volts = <1291000>;
+};
+
+&vp_core {
+	ti,min-micro-volts = <750000>;
+	ti,max-micro-volts = <1127000>;
 };

@@ -26,3 +26,23 @@
 		};
 	};
 };
+
+&vc_mpu {
+	ti,retention-micro-volts = <975000>;
+	ti,off-micro-volts = <600000>;
+};
+
+&vc_core {
+	ti,retention-micro-volts = <975000>;
+	ti,off-micro-volts = <600000>;
+};
+
+&vp_mpu {
+	ti,min-micro-volts = <850000>;
+	ti,max-micro-volts = <1425000>;
+};
+
+&vp_core {
+	ti,min-micro-volts = <900000>;
+	ti,max-micro-volts = <1207000>;
+};

@@ -12,7 +12,7 @@
 / {
 	cpus {
 		/* OMAP446x 'standard device' variants OPP50 to OPPTurbo */
-		cpu@0 {
+		cpu0: cpu@0 {
 			operating-points = <
 				/* kHz    uV */
 				350000  1025000
@@ -38,4 +38,35 @@
 		interrupts = <0 126 IRQ_TYPE_LEVEL_HIGH>; /* talert */
 		gpios = <&gpio3 22 0>; /* tshut */
 	};
+};
+
+&vc_mpu {
+	ti,retention-micro-volts = <750000>;
+	/* Erratum i738: Reliability impact work around */
+	ti,off-micro-volts = <750000>;
+};
+
+&vc_iva {
+	ti,retention-micro-volts = <750000>;
+	ti,off-micro-volts = <0>;
+};
+
+&vc_core {
+	ti,retention-micro-volts = <750000>;
+	ti,off-micro-volts = <0>;
+};
+
+&vp_mpu {
+	ti,min-micro-volts = <750000>;
+	ti,max-micro-volts = <1380000>;
+};
+
+&vp_iva {
+	ti,min-micro-volts = <750000>;
+	ti,max-micro-volts = <1375000>;
+};
+
+&vp_core {
+	ti,min-micro-volts = <750000>;
+	ti,max-micro-volts = <1250000>;
 };
