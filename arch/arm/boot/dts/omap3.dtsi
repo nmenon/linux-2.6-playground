@@ -548,7 +548,7 @@
 
 		vc: vc@48307220 {
 			compatible = "ti,omap3-vc";
-			/* TBD: clocks = <&sysclk_in>; */
+			clocks = <&sysclk_in>;
 			reg = <0x48307220 0x20>;
 			reg-names = "base-address";
 
@@ -569,7 +569,7 @@
 			reg-names = "base-address", "int-address";
 			ti,tranxdone-status-mask=<0x8000>;
 
-			/* TBD: clocks = <&sysclk_in>; */
+			clocks = <&sysclk_in>;
 
 			ti,vc-channel = <&vc_mpu>;
 			ti,min-step-micro-volts = <10000>;
@@ -583,7 +583,7 @@
 			reg-names = "base-address", "int-address";
 			ti,tranxdone-status-mask=<0x200000>;
 
-			/* TBD: clocks = <&sysclk_in>; */
+			clocks = <&sysclk_in>;
 
 			regulator_name = "vdd_core";
 			ti,vc-channel = <&vc_core>;
