@@ -170,6 +170,9 @@ static int format_corename(struct core_name *cn, struct coredump_params *cprm)
 	if (ispipe)
 		++pat_ptr;
 
+	if (ispipe)
+		++pat_ptr;
+
 	/* Repeat as long as we have more pattern to process and more output
 	   space */
 	while (*pat_ptr) {

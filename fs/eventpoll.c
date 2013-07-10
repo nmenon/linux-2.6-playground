@@ -1966,23 +1966,23 @@ SYSCALL_DEFINE6(epoll_pwait, int, epfd, struct epoll_event __user *, events,
 		size_t, sigsetsize)
 {
 	int error;
-	sigset_t ksigmask, sigsaved;
-
 	/*
 	 * If the caller wants a certain signal mask to be set during the wait,
 	 * we apply it here.
 	 */
 	if (sigmask) {
+		sigset_t ksigmask;
+
 		if (sigsetsize != sizeof(sigset_t))
 			return -EINVAL;
 		if (copy_from_user(&ksigmask, sigmask, sizeof(ksigmask)))
 			return -EFAULT;
-		sigsaved = current->blocked;
+
+		current->saved_sigmask = current->blocked;
 		set_current_blocked(&ksigmask);
 	}
 
 	error = sys_epoll_wait(epfd, events, maxevents, timeout);
-
 	/*
 	 * If we changed the signal mask, we need to restore the original one.
 	 * In case we've got a signal while waiting, we do not restore the
@@ -1990,12 +1990,10 @@ SYSCALL_DEFINE6(epoll_pwait, int, epfd, struct epoll_event __user *, events,
 	 * the way back to userspace, before the signal mask is restored.
 	 */
 	if (sigmask) {
-		if (error == -EINTR) {
-			memcpy(&current->saved_sigmask, &sigsaved,
-			       sizeof(sigsaved));
+		if (error == -EINTR)
 			set_restore_sigmask();
-		} else
-			set_current_blocked(&sigsaved);
+		else
+			__set_current_blocked(&current->saved_sigmask);
 	}
 
 	return error;
@@ -2009,25 +2007,25 @@ COMPAT_SYSCALL_DEFINE6(epoll_pwait, int, epfd,
 			compat_size_t, sigsetsize)
 {
 	long err;
-	compat_sigset_t csigmask;
-	sigset_t ksigmask, sigsaved;
-
 	/*
 	 * If the caller wants a certain signal mask to be set during the wait,
 	 * we apply it here.
 	 */
 	if (sigmask) {
+		compat_sigset_t csigmask;
+		sigset_t ksigmask;
+
 		if (sigsetsize != sizeof(compat_sigset_t))
 			return -EINVAL;
 		if (copy_from_user(&csigmask, sigmask, sizeof(csigmask)))
 			return -EFAULT;
 		sigset_from_compat(&ksigmask, &csigmask);
-		sigsaved = current->blocked;
+
+		current->saved_sigmask = current->blocked;
 		set_current_blocked(&ksigmask);
 	}
 
 	err = sys_epoll_wait(epfd, events, maxevents, timeout);
-
 	/*
 	 * If we changed the signal mask, we need to restore the original one.
 	 * In case we've got a signal while waiting, we do not restore the
@@ -2035,12 +2033,10 @@ COMPAT_SYSCALL_DEFINE6(epoll_pwait, int, epfd,
 	 * the way back to userspace, before the signal mask is restored.
 	 */
 	if (sigmask) {
-		if (err == -EINTR) {
-			memcpy(&current->saved_sigmask, &sigsaved,
-			       sizeof(sigsaved));
+		if (err == -EINTR)
 			set_restore_sigmask();
-		} else
-			set_current_blocked(&sigsaved);
+		else
+			__set_current_blocked(&current->saved_sigmask);
 	}
 
 	return err;
