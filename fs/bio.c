@@ -833,6 +833,33 @@ void bio_advance(struct bio *bio, unsigned bytes)
 EXPORT_SYMBOL(bio_advance);
 
 /**
+ * bio_rewind - reset a bio to its start
+ * @bio:        bio to rewind
+ *
+ * This resets bi_sector, bi_size and bi_idx; completely undoing all
+ * bio_advances on the @bio.
+ */
+void bio_rewind(struct bio *bio)
+{
+	int bytes = 0;
+
+	if (bio->bi_idx < bio->bi_vcnt && bio_iovec(bio)->bv_offset > 0) {
+		bytes = bio_iovec(bio)->bv_offset;
+		bio_iovec(bio)->bv_offset -= bytes;
+		bio_iovec(bio)->bv_len += bytes;
+	}
+	while (bio->bi_idx) {
+		bio->bi_idx -= 1;
+		bio_iovec(bio)->bv_len += bio_iovec(bio)->bv_offset;
+		bio_iovec(bio)->bv_offset = 0;
+		bytes += bio_iovec(bio)->bv_len;
+	}
+	bio->bi_size += bytes;
+	bio->bi_sector -= bytes >> 9;
+}
+EXPORT_SYMBOL(bio_rewind);
+
+/**
  * bio_alloc_pages - allocates a single page for each bvec in a bio
  * @bio: bio to allocate pages for
  * @gfp_mask: flags for allocation

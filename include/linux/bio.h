@@ -258,6 +258,7 @@ extern int bio_phys_segments(struct request_queue *, struct bio *);
 
 extern int submit_bio_wait(int rw, struct bio *bio);
 extern void bio_advance(struct bio *, unsigned);
+extern void bio_rewind(struct bio *);
 
 extern void bio_init(struct bio *);
 extern void bio_reset(struct bio *);

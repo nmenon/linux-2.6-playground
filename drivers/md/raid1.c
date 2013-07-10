@@ -1862,7 +1862,6 @@ static int process_checks(struct r1bio *r1_bio)
 		int j;
 		struct bio *pbio = r1_bio->bios[primary];
 		struct bio *sbio = r1_bio->bios[i];
-		int size;
 
 		if (sbio->bi_end_io != end_sync_read)
 			continue;
@@ -1888,28 +1887,11 @@ static int process_checks(struct r1bio *r1_bio)
 			rdev_dec_pending(conf->mirrors[i].rdev, mddev);
 			continue;
 		}
-		/* fixup the bio for reuse */
-		bio_reset(sbio);
-		sbio->bi_vcnt = vcnt;
-		sbio->bi_size = r1_bio->sectors << 9;
-		sbio->bi_sector = r1_bio->sector +
-			conf->mirrors[i].rdev->data_offset;
-		sbio->bi_bdev = conf->mirrors[i].rdev->bdev;
-		sbio->bi_end_io = end_sync_read;
-		sbio->bi_private = r1_bio;
-
-		size = sbio->bi_size;
-		for (j = 0; j < vcnt ; j++) {
-			struct bio_vec *bi;
-			bi = &sbio->bi_io_vec[j];
-			bi->bv_offset = 0;
-			if (size > PAGE_SIZE)
-				bi->bv_len = PAGE_SIZE;
-			else
-				bi->bv_len = size;
-			size -= PAGE_SIZE;
-		}
-
+		/* copy pbio io_vec data into sbio, but first reset io_vec
+		 * index and unchain both */
+		bio_rewind(pbio);
+		bio_rewind(sbio);
+		pbio->bi_next = sbio->bi_next = NULL;
 		bio_copy_data(sbio, pbio);
 	}
 	return 0;
