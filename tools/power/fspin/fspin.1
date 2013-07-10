@@ -1,0 +1,68 @@
+.\"  This page Copyright (C) 2013 Len Brown <len.brown@intel.com>
+.\"  Distributed under the GPL, Copyleft 1994.
+.TH FSPIN 8
+.SH NAME
+fspin \- simple workload for power experiments
+.SH SYNOPSIS
+.ft B
+.B fspin
+.RB [ "\-v" ]
+.RB [ "\-i iterations" ]
+.RB [ "\-s sec_per_iteration" ]
+.RB [ "\-t threads" ]
+.RB [ "\-b bin_to_cpus" ]
+.RB [ "\-m memory (b|k|m)" ]
+.br
+.SH DESCRIPTION
+\fBfspin\fP
+heats up the hardware by running a
+floating-point spin loop per processor.
+Every
+.I interval_sec
+fspin presents the sum of the work completed
+by all threads.
+.SS Options
+.PP
+\fB-v\fP increases verbosity.
+By default, fspin prints only the quantity work completed.
+.PP
+\fB-s sec_per_iteration\fP
+Print the indicator of work completed every
+sec_per_interval seconds.  By default, 5 sec.
+.PP
+\fB-t threads\fP
+Create
+.I threads
+software threads.  Default is number of
+logical processors available, or if '-b' option is used,
+one thread per bound processor.
+.PP
+\fB-b bind_to_cpus\fP
+Bind the threads to the indicated list of comma-separated CPU numbers.
+A range of CPUs can be specified by using '-'.
+.PP
+\fB-i iterations\fP
+Exit after
+.I iterations
+and print total of work completed.
+Default is to continue running forever, printing work per iteration/sec.
+.PP
+\fB-m memory\fP
+Allocate arrays of 
+.I memory_size,
+which is followed by a modifier b|k|m, for bytes, kilobytes, or megabytes,
+respectively.  Default is 512 bytes, which will spin in-cache.
+Increase this number to exercise larger caches and memory.
+
+.SH WHAT FSPIN IS NOT
+Fspin is just a simple tool,
+and has not be characterized as a
+.I performance benchmark.
+Fspin is not a
+.I power virus for cooling HW design,
+as there are better tools, specialized for that purpose.
+
+.PP
+.SH AUTHORS
+.nf
+Written by Len Brown <len.brown@intel.com>
