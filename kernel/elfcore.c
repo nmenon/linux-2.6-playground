@@ -10,14 +10,12 @@ Elf_Half __weak elf_core_extra_phdrs(void)
 	return 0;
 }
 
-int __weak elf_core_write_extra_phdrs(struct file *file, loff_t offset, size_t *size,
-				      unsigned long limit)
+int __weak elf_core_write_extra_phdrs(struct coredump_params *cprm, loff_t offset)
 {
 	return 1;
 }
 
-int __weak elf_core_write_extra_data(struct file *file, size_t *size,
-				     unsigned long limit)
+int __weak elf_core_write_extra_data(struct coredump_params *cprm)
 {
 	return 1;
 }

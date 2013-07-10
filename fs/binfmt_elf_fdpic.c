@@ -1207,7 +1207,7 @@ static int maydump(struct vm_area_struct *vma, unsigned long mm_flags)
 	}
 
 	/* If we may not read the contents, don't allow us to dump
-	 * them either. "dump_write()" can't handle it anyway.
+	 * them either. "dump_emit()" can't handle it anyway.
 	 */
 	if (!(vma->vm_flags & VM_READ)) {
 		kdcore("%08lx: %08lx: no (!read)", vma->vm_start, vma->vm_flags);
@@ -1267,35 +1267,26 @@ static int notesize(struct memelfnote *en)
 
 /* #define DEBUG */
 
-#define DUMP_WRITE(addr, nr, foffset)	\
-	do { if (!dump_write(file, (addr), (nr))) return 0; *foffset += (nr); } while(0)
-
-static int alignfile(struct file *file, loff_t *foffset)
-{
-	static const char buf[4] = { 0, };
-	DUMP_WRITE(buf, roundup(*foffset, 4) - *foffset, foffset);
-	return 1;
-}
-
-static int writenote(struct memelfnote *men, struct file *file,
-			loff_t *foffset)
+static int writenote(struct memelfnote *men, struct coredump_params *cprm)
 {
 	struct elf_note en;
 	en.n_namesz = strlen(men->name) + 1;
 	en.n_descsz = men->datasz;
 	en.n_type = men->type;
 
-	DUMP_WRITE(&en, sizeof(en), foffset);
-	DUMP_WRITE(men->name, en.n_namesz, foffset);
-	if (!alignfile(file, foffset))
+	if (!dump_emit(cprm, &en, sizeof(en)))
 		return 0;
-	DUMP_WRITE(men->data, men->datasz, foffset);
-	if (!alignfile(file, foffset))
+	if (!dump_emit(cprm, men->name, en.n_namesz))
+		return 0;
+	if (!dump_align(cprm, 4))
+		return 0;
+	if (!dump_emit(cprm, men->data, men->datasz))
+		return 0;
+	if (!dump_align(cprm, 4))
 		return 0;
 
 	return 1;
 }
-#undef DUMP_WRITE
 
 static inline void fill_elf_fdpic_header(struct elfhdr *elf, int segs)
 {
@@ -1501,8 +1492,7 @@ static void fill_extnum_info(struct elfhdr *elf, struct elf_shdr *shdr4extnum,
  * dump the segments for an MMU process
  */
 #ifdef CONFIG_MMU
-static int elf_fdpic_dump_segments(struct file *file, size_t *size,
-			   unsigned long *limit, unsigned long mm_flags)
+static int elf_fdpic_dump_segments(struct coredump_params *cprm)
 {
 	struct vm_area_struct *vma;
 	int err = 0;
@@ -1510,7 +1500,7 @@ static int elf_fdpic_dump_segments(struct file *file, size_t *size,
 	for (vma = current->mm->mmap; vma; vma = vma->vm_next) {
 		unsigned long addr;
 
-		if (!maydump(vma, mm_flags))
+		if (!maydump(vma, cprm->mm_flags))
 			continue;
 
 		for (addr = vma->vm_start; addr < vma->vm_end;
@@ -1518,14 +1508,11 @@ static int elf_fdpic_dump_segments(struct file *file, size_t *size,
 			struct page *page = get_dump_page(addr);
 			if (page) {
 				void *kaddr = kmap(page);
-				*size += PAGE_SIZE;
-				if (*size > *limit)
-					err = -EFBIG;
-				else if (!dump_write(file, kaddr, PAGE_SIZE))
+				if (!dump_emit(cprm, kaddr, PAGE_SIZE))
 					err = -EIO;
 				kunmap(page);
 				page_cache_release(page);
-			} else if (!dump_seek(file, PAGE_SIZE))
+			} else if (!dump_skip(cprm, PAGE_SIZE))
 				err = -EFBIG;
 			if (err)
 				goto out;
@@ -1540,19 +1527,15 @@ out:
  * dump the segments for a NOMMU process
  */
 #ifndef CONFIG_MMU
-static int elf_fdpic_dump_segments(struct file *file, size_t *size,
-			   unsigned long *limit, unsigned long mm_flags)
+static int elf_fdpic_dump_segments(struct coredump_params *cprm)
 {
 	struct vm_area_struct *vma;
 
 	for (vma = current->mm->mmap; vma; vma = vma->vm_next) {
-		if (!maydump(vma, mm_flags))
+		if (!maydump(vma, cprm->mm_flags))
 			continue;
 
-		if ((*size += PAGE_SIZE) > *limit)
-			return -EFBIG;
-
-		if (!dump_write(file, (void *) vma->vm_start,
+		if (!dump_emit(cprm, (void *) vma->vm_start,
 				vma->vm_end - vma->vm_start))
 			return -EIO;
 	}
@@ -1585,7 +1568,6 @@ static int elf_fdpic_core_dump(struct coredump_params *cprm)
 	int has_dumped = 0;
 	mm_segment_t fs;
 	int segs;
-	size_t size = 0;
 	int i;
 	struct vm_area_struct *vma;
 	struct elfhdr *elf = NULL;
@@ -1755,13 +1737,10 @@ static int elf_fdpic_core_dump(struct coredump_params *cprm)
 
 	offset = dataoff;
 
-	size += sizeof(*elf);
-	if (size > cprm->limit || !dump_write(cprm->file, elf, sizeof(*elf)))
+	if (!dump_emit(cprm, elf, sizeof(*elf)))
 		goto end_coredump;
 
-	size += sizeof(*phdr4note);
-	if (size > cprm->limit
-	    || !dump_write(cprm->file, phdr4note, sizeof(*phdr4note)))
+	if (!dump_emit(cprm, phdr4note, sizeof(*phdr4note)))
 		goto end_coredump;
 
 	/* write program headers for segments dump */
@@ -1785,18 +1764,16 @@ static int elf_fdpic_core_dump(struct coredump_params *cprm)
 			phdr.p_flags |= PF_X;
 		phdr.p_align = ELF_EXEC_PAGESIZE;
 
-		size += sizeof(phdr);
-		if (size > cprm->limit
-		    || !dump_write(cprm->file, &phdr, sizeof(phdr)))
+		if (!dump_emit(cprm, &phdr, sizeof(phdr)))
 			goto end_coredump;
 	}
 
-	if (!elf_core_write_extra_phdrs(cprm->file, offset, &size, cprm->limit))
+	if (!elf_core_write_extra_phdrs(cprm, offset))
 		goto end_coredump;
 
  	/* write out the notes section */
 	for (i = 0; i < numnote; i++)
-		if (!writenote(notes + i, cprm->file, &foffset))
+		if (!writenote(notes + i, cprm))
 			goto end_coredump;
 
 	/* write out the thread status notes section */
@@ -1805,33 +1782,29 @@ static int elf_fdpic_core_dump(struct coredump_params *cprm)
 				list_entry(t, struct elf_thread_status, list);
 
 		for (i = 0; i < tmp->num_notes; i++)
-			if (!writenote(&tmp->notes[i], cprm->file, &foffset))
+			if (!writenote(&tmp->notes[i], cprm))
 				goto end_coredump;
 	}
 
-	if (!dump_seek(cprm->file, dataoff - foffset))
+	if (!dump_align(cprm, ELF_EXEC_PAGESIZE))
 		goto end_coredump;
 
-	if (elf_fdpic_dump_segments(cprm->file, &size, &cprm->limit,
-				    cprm->mm_flags) < 0)
+	if (elf_fdpic_dump_segments(cprm) < 0)
 		goto end_coredump;
 
-	if (!elf_core_write_extra_data(cprm->file, &size, cprm->limit))
+	if (!elf_core_write_extra_data(cprm))
 		goto end_coredump;
 
 	if (e_phnum == PN_XNUM) {
-		size += sizeof(*shdr4extnum);
-		if (size > cprm->limit
-		    || !dump_write(cprm->file, shdr4extnum,
-				   sizeof(*shdr4extnum)))
+		if (!dump_emit(cprm, shdr4extnum, sizeof(*shdr4extnum)))
 			goto end_coredump;
 	}
 
-	if (cprm->file->f_pos != offset) {
+	if (cprm->written != offset) {
 		/* Sanity check */
 		printk(KERN_WARNING
-		       "elf_core_dump: file->f_pos (%lld) != offset (%lld)\n",
-		       cprm->file->f_pos, offset);
+		       "elf_core_dump: cprm->written (%lld) != offset (%lld)\n",
+		       (long long)cprm->written, offset);
 	}
 
 end_coredump:
