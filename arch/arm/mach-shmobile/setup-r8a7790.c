@@ -19,12 +19,12 @@
  */
 
 #include <linux/irq.h>
-#include <linux/irqchip.h>
 #include <linux/kernel.h>
 #include <linux/of_platform.h>
-#include <linux/serial_sci.h>
 #include <linux/platform_data/gpio-rcar.h>
 #include <linux/platform_data/irq-renesas-irqc.h>
+#include <linux/serial_sci.h>
+#include <linux/sh_timer.h>
 #include <mach/common.h>
 #include <mach/irqs.h>
 #include <mach/r8a7790.h>
@@ -149,7 +149,37 @@ static struct resource irqc0_resources[] __initdata = {
 					  &irqc##idx##_data,		\
 					  sizeof(struct renesas_irqc_config))
 
-void __init r8a7790_add_standard_devices(void)
+static struct resource thermal_resources[] __initdata = {
+	DEFINE_RES_MEM(0xe61f0000, 0x14),
+	DEFINE_RES_MEM(0xe61f0100, 0x38),
+	DEFINE_RES_IRQ(gic_spi(69)),
+};
+
+#define r8a7790_register_thermal()					\
+	platform_device_register_simple("rcar_thermal", -1,		\
+					thermal_resources,		\
+					ARRAY_SIZE(thermal_resources))
+
+static struct sh_timer_config cmt00_platform_data = {
+	.name = "CMT00",
+	.timer_bit = 0,
+	.clockevent_rating = 80,
+};
+
+static struct resource cmt00_resources[] = {
+	DEFINE_RES_MEM(0xffca0510, 0x0c),
+	DEFINE_RES_MEM(0xffca0500, 0x04),
+	DEFINE_RES_IRQ(gic_spi(142)), /* CMT0_0 */
+};
+
+#define r8a7790_register_cmt(idx)					\
+	platform_device_register_resndata(&platform_bus, "sh_cmt",	\
+					  idx, cmt##idx##_resources,	\
+					  ARRAY_SIZE(cmt##idx##_resources), \
+					  &cmt##idx##_platform_data,	\
+					  sizeof(struct sh_timer_config))
+
+void __init r8a7790_add_dt_devices(void)
 {
 	r8a7790_register_scif(SCIFA0);
 	r8a7790_register_scif(SCIFA1);
@@ -161,7 +191,14 @@ void __init r8a7790_add_standard_devices(void)
 	r8a7790_register_scif(SCIF1);
 	r8a7790_register_scif(HSCIF0);
 	r8a7790_register_scif(HSCIF1);
+	r8a7790_register_cmt(00);
+}
+
+void __init r8a7790_add_standard_devices(void)
+{
+	r8a7790_add_dt_devices();
 	r8a7790_register_irqc(0);
+	r8a7790_register_thermal();
 }
 
 void __init r8a7790_timer_init(void)
@@ -176,11 +213,14 @@ void __init r8a7790_timer_init(void)
 	shmobile_timer_init();
 }
 
-#ifdef CONFIG_USE_OF
-void __init r8a7790_add_standard_devices_dt(void)
+void __init r8a7790_init_delay(void)
 {
-	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
+#ifndef CONFIG_ARM_ARCH_TIMER
+	shmobile_setup_delay(1300, 2, 4); /* Cortex-A15 @ 1300MHz */
+#endif
 }
+
+#ifdef CONFIG_USE_OF
 
 static const char *r8a7790_boards_compat_dt[] __initdata = {
 	"renesas,r8a7790",
@@ -188,8 +228,7 @@ static const char *r8a7790_boards_compat_dt[] __initdata = {
 };
 
 DT_MACHINE_START(R8A7790_DT, "Generic R8A7790 (Flattened Device Tree)")
-	.init_irq	= irqchip_init,
-	.init_machine	= r8a7790_add_standard_devices_dt,
+	.init_early	= r8a7790_init_delay,
 	.init_time	= r8a7790_timer_init,
 	.dt_compat	= r8a7790_boards_compat_dt,
 MACHINE_END

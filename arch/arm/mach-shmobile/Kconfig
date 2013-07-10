@@ -23,9 +23,10 @@ config ARCH_R8A73A4
 	select ARCH_WANT_OPTIONAL_GPIOLIB
 	select ARM_GIC
 	select CPU_V7
-	select HAVE_ARM_ARCH_TIMER
 	select SH_CLK_CPG
 	select RENESAS_IRQC
+	select ARCH_HAS_CPUFREQ
+	select ARCH_HAS_OPP
 
 config ARCH_R8A7740
 	bool "R-Mobile A1 (R8A77400)"
@@ -59,7 +60,6 @@ config ARCH_R8A7790
 	select ARCH_WANT_OPTIONAL_GPIOLIB
 	select ARM_GIC
 	select CPU_V7
-	select HAVE_ARM_ARCH_TIMER
 	select SH_CLK_CPG
 	select RENESAS_IRQC
 
@@ -149,6 +149,17 @@ config MACH_LAGER
 	bool "Lager board"
 	depends on ARCH_R8A7790
 	select USE_OF
+
+config MACH_LAGER_REFERENCE
+	bool "Lager board - Reference Device Tree Implementation"
+	depends on ARCH_R8A7790
+	select USE_OF
+	---help---
+	   Use reference implementation of Lager board support
+	   which makes use of device tree at the expense
+	   of not supporting a number of devices.
+
+	   This is intended to aid developers
 
 config MACH_KZM9D
 	bool "KZM9D board"
