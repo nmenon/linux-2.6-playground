@@ -1,0 +1,83 @@
+dm-switch
+=========
+
+dm-switch target is suitable for Dell EqualLogic storage system.
+
+The EqualLogic storage consists of several nodes. Each host is connected
+to each node. The host may send I/O requests to any node, the node that
+received the requests forwards it to the node where the data is stored.
+
+However, there is a performance advantage of sending I/O requests to the
+node where the data is stored to avoid forwarding. The dm-switch targets
+is created to use this performance advantage.
+
+The dm-switch target splits the device to fixed-size regions. It maintains
+a redirection table that maps regions to storage nodes. Every request is
+forwarded to the corresponding storage node specified in the redirection
+table. The table may be changed with messages while the dm-switch target
+is running.
+
+
+Construction Parameters
+=======================
+
+    <num_nodes> <region_size> <num_optional_arguments>
+    for each node: <device_name> <offset>
+
+<num_nodes>
+    The number of nodes in the EqualLogic storage.
+
+<region_size>
+    The number of 512-byte sectors in a page. Each page can be redirected
+    to a specified node.
+
+<num_optional_arguments>
+    The number of optional arguments. Currently, there are no optional
+    arguments possible and it must be zero.
+
+<device_name>
+    The block device that is used to access the specific node.
+
+<offset>
+    The offset of data start on the specific node (in the unit of
+    512-byte sectors). This number is added to the sector number when
+    forwarding the request to the specific node. Typically, it is zero.
+
+
+Messages
+========
+
+set_region_mappings <index>:<node> [<index>]:<node> [<index>]:<node>...
+
+Modify the region table - set which regions are redirected to which nodes.
+
+<index>
+    Hexadecimal argument.
+    The region number (region size was specified in constructor parameters).
+    If index is omitted, a next region (previous index + 1) is used
+
+<node>
+    Hexadecimal argument.
+    The number number (in the range 0 ... <num_nodes> - 1)
+
+
+Status
+======
+
+There is no status line.
+
+
+Example
+=======
+
+Assume that you have volumes vg1/switch0 vg1/switch1 vg1/switch2 with
+the same size.
+
+Create a switch device with 64kB region size:
+    dmsetup create switch --table "0 `blockdev --getsize /dev/vg1/switch0`
+	switch 3 128 0 /dev/vg1/switch0 0 /dev/vg1/switch1 0 /dev/vg1/switch2 0"
+
+Set mappings for the first 7 entries to point to devices switch0, switch1,
+switch2, switch0, switch1, switch2, switch1:
+    dmsetup message switch 0 set_region_mappings 0:1 :2 :0 :1 :2 :0 :1
+
