@@ -23,6 +23,10 @@ enum bch_ecc {
 	BCH8_ECC,
 };
 
+#define ECC_TYPE_BCH4                (0x0 << 0)
+#define ECC_TYPE_BCH8                (0x1 << 0)
+#define ECC_TYPE_BCH16               (0x2 << 0)
+
 /* ELM support 8 error syndrome process */
 #define ERROR_VECTOR_MAX		8
 

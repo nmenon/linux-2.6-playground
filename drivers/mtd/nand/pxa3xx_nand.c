@@ -506,6 +506,7 @@ static int prepare_command_pool(struct pxa3xx_nand_info *info, int command,
 	info->buf_count		= 0;
 	info->oob_size		= 0;
 	info->use_ecc		= 0;
+	info->use_dma		= (use_dma) ? 1 : 0;
 	info->is_ready		= 0;
 	info->retcode		= ERR_NONE;
 	if (info->cs != 0)
@@ -589,12 +590,23 @@ static int prepare_command_pool(struct pxa3xx_nand_info *info, int command,
 				| addr_cycle;
 		break;
 
+	case NAND_CMD_PARAM:
+		cmd = NAND_CMD_PARAM;
+		info->buf_count = 256;
+		info->ndcb0 |= NDCB0_CMD_TYPE(0)
+				| NDCB0_ADDR_CYC(1)
+				| cmd;
+		info->ndcb1 = (column & 0xFF);
+		info->data_size = 256;
+		break;
+
 	case NAND_CMD_READID:
 		cmd = host->cmdset->read_id;
 		info->buf_count = host->read_id_bytes;
 		info->ndcb0 |= NDCB0_CMD_TYPE(3)
 				| NDCB0_ADDR_CYC(1)
 				| cmd;
+		info->ndcb1 = (column & 0xFF);
 
 		info->data_size = 8;
 		break;
@@ -912,6 +924,18 @@ static int pxa3xx_nand_init_buff(struct pxa3xx_nand_info *info)
 	return 0;
 }
 
+static void pxa3xx_nand_free_buff(struct pxa3xx_nand_info *info)
+{
+	struct platform_device *pdev = info->pdev;
+	if (use_dma) {
+		pxa_free_dma(info->data_dma_ch);
+		dma_free_coherent(&pdev->dev, MAX_BUFF_SIZE,
+				  info->data_buff, info->data_buff_phys);
+	} else {
+		kfree(info->data_buff);
+	}
+}
+
 static int pxa3xx_nand_sensing(struct pxa3xx_nand_info *info)
 {
 	struct mtd_info *mtd;
@@ -1035,12 +1059,10 @@ static int alloc_nand_resource(struct platform_device *pdev)
 	int ret, irq, cs;
 
 	pdata = pdev->dev.platform_data;
-	info = kzalloc(sizeof(*info) + (sizeof(*mtd) +
-		       sizeof(*host)) * pdata->num_cs, GFP_KERNEL);
-	if (!info) {
-		dev_err(&pdev->dev, "failed to allocate memory\n");
+	info = devm_kzalloc(&pdev->dev, sizeof(*info) + (sizeof(*mtd) +
+			    sizeof(*host)) * pdata->num_cs, GFP_KERNEL);
+	if (!info)
 		return -ENOMEM;
-	}
 
 	info->pdev = pdev;
 	for (cs = 0; cs < pdata->num_cs; cs++) {
@@ -1069,20 +1091,21 @@ static int alloc_nand_resource(struct platform_device *pdev)
 
 	spin_lock_init(&chip->controller->lock);
 	init_waitqueue_head(&chip->controller->wq);
-	info->clk = clk_get(&pdev->dev, NULL);
+	info->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(info->clk)) {
 		dev_err(&pdev->dev, "failed to get nand clock\n");
-		ret = PTR_ERR(info->clk);
-		goto fail_free_mtd;
+		return PTR_ERR(info->clk);
 	}
-	clk_enable(info->clk);
+	ret = clk_prepare_enable(info->clk);
+	if (ret < 0)
+		return ret;
 
 	/*
 	 * This is a dirty hack to make this driver work from devicetree
 	 * bindings. It can be removed once we have a prober DMA controller
 	 * framework for DT.
 	 */
-	if (pdev->dev.of_node && cpu_is_pxa3xx()) {
+	if (pdev->dev.of_node && of_machine_is_compatible("marvell,pxa3xx")) {
 		info->drcmr_dat = 97;
 		info->drcmr_cmd = 99;
 	} else {
@@ -1090,7 +1113,7 @@ static int alloc_nand_resource(struct platform_device *pdev)
 		if (r == NULL) {
 			dev_err(&pdev->dev, "no resource defined for data DMA\n");
 			ret = -ENXIO;
-			goto fail_put_clk;
+			goto fail_disable_clk;
 		}
 		info->drcmr_dat = r->start;
 
@@ -1098,7 +1121,7 @@ static int alloc_nand_resource(struct platform_device *pdev)
 		if (r == NULL) {
 			dev_err(&pdev->dev, "no resource defined for command DMA\n");
 			ret = -ENXIO;
-			goto fail_put_clk;
+			goto fail_disable_clk;
 		}
 		info->drcmr_cmd = r->start;
 	}
@@ -1107,34 +1130,20 @@ static int alloc_nand_resource(struct platform_device *pdev)
 	if (irq < 0) {
 		dev_err(&pdev->dev, "no IRQ resource defined\n");
 		ret = -ENXIO;
-		goto fail_put_clk;
+		goto fail_disable_clk;
 	}
 
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (r == NULL) {
-		dev_err(&pdev->dev, "no IO memory resource defined\n");
-		ret = -ENODEV;
-		goto fail_put_clk;
-	}
-
-	r = request_mem_region(r->start, resource_size(r), pdev->name);
-	if (r == NULL) {
-		dev_err(&pdev->dev, "failed to request memory resource\n");
-		ret = -EBUSY;
-		goto fail_put_clk;
-	}
-
-	info->mmio_base = ioremap(r->start, resource_size(r));
-	if (info->mmio_base == NULL) {
-		dev_err(&pdev->dev, "ioremap() failed\n");
-		ret = -ENODEV;
-		goto fail_free_res;
+	info->mmio_base = devm_ioremap_resource(&pdev->dev, r);
+	if (IS_ERR(info->mmio_base)) {
+		ret = PTR_ERR(info->mmio_base);
+		goto fail_disable_clk;
 	}
 	info->mmio_phys = r->start;
 
 	ret = pxa3xx_nand_init_buff(info);
 	if (ret)
-		goto fail_free_io;
+		goto fail_disable_clk;
 
 	/* initialize all interrupts to be disabled */
 	disable_int(info, NDSR_MASK);
@@ -1152,21 +1161,9 @@ static int alloc_nand_resource(struct platform_device *pdev)
 
 fail_free_buf:
 	free_irq(irq, info);
-	if (use_dma) {
-		pxa_free_dma(info->data_dma_ch);
-		dma_free_coherent(&pdev->dev, MAX_BUFF_SIZE,
-			info->data_buff, info->data_buff_phys);
-	} else
-		kfree(info->data_buff);
-fail_free_io:
-	iounmap(info->mmio_base);
-fail_free_res:
-	release_mem_region(r->start, resource_size(r));
-fail_put_clk:
-	clk_disable(info->clk);
-	clk_put(info->clk);
-fail_free_mtd:
-	kfree(info);
+	pxa3xx_nand_free_buff(info);
+fail_disable_clk:
+	clk_disable_unprepare(info->clk);
 	return ret;
 }
 
@@ -1174,35 +1171,22 @@ static int pxa3xx_nand_remove(struct platform_device *pdev)
 {
 	struct pxa3xx_nand_info *info = platform_get_drvdata(pdev);
 	struct pxa3xx_nand_platform_data *pdata;
-	struct resource *r;
 	int irq, cs;
 
 	if (!info)
 		return 0;
 
 	pdata = pdev->dev.platform_data;
-	platform_set_drvdata(pdev, NULL);
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq >= 0)
 		free_irq(irq, info);
-	if (use_dma) {
-		pxa_free_dma(info->data_dma_ch);
-		dma_free_writecombine(&pdev->dev, MAX_BUFF_SIZE,
-				info->data_buff, info->data_buff_phys);
-	} else
-		kfree(info->data_buff);
+	pxa3xx_nand_free_buff(info);
 
-	iounmap(info->mmio_base);
-	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	release_mem_region(r->start, resource_size(r));
-
-	clk_disable(info->clk);
-	clk_put(info->clk);
+	clk_disable_unprepare(info->clk);
 
 	for (cs = 0; cs < pdata->num_cs; cs++)
 		nand_release(info->host[cs]->mtd);
-	kfree(info);
 	return 0;
 }
 
@@ -1211,7 +1195,7 @@ static struct of_device_id pxa3xx_nand_dt_ids[] = {
 	{ .compatible = "marvell,pxa3xx-nand" },
 	{}
 };
-MODULE_DEVICE_TABLE(of, i2c_pxa_dt_ids);
+MODULE_DEVICE_TABLE(of, pxa3xx_nand_dt_ids);
 
 static int pxa3xx_nand_probe_dt(struct platform_device *pdev)
 {
