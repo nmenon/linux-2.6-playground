@@ -108,6 +108,14 @@
 							MX6Q_PAD_EIM_D16__ECSPI1_SCLK 0x100b1
 						>;
 					};
+
+					pinctrl_ecspi1_2: ecspi1grp-2 {
+						fsl,pins = <
+							MX6Q_PAD_KEY_COL1__ECSPI1_MISO 0x100b1
+							MX6Q_PAD_KEY_ROW0__ECSPI1_MOSI 0x100b1
+							MX6Q_PAD_KEY_COL0__ECSPI1_SCLK 0x100b1
+						>;
+					};
 				};
 
 				ecspi3 {
@@ -258,6 +266,15 @@
 							MX6Q_PAD_EIM_D27__UART2_RX_DATA 0x1b0b1
 						>;
 					};
+
+					pinctrl_uart2_2: uart2grp-2 { /* DTE mode */
+						fsl,pins = <
+							MX6Q_PAD_EIM_D26__UART2_RX_DATA   0x1b0b1
+							MX6Q_PAD_EIM_D27__UART2_TX_DATA   0x1b0b1
+							MX6Q_PAD_EIM_D28__UART2_DTE_CTS_B 0x1b0b1
+							MX6Q_PAD_EIM_D29__UART2_DTE_RTS_B 0x1b0b1
+						>;
+					};
 				};
 
 				uart4 {
@@ -374,7 +391,7 @@
 						>;
 					};
 
-					pinctrl_weim_nor_1: weimnorgrp-1 {
+					pinctrl_weim_nor_1: weim_norgrp-1 {
 						fsl,pins = <
 							MX6Q_PAD_EIM_OE__EIM_OE_B     0xb0b1
 							MX6Q_PAD_EIM_RW__EIM_RW       0xb0b1
@@ -423,7 +440,6 @@
 							MX6Q_PAD_EIM_DA0__EIM_AD00   0xb0b1
 						>;
 					};
-
 				};
 			};
 		};

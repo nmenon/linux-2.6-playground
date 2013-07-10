@@ -15,13 +15,18 @@
 
 / {
 	aliases {
-		serial0 = &uart1;
-		serial1 = &uart2;
-		serial2 = &uart3;
 		gpio0 = &gpio1;
 		gpio1 = &gpio2;
 		gpio2 = &gpio3;
 		gpio3 = &gpio4;
+		i2c0 = &i2c1;
+		i2c1 = &i2c2;
+		serial0 = &uart1;
+		serial1 = &uart2;
+		serial2 = &uart3;
+		spi0 = &ecspi1;
+		spi1 = &ecspi2;
+		spi2 = &cspi;
 	};
 
 	tzic: tz-interrupt-controller@e0000000 {
@@ -481,6 +486,21 @@
 					};
 				};
 
+				kpp {
+					pinctrl_kpp_1: kppgrp-1 {
+						fsl,pins = <
+							MX51_PAD_KEY_ROW0__KEY_ROW0 0xe0
+							MX51_PAD_KEY_ROW1__KEY_ROW1 0xe0
+							MX51_PAD_KEY_ROW2__KEY_ROW2 0xe0
+							MX51_PAD_KEY_ROW3__KEY_ROW3 0xe0
+							MX51_PAD_KEY_COL0__KEY_COL0 0xe8
+							MX51_PAD_KEY_COL1__KEY_COL1 0xe8
+							MX51_PAD_KEY_COL2__KEY_COL2 0xe8
+							MX51_PAD_KEY_COL3__KEY_COL3 0xe8
+						>;
+					};
+				};
+
 				pata {
 					pinctrl_pata_1: patagrp-1 {
 						fsl,pins = <
@@ -555,17 +575,40 @@
 					};
 				};
 
-				kpp {
-					pinctrl_kpp_1: kppgrp-1 {
+				usbh1 {
+					pinctrl_usbh1_1: usbh1grp-1 {
 						fsl,pins = <
-							MX51_PAD_KEY_ROW0__KEY_ROW0 0xe0
-							MX51_PAD_KEY_ROW1__KEY_ROW1 0xe0
-							MX51_PAD_KEY_ROW2__KEY_ROW2 0xe0
-							MX51_PAD_KEY_ROW3__KEY_ROW3 0xe0
-							MX51_PAD_KEY_COL0__KEY_COL0 0xe8
-							MX51_PAD_KEY_COL1__KEY_COL1 0xe8
-							MX51_PAD_KEY_COL2__KEY_COL2 0xe8
-							MX51_PAD_KEY_COL3__KEY_COL3 0xe8
+							MX51_PAD_USBH1_DATA0__USBH1_DATA0 0x1e5
+							MX51_PAD_USBH1_DATA1__USBH1_DATA1 0x1e5
+							MX51_PAD_USBH1_DATA2__USBH1_DATA2 0x1e5
+							MX51_PAD_USBH1_DATA3__USBH1_DATA3 0x1e5
+							MX51_PAD_USBH1_DATA4__USBH1_DATA4 0x1e5
+							MX51_PAD_USBH1_DATA5__USBH1_DATA5 0x1e5
+							MX51_PAD_USBH1_DATA6__USBH1_DATA6 0x1e5
+							MX51_PAD_USBH1_DATA7__USBH1_DATA7 0x1e5
+							MX51_PAD_USBH1_CLK__USBH1_CLK 0x1e5
+							MX51_PAD_USBH1_DIR__USBH1_DIR 0x1e5
+							MX51_PAD_USBH1_NXT__USBH1_NXT 0x1e5
+							MX51_PAD_USBH1_STP__USBH1_STP 0x1e5
+						>;
+					};
+				};
+
+				usbh2 {
+					pinctrl_usbh2_1: usbh2grp-1 {
+						fsl,pins = <
+							MX51_PAD_EIM_D16__USBH2_DATA0 0x1e5
+							MX51_PAD_EIM_D17__USBH2_DATA1 0x1e5
+							MX51_PAD_EIM_D18__USBH2_DATA2 0x1e5
+							MX51_PAD_EIM_D19__USBH2_DATA3 0x1e5
+							MX51_PAD_EIM_D20__USBH2_DATA4 0x1e5
+							MX51_PAD_EIM_D21__USBH2_DATA5 0x1e5
+							MX51_PAD_EIM_D22__USBH2_DATA6 0x1e5
+							MX51_PAD_EIM_D23__USBH2_DATA7 0x1e5
+							MX51_PAD_EIM_A24__USBH2_CLK 0x1e5
+							MX51_PAD_EIM_A25__USBH2_DIR 0x1e5
+							MX51_PAD_EIM_A27__USBH2_NXT 0x1e5
+							MX51_PAD_EIM_A26__USBH2_STP 0x1e5
 						>;
 					};
 				};
@@ -628,6 +671,13 @@
 			reg = <0x80000000 0x10000000>;
 			ranges;
 
+			iim: iim@83f98000 {
+				compatible = "fsl,imx51-iim", "fsl,imx27-iim";
+				reg = <0x83f98000 0x4000>;
+				interrupts = <69>;
+				clocks = <&clks 107>;
+			};
+
 			ecspi2: ecspi@83fac000 {
 				#address-cells = <1>;
 				#size-cells = <0>;
@@ -645,6 +695,7 @@
 				interrupts = <6>;
 				clocks = <&clks 56>, <&clks 56>;
 				clock-names = "ipg", "ahb";
+				#dma-cells = <3>;
 				fsl,sdma-ram-script-name = "imx/sdma/sdma-imx51.bin";
 			};
 

@@ -14,11 +14,6 @@
 
 / {
 	aliases {
-		serial0 = &uart1;
-		serial1 = &uart2;
-		serial2 = &uart3;
-		serial3 = &uart4;
-		serial4 = &uart5;
 		gpio0 = &gpio1;
 		gpio1 = &gpio2;
 		gpio2 = &gpio3;
@@ -26,6 +21,18 @@
 		gpio4 = &gpio5;
 		gpio5 = &gpio6;
 		gpio6 = &gpio7;
+		i2c0 = &i2c1;
+		i2c1 = &i2c2;
+		i2c2 = &i2c3;
+		serial0 = &uart1;
+		serial1 = &uart2;
+		serial2 = &uart3;
+		serial3 = &uart4;
+		serial4 = &uart5;
+		spi0 = &ecspi1;
+		spi1 = &ecspi2;
+		spi2 = &ecspi3;
+		spi3 = &ecspi4;
 	};
 
 	intc: interrupt-controller@00a01000 {
@@ -91,6 +98,12 @@
 			dma-names = "rx-tx";
 			fsl,gpmi-dma-channel = <0>;
 			status = "disabled";
+		};
+
+		ocram: sram@00900000 {
+			compatible = "mmio-sram";
+			reg = <0x00900000 0x3f000>;
+			clocks = <&clks 142>;
 		};
 
 		timer@00a00600 {
@@ -278,17 +291,23 @@
 			};
 
 			can1: flexcan@02090000 {
+				compatible = "fsl,imx6q-flexcan";
 				reg = <0x02090000 0x4000>;
 				interrupts = <0 110 0x04>;
+				clocks = <&clks 108>, <&clks 109>;
+				clock-names = "ipg", "per";
 			};
 
 			can2: flexcan@02094000 {
+				compatible = "fsl,imx6q-flexcan";
 				reg = <0x02094000 0x4000>;
 				interrupts = <0 111 0x04>;
+				clocks = <&clks 110>, <&clks 111>;
+				clock-names = "ipg", "per";
 			};
 
 			gpt: gpt@02098000 {
-				compatible = "fsl,imx6q-gpt";
+				compatible = "fsl,imx6q-gpt", "fsl,imx31-gpt";
 				reg = <0x02098000 0x4000>;
 				interrupts = <0 55 0x04>;
 				clocks = <&clks 119>, <&clks 120>;
@@ -555,13 +574,11 @@
 
 				lvds-channel@0 {
 					reg = <0>;
-					crtcs = <&ipu1 0>;
 					status = "disabled";
 				};
 
 				lvds-channel@1 {
 					reg = <1>;
-					crtcs = <&ipu1 1>;
 					status = "disabled";
 				};
 			};
@@ -582,6 +599,7 @@
 				interrupts = <0 2 0x04>;
 				clocks = <&clks 155>, <&clks 155>;
 				clock-names = "ipg", "ahb";
+				#dma-cells = <3>;
 				fsl,sdma-ram-script-name = "imx/sdma/sdma-imx6q.bin";
 			};
 		};
