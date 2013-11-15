@@ -147,4 +147,10 @@ static inline void omap_pm_get_oscillator(u32 *tstart, u32 *tshut) { *tstart = *
 static inline void omap_pm_setup_sr_i2c_pcb_length(u32 mm) { }
 #endif
 
+#ifdef CONFIG_PM_DEBUG
+void pm_debug_check_pwrdm(struct powerdomain *pwrdm);
+#else
+static inline void pm_debug_check_pwrdm(struct powerdomain *pwrdm) { };
+#endif
+
 #endif

@@ -39,6 +39,91 @@
 
 u32 enable_off_mode;
 
+static int _check_hwmod(struct omap_hwmod *oh, void *data)
+{
+	struct clockdomain *clkdm = data;
+	bool functional = false;
+	bool in_transition = false;
+	bool if_idle = false;
+	bool disabled = false;
+	char *state = "unknown";
+	bool print = true;
+
+	/* Skip if we dont have clkdm match */
+	if (clkdm != oh->clkdm)
+		return 0;
+
+	if (!clkdm_current_status(clkdm, oh, &functional, &in_transition, &if_idle, &disabled)) {
+		if (disabled) {
+			print = false;
+			state = "disabled";
+		} else {
+			if (functional)
+				state = "functional";
+			else if (in_transition)
+				state = "stuck in transition";
+			else if (if_idle)
+				state = "i/f clk idled - if iclk = fclk for this module, consider as disabled";
+		}
+	}
+
+	if (print)
+		pr_err("\t\t%s: %s\n", oh->name, state);
+
+	return 0;
+}
+
+static int _check_clkdm_state(struct powerdomain *pwrdm, struct clockdomain *clkdm)
+{
+	char sflags[255] = {0};
+	char hflags[255] = {0};
+	bool disable_auto = false;
+	bool force_sleep = false;
+	bool force_wakeup = false;
+	bool enable_auto = false;
+
+
+	if (clkdm->flags & CLKDM_CAN_HWSUP_SWSUP)
+		strncat(sflags, "HWSUP_SWSUP ", sizeof(sflags));
+
+	else if (clkdm->flags & CLKDM_CAN_HWSUP)
+		strncat(sflags, "HWSUP ", sizeof(sflags));
+	else if (clkdm->flags & CLKDM_CAN_SWSUP)
+		strncat(sflags, "SWSUP ", sizeof(sflags));
+	if (clkdm->flags & CLKDM_NO_AUTODEPS)
+		strncat(sflags, "NO_AUTODEPS ", sizeof(sflags));
+	if (clkdm->flags & CLKDM_ACTIVE_WITH_MPU)
+		strncat(sflags, "ACTIVE_WITH_MPU ", sizeof(sflags));
+	if (clkdm->flags & CLKDM_MISSING_IDLE_REPORTING)
+		strncat(sflags, "MISSING_IDLE_REPORTING ", sizeof(sflags));
+	if (clkdm->_flags & _CLKDM_FLAG_HWSUP_ENABLED)
+		strncat(sflags, "HWSUP_ENABLED(int) ", sizeof(sflags));
+
+	if (!clkdm_control_status(clkdm, &disable_auto, &force_sleep, &force_wakeup, &enable_auto) ){
+		if (disable_auto)
+			strncat(hflags, "disable_auto ", sizeof(hflags));
+		if (enable_auto)
+			strncat(hflags, "enable_auto ", sizeof(hflags));
+		if (force_sleep)
+			strncat(hflags, "force_sleep ", sizeof(hflags));
+		if (force_wakeup)
+			strncat(hflags, "force_wakeup ", sizeof(hflags));
+	}
+
+	pr_info("\t %s: s/w flags(%s) h/w control(%s)\n",
+		clkdm->name, sflags, hflags);
+	/* Need to check per hwmod for match */
+	omap_hwmod_for_each(_check_hwmod, clkdm);
+
+
+	return 0;
+}
+
+void pm_debug_check_pwrdm(struct powerdomain *pwrdm)
+{
+	pwrdm_for_each_clkdm(pwrdm,_check_clkdm_state);
+}
+
 #ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>

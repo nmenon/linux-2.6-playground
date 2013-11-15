@@ -172,7 +172,12 @@ struct clkdm_ops {
 	void	(*clkdm_deny_idle)(struct clockdomain *clkdm);
 	int	(*clkdm_clk_enable)(struct clockdomain *clkdm);
 	int	(*clkdm_clk_disable)(struct clockdomain *clkdm);
+	int	(*clkdm_control_status)(struct clockdomain *clkdm, bool *disable_auto, bool *force_sleep, bool *force_wakeup, bool *enable_auto);
+	int	(*clkdm_current_status)(struct clockdomain *clkdm, struct omap_hwmod *oh, bool *functional, bool *intransition, bool *if_idle, bool *disabled);
 };
+
+int clkdm_control_status(struct clockdomain *clkdm, bool *disable_auto, bool *force_sleep, bool *force_wakeup, bool *enable_auto);
+int clkdm_current_status(struct clockdomain *clkdm, struct omap_hwmod *oh, bool *functional, bool *intransition, bool *if_idle, bool *disabled);
 
 int clkdm_register_platform_funcs(struct clkdm_ops *co);
 int clkdm_register_autodeps(struct clkdm_autodep *ia);

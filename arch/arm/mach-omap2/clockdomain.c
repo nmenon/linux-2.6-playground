@@ -1295,3 +1295,26 @@ int clkdm_hwmod_disable(struct clockdomain *clkdm, struct omap_hwmod *oh)
 	return 0;
 }
 
+int clkdm_control_status(struct clockdomain *clkdm, bool *disable_auto, bool *force_sleep, bool *force_wakeup, bool *enable_auto)
+{
+	/* The clkdm attribute does not exist yet prior OMAP4 */
+	if (cpu_is_omap24xx() || cpu_is_omap34xx())
+		return 0;
+
+	if (!clkdm || !arch_clkdm || !arch_clkdm->clkdm_control_status || !disable_auto || !force_sleep || !force_wakeup || !enable_auto)
+		return -EINVAL;
+
+	return arch_clkdm->clkdm_control_status(clkdm, disable_auto, force_sleep, force_wakeup, enable_auto);
+}
+
+int clkdm_current_status(struct clockdomain *clkdm, struct omap_hwmod *oh, bool *functional, bool *in_transition, bool *if_idle, bool *disabled)
+{
+	/* The clkdm attribute does not exist yet prior OMAP4 */
+	if (cpu_is_omap24xx() || cpu_is_omap34xx())
+		return 0;
+
+	if (!clkdm || !oh || !arch_clkdm || !arch_clkdm->clkdm_current_status || !functional || !in_transition || !if_idle || !disabled)
+		return -EINVAL;
+
+	return arch_clkdm->clkdm_current_status(clkdm, oh, functional, in_transition, if_idle, disabled);
+}

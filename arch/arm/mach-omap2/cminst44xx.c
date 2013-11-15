@@ -467,6 +467,44 @@ static int omap4_clkdm_clk_disable(struct clockdomain *clkdm)
 	return 0;
 }
 
+static int omap4_clkdm_control_status(struct clockdomain *clkdm, bool *disable_auto, bool *force_sleep, bool *force_wakeup, bool *enable_auto)
+{
+	u32 v;
+
+	if (!clkdm->prcm_partition)
+		return -EINVAL;
+	v = omap4_cminst_read_inst_reg(clkdm->prcm_partition, clkdm->cm_inst, clkdm->clkdm_offs + OMAP4_CM_CLKSTCTRL);
+	v &= OMAP4430_CLKTRCTRL_MASK;
+	v >>= OMAP4430_CLKTRCTRL_SHIFT;
+
+	*enable_auto = (v  == OMAP34XX_CLKSTCTRL_ENABLE_AUTO) ? true : false;
+	*force_wakeup = (v  == OMAP34XX_CLKSTCTRL_FORCE_WAKEUP) ? true : false;
+	*force_sleep = (v  == OMAP34XX_CLKSTCTRL_FORCE_SLEEP) ? true : false;
+	*disable_auto = (v  == OMAP34XX_CLKSTCTRL_DISABLE_AUTO) ? true : false;
+
+	return 0;
+}
+
+static int omap4_clkdm_current_status(struct clockdomain *clkdm, struct omap_hwmod *oh, bool *functional, bool *intransition, bool *if_idle, bool *disabled)
+{
+	u32 idlest = 0;
+	u16 clkctrl_offs = oh->prcm.omap4.clkctrl_offs;
+
+	if (!clkdm->prcm_partition || !clkctrl_offs)
+		return -EINVAL;
+
+	idlest = _clkctrl_idlest(clkdm->prcm_partition, clkdm->cm_inst, clkdm->clkdm_offs, clkctrl_offs);
+	if (idlest  == CLKCTRL_IDLEST_FUNCTIONAL)
+		*functional = true;
+	else if (idlest  == CLKCTRL_IDLEST_INTRANSITION)
+		*intransition = true;
+	else if (idlest  == CLKCTRL_IDLEST_INTERFACE_IDLE)
+		*if_idle = true;
+	else if (idlest  == CLKCTRL_IDLEST_DISABLED)
+		*disabled = true;
+	return 0;
+}
+
 struct clkdm_ops omap4_clkdm_operations = {
 	.clkdm_add_wkdep	= omap4_clkdm_add_wkup_sleep_dep,
 	.clkdm_del_wkdep	= omap4_clkdm_del_wkup_sleep_dep,
@@ -482,6 +520,8 @@ struct clkdm_ops omap4_clkdm_operations = {
 	.clkdm_deny_idle	= omap4_clkdm_deny_idle,
 	.clkdm_clk_enable	= omap4_clkdm_clk_enable,
 	.clkdm_clk_disable	= omap4_clkdm_clk_disable,
+	.clkdm_control_status	= omap4_clkdm_control_status,
+	.clkdm_current_status	= omap4_clkdm_current_status,
 };
 
 struct clkdm_ops am43xx_clkdm_operations = {

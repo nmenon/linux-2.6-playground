@@ -74,6 +74,7 @@ static int omap4_pm_suspend(void)
 		if (state > pwrst->next_state) {
 			pr_info("Powerdomain (%s) didn't enter target state %d\n",
 				pwrst->pwrdm->name, pwrst->next_state);
+			pm_debug_check_pwrdm(pwrst->pwrdm);
 			ret = -1;
 		}
 		omap_set_pwrdm_state(pwrst->pwrdm, pwrst->saved_state);
