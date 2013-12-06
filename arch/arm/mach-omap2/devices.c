@@ -33,7 +33,6 @@
 
 #include "soc.h"
 #include "common.h"
-#include "mux.h"
 #include "control.h"
 #include "devices.h"
 #include "display.h"
@@ -278,7 +277,6 @@ int __init omap4_keyboard_init(struct omap4_keypad_platform_data
 						name, oh->name);
 		return PTR_ERR(pdev);
 	}
-	oh->mux = omap_hwmod_mux_init(bdata->pads, bdata->pads_cnt);
 
 	return 0;
 }
