@@ -62,8 +62,6 @@ void __init omap_pmic_init(int bus, u32 clkrate,
 		sizeof(pmic_i2c_board_info.type));
 	pmic_i2c_board_info.irq = pmic_irq;
 	pmic_i2c_board_info.platform_data = pmic_data;
-
-	omap_register_i2c_bus(bus, clkrate, &pmic_i2c_board_info, 1);
 }
 
 void __init omap4_pmic_init(const char *pmic_type,
