@@ -32,7 +32,6 @@
 
 #include "soc.h"
 #include "dss-common.h"
-#include "mux.h"
 
 #define HDMI_GPIO_CT_CP_HPD 60 /* HPD mode enable/disable */
 #define HDMI_GPIO_LS_OE 41 /* Level shifter for HDMI */

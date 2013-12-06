@@ -69,15 +69,6 @@ static inline int omap4_pm_init(void)
 }
 #endif
 
-#ifdef CONFIG_OMAP_MUX
-int omap_mux_late_init(void);
-#else
-static inline int omap_mux_late_init(void)
-{
-	return 0;
-}
-#endif
-
 extern void omap2_init_common_infrastructure(void);
 
 extern void omap2_sync32k_timer_init(void);
