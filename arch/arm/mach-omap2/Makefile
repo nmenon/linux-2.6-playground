@@ -29,7 +29,6 @@ ifneq ($(CONFIG_SND_OMAP_SOC_MCBSP),)
 obj-y += mcbsp.o
 endif
 
-obj-$(CONFIG_TWL4030_CORE) += omap_twl.o
 obj-$(CONFIG_SOC_HAS_OMAP2_SDRC)	+= sdrc.o
 
 # SMP support ONLY available for OMAP4
@@ -267,4 +266,4 @@ endif
 emac-$(CONFIG_TI_DAVINCI_EMAC)		:= am35xx-emac.o
 obj-y					+= $(emac-m) $(emac-y)
 
-obj-y					+= common-board-devices.o twl-common.o dss-common.o
+obj-y					+= common-board-devices.o dss-common.o

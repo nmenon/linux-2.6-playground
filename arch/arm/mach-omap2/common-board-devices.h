@@ -1,8 +1,6 @@
 #ifndef __OMAP_COMMON_BOARD_DEVICES__
 #define __OMAP_COMMON_BOARD_DEVICES__
 
-#include "twl-common.h"
-
 #define NAND_BLOCK_SIZE	SZ_128K
 
 struct mtd_partition;
