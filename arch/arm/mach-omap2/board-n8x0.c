@@ -17,7 +17,6 @@
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/irq.h>
-#include <linux/stddef.h>
 #include <linux/i2c.h>
 #include <linux/spi/spi.h>
 #include <linux/usb/musb.h>
@@ -26,13 +25,9 @@
 #include <linux/mfd/menelaus.h>
 #include <sound/tlv320aic3x.h>
 
-#include <asm/mach/arch.h>
-#include <asm/mach-types.h>
-
 #include "common.h"
 #include "mmc.h"
 #include "soc.h"
-#include "gpmc-onenand.h"
 
 #define TUSB6010_ASYNC_CS	1
 #define TUSB6010_SYNC_CS	4

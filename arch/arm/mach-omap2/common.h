@@ -28,17 +28,11 @@
 
 #include <linux/irq.h>
 #include <linux/delay.h>
-#include <linux/i2c.h>
 #include <linux/i2c/twl.h>
 #include <linux/i2c-omap.h>
 #include <linux/reboot.h>
 
 #include <asm/proc-fns.h>
-
-#include "i2c.h"
-#include "serial.h"
-
-#include "usb.h"
 
 #define OMAP_INTC_START		NR_IRQS
 

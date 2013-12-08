@@ -41,7 +41,6 @@
 #include "omap-pm.h"
 #include "sdrc.h"
 #include "control.h"
-#include "serial.h"
 #include "sram.h"
 #include "cm2xxx.h"
 #include "cm3xxx.h"
