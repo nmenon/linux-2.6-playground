@@ -25,6 +25,7 @@
 				800000  1325000
 			>;
 			clock-latency = <300000>; /* From legacy driver */
+			cpu0-voltdm = <&mpu_iva_voltdm>;
 		};
 	};
 
@@ -37,6 +38,12 @@
 			dma-names = "tx", "rx";
 			ti,hwmods = "uart4";
 			clock-frequency = <48000000>;
+		};
+
+		mpu_iva_voltdm: mpu_iva_voltdm {
+			compatible = "ti,omap-voltdm";
+			#voltdm-cells = <0>;
+			vbb-supply = <&abb_mpu_iva>;
 		};
 
 		abb_mpu_iva: regulator-abb-mpu {
