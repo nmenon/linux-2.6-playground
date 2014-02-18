@@ -37,7 +37,7 @@ struct pm_voltdm_dev {
 };
 
 /**
- * struct volt_scale_data - Internal structure to maintain notifier information
+ * struct voltdm_scale_data -Internal structure to maintain notifier information
  * @dev:	device on behalf of which we register the notifier
  * @clk:	clk on which we registered the notifier
  * @reg:	regulator if any which is used for scaling voltage
@@ -47,7 +47,7 @@ struct pm_voltdm_dev {
  * @vdev:	pointer to voltage domain device for this notifier
  * @voltdm_data: voltdm driver specific data
  */
-struct volt_scale_data {
+struct voltdm_scale_data {
 	struct device *dev;
 	struct clk *clk;
 	struct regulator *reg;
@@ -59,13 +59,13 @@ struct volt_scale_data {
 	void *voltdm_data;
 };
 
-#define to_volt_scale_data(_nb) container_of(_nb, \
-		struct volt_scale_data, nb)
+#define to_voltdm_scale_data(_nb) container_of(_nb, \
+		struct voltdm_scale_data, nb)
 
 static DEFINE_MUTEX(pm_voltdm_list_lock);
 static LIST_HEAD(pm_voltdm_list);
 
-static inline bool voltmd_skip_check(struct pm_voltdm_dev *vdev)
+static inline bool voltdm_skip_check(struct pm_voltdm_dev *vdev)
 {
 	bool ret = false;
 
@@ -86,7 +86,7 @@ static inline bool voltmd_skip_check(struct pm_voltdm_dev *vdev)
 	return ret;
 }
 
-static inline int voltmd_scale_voltage(struct volt_scale_data *vsd,
+static inline int voltdm_scale_voltage(struct voltdm_scale_data *vsd,
 				       unsigned long flags, int volt, int tol)
 {
 	int ret;
@@ -148,7 +148,7 @@ static struct pm_voltdm_dev *voltdm_parse_of(struct device_node *np,
 	return vdev;
 }
 
-static int voltdm_get(struct volt_scale_data *vsd, struct device_node *np,
+static int voltdm_get(struct voltdm_scale_data *vsd, struct device_node *np,
 		      const char *supply, struct of_phandle_args *args,
 		      bool *skip_reg)
 {
@@ -193,7 +193,7 @@ static int voltdm_get(struct volt_scale_data *vsd, struct device_node *np,
 	return ret;
 }
 
-static void voltdm_put(struct volt_scale_data *vsd)
+static void voltdm_put(struct voltdm_scale_data *vsd)
 {
 	struct pm_voltdm_dev *vdev = vsd->vdev;
 
@@ -216,7 +216,7 @@ static void voltdm_put(struct volt_scale_data *vsd)
 	}
 }
 
-static int voltdm_get_latency(struct volt_scale_data *vsd, int min, int max)
+static int voltdm_get_latency(struct voltdm_scale_data *vsd, int min, int max)
 {
 	struct pm_voltdm_dev *vdev = vsd->vdev;
 	const struct pm_voltdm_ops *ops;
@@ -241,18 +241,18 @@ static int voltdm_get_latency(struct volt_scale_data *vsd, int min, int max)
 	return ret;
 }
 
-static int clk_volt_notifier_handler(struct notifier_block *nb,
-				     unsigned long flags, void *data)
+static int clk_voltdm_notifier_handler(struct notifier_block *nb,
+				       unsigned long flags, void *data)
 {
 	struct clk_notifier_data *cnd = data;
-	struct volt_scale_data *vsd = to_volt_scale_data(nb);
+	struct voltdm_scale_data *vsd = to_voltdm_scale_data(nb);
 	struct pm_voltdm_dev *vdev = vsd->vdev;
 	int ret, volt, tol;
 	struct dev_pm_opp *opp;
 	unsigned long old_rate = cnd->old_rate;
 	unsigned long new_rate = cnd->new_rate;
 
-	if (!voltmd_skip_check(vdev) &&
+	if (!voltdm_skip_check(vdev) &&
 	    ((new_rate < old_rate && flags == PRE_RATE_CHANGE) ||
 	     (new_rate > old_rate && flags == POST_RATE_CHANGE)))
 		return NOTIFY_OK;
@@ -277,7 +277,7 @@ static int clk_volt_notifier_handler(struct notifier_block *nb,
 	dev_dbg(vsd->dev, "%s: %lu -> %lu, V=%d, tol=%d, clk_flag=%lu\n",
 		__func__, old_rate, new_rate, volt, tol, flags);
 
-	ret = voltmd_scale_voltage(vsd, flags, volt, tol);
+	ret = voltdm_scale_voltage(vsd, flags, volt, tol);
 	if (ret) {
 		dev_err(vsd->dev,
 			"%s: Failed to scale voltage(%u): %d\n", __func__,
@@ -305,7 +305,7 @@ struct notifier_block *of_pm_voltdm_notifier_register(struct device *dev,
 						      const char *supply,
 						      int *voltage_latency)
 {
-	struct volt_scale_data *vsd;
+	struct voltdm_scale_data *vsd;
 	struct dev_pm_opp *opp;
 	unsigned long min, max, freq;
 	int ret;
@@ -324,7 +324,7 @@ struct notifier_block *of_pm_voltdm_notifier_register(struct device *dev,
 
 	vsd->dev = dev;
 	vsd->clk = clk;
-	vsd->nb.notifier_call = clk_volt_notifier_handler;
+	vsd->nb.notifier_call = clk_voltdm_notifier_handler;
 	vsd->vdev = vdev;
 	ret = voltdm_get(vsd, np, supply, &voltdm_args, &skip_reg);
 
@@ -390,14 +390,14 @@ EXPORT_SYMBOL_GPL(of_pm_voltdm_notifier_register);
  */
 void of_pm_voltdm_notifier_unregister(struct notifier_block *nb)
 {
-	struct volt_scale_data *vsd;
+	struct voltdm_scale_data *vsd;
 	struct clk *clk;
 
 	/* if caller send us back error value */
 	if (IS_ERR(nb))
 		return;
 
-	vsd = to_volt_scale_data(nb);
+	vsd = to_voltdm_scale_data(nb);
 	clk = vsd->clk;
 	clk_notifier_unregister(clk, nb);
 	voltdm_put(vsd);
@@ -409,7 +409,7 @@ EXPORT_SYMBOL_GPL(of_pm_voltdm_notifier_unregister);
 static void devm_voltdm_release(struct device *dev, void *res)
 {
 	struct pm_voltdm_dev *vdev = *(struct pm_voltdm_dev **)res;
-	struct volt_scale_data *vsd;
+	struct voltdm_scale_data *vsd;
 
 	mutex_lock(&pm_voltdm_list_lock);
 	mutex_lock(&vdev->lock);
