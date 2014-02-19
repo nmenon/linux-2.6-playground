@@ -38,6 +38,8 @@ struct omap_voltdm_data {
  * @clk_notifier_flags:	clk notifier flags for direction of transition
  * @uv:		what voltage to transition to
  * @tol_uv:	voltage tolerance to use
+ *
+ * Return: If successful, 0, else appropriate error value.
  */
 static int omap_voltdm_do_transition(struct device *dev,
 				     void *voltdm_data,
@@ -140,7 +142,7 @@ static inline void omap_voltdm_cleanup(struct omap_voltdm_data *data)
  * @np:			unused
  * @np_args:		unused
  * @supply:		unused
- * @*voltdm_data:	returns data for the current request (freed in put)
+ * @voltdm_data:	returns data for the current request (freed in put)
  *
  * Return: 0 if everything went OK, else return appropriate error value.
  */
@@ -159,18 +161,17 @@ static int omap_voltdm_get(struct device *voltdm_dev,
 	data = kzalloc(sizeof(*data), GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
-	/* Intialize for use in generic cleanup routine */
-	data->vdd_reg = ERR_PTR(-ENODEV);
-	data->vbb_reg = ERR_PTR(-ENODEV);
 
 	/*
 	 * Setup aliases for request device supply to let regulator framework
 	 * do multi-consumer scenario
 	 */
-	ret = regulator_register_supply_alias(request_dev, "vdd", voltdm_dev, "vdd");
+	ret = regulator_register_supply_alias(request_dev, "vdd",
+					      voltdm_dev, "vdd");
 	if (ret)
 		goto out_free;
-	ret = regulator_register_supply_alias(request_dev, "vbb", voltdm_dev, "vbb");
+	ret = regulator_register_supply_alias(request_dev, "vbb",
+					      voltdm_dev, "vbb");
 	if (ret)
 		goto out_unreg_vdd;
 
@@ -209,8 +210,8 @@ out_free:
  * @request_dev:	device for which we have been requested to put
  * @voltdm_data:	data for the request provided by omap_voltdm_get()
  */
-static void omap_voltdm_put(struct device *voltdm_dev, struct device *request_dev,
-			    void *voltdm_data)
+static void omap_voltdm_put(struct device *voltdm_dev,
+			    struct device *request_dev, void *voltdm_data)
 {
 	struct omap_voltdm_data *data = (struct omap_voltdm_data *)voltdm_data;
 
