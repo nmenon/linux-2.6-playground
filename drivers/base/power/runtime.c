@@ -1401,3 +1401,104 @@ void pm_runtime_remove(struct device *dev)
 	if (dev->power.irq_safe && dev->parent)
 		pm_runtime_put(dev->parent);
 }
+
+/**
+ * pm_runtime_get_rate() - Returns the device operational frequency
+ * @dev:	Device to handle
+ * @rate:	Returns rate in Hz.
+ *
+ * Returns appropriate error value in case of error conditions, else
+ * returns 0 and rate is updated. The pm_domain logic does all the necessary
+ * operation (which may consider magic hardware stuff) to provide the rate.
+ *
+ * NOTE: the rate returned is a snapshot and in many cases just a bypass
+ * to clk api to set the rate.
+ */
+int pm_runtime_get_rate(struct device *dev, unsigned long *rate)
+{
+	unsigned long flags;
+	int error = -ENOSYS;
+
+	if (!rate || !dev)
+		return -EINVAL;
+
+	spin_lock_irqsave(&dev->power.lock, flags);
+	if (!pm_runtime_active(dev)) {
+		error = -EINVAL;
+		goto out;
+	}
+
+	if (dev->pm_domain && dev->pm_domain->active_ops.get_rate)
+		error = dev->pm_domain->active_ops.get_rate(dev, rate);
+out:
+	spin_unlock_irqrestore(&dev->power.lock, flags);
+
+	return error;
+}
+
+/**
+ * pm_runtime_set_rate() - Set a specific rate for the device operation
+ * @dev:	Device to handle
+ * @rate:	Rate to set in Hz
+ *
+ * Returns appropriate error value in case of error conditions, else
+ * returns 0. The pm_domain logic does all the necessary operation (which
+ * may include voltage scale operations or other magic hardware stuff) to
+ * achieve the operation. It is guarenteed that the requested rate is achieved
+ * on returning from this function if return value is 0.
+ */
+int pm_runtime_set_rate(struct device *dev, unsigned long rate)
+{
+	unsigned long flags;
+	int error = -ENOSYS;
+
+	if (!rate || !dev)
+		return -EINVAL;
+
+	spin_lock_irqsave(&dev->power.lock, flags);
+	if (!pm_runtime_active(dev)) {
+		error = -EINVAL;
+		goto out;
+	}
+
+	if (dev->pm_domain && dev->pm_domain->active_ops.set_rate)
+		error = dev->pm_domain->active_ops.set_rate(dev, rate);
+out:
+	spin_unlock_irqrestore(&dev->power.lock, flags);
+
+	return error;
+}
+
+/**
+ * pm_runtime_get_transition_latency() - determine transition latency`
+ * @dev:	Device to handle
+ * @from_rate:	Transition from which rate
+ * @to_rate:	Transition to which rate
+ *
+ * Returns appropriate error value in case of error conditions, else
+ * returns the latency in uSecs for transition between two given rates
+ */
+int pm_runtime_get_transition_latency(struct device *dev,
+				      unsigned long from_rate,
+				      unsigned long to_rate)
+{
+	unsigned long flags;
+	int error = -ENOSYS;
+
+	if (!from_rate || !to_rate || !dev)
+		return -EINVAL;
+
+	spin_lock_irqsave(&dev->power.lock, flags);
+	if (!pm_runtime_active(dev)) {
+		error = -EINVAL;
+		goto out;
+	}
+
+	if (dev->pm_domain && dev->pm_domain->active_ops.get_transition_latency)
+		error = dev->pm_domain->active_ops.get_transition_latency(dev,
+				from_rate, to_rate);
+out:
+	spin_unlock_irqrestore(&dev->power.lock, flags);
+
+	return error;
+}

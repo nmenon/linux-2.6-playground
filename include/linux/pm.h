@@ -299,6 +299,20 @@ struct dev_pm_ops {
 	int (*runtime_idle)(struct device *dev);
 };
 
+/**
+ * struct dev_pm_active_ops - Active power management operations
+ * @get_rate:	get the current operational frequency
+ * @set_rate:	set the current operational frequency
+ * @get_transition_latency: get the transition latency in uSeconds
+ */
+struct dev_pm_active_ops {
+	int (*get_rate)(struct device *dev, unsigned long *rate);
+	int (*set_rate)(struct device *dev, unsigned long rate);
+	int (*get_transition_latency)(struct device *dev,
+				      unsigned long from_rate,
+				      unsigned long to_rate);
+};
+
 #ifdef CONFIG_PM_SLEEP
 #define SET_SYSTEM_SLEEP_PM_OPS(suspend_fn, resume_fn) \
 	.suspend = suspend_fn, \
@@ -589,13 +603,16 @@ extern void update_pm_runtime_accounting(struct device *dev);
 extern int dev_pm_get_subsys_data(struct device *dev);
 extern int dev_pm_put_subsys_data(struct device *dev);
 
-/*
- * Power domains provide callbacks that are executed during system suspend,
- * hibernation, system resume and during runtime PM transitions along with
- * subsystem-level and driver-level callbacks.
+/**
+ * struct dev_pm_domain - power domain information
+ * @ops: Power domains provide callbacks that are executed during system
+ *	suspend, hibernation, system resume and during runtime PM transitions
+ *	along with subsystem-level and driver-level callbacks.
+ * @active_ops: Active operational callbacks
  */
 struct dev_pm_domain {
 	struct dev_pm_ops	ops;
+	struct dev_pm_active_ops active_ops;
 };
 
 /*

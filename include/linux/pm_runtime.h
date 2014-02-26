@@ -112,6 +112,11 @@ static inline void pm_runtime_mark_last_busy(struct device *dev)
 	ACCESS_ONCE(dev->power.last_busy) = jiffies;
 }
 
+extern int pm_runtime_get_rate(struct device *dev, unsigned long *rate);
+extern int pm_runtime_set_rate(struct device *dev, unsigned long rate);
+extern int pm_runtime_get_transition_latency(struct device *dev,
+					     unsigned long from_rate,
+					     unsigned long to_rate);
 #else /* !CONFIG_PM_RUNTIME */
 
 static inline int __pm_runtime_idle(struct device *dev, int rpmflags)
@@ -162,6 +167,22 @@ static inline unsigned long pm_runtime_autosuspend_expiration(
 static inline void pm_runtime_set_memalloc_noio(struct device *dev,
 						bool enable){}
 
+static inline int pm_runtime_get_rate(struct device *dev, unsigned long *rate)
+{
+	return -ENOSYS;
+}
+
+static inline int pm_runtime_set_rate(struct device *dev, unsigned long rate)
+{
+	return -ENOSYS;
+}
+
+static inline int pm_runtime_get_transition_latency(struct device *dev,
+						    unsigned long from_rate,
+						    unsigned long to_rate)
+{
+	return -ENOSYS;
+}
 #endif /* !CONFIG_PM_RUNTIME */
 
 static inline int pm_runtime_idle(struct device *dev)
