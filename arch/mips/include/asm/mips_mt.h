@@ -1,6 +1,6 @@
 /*
  * Definitions and decalrations for MIPS MT support
- * that are common between SMTC, VSMP, and/or AP/SP
+ * that are common between VSMP, and/or AP/SP
  * kernel models.
  */
 #ifndef __ASM_MIPS_MT_H
