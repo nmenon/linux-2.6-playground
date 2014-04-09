@@ -1,0 +1,505 @@
+depends/sunxi-clock
+	# Needed for sunxi/soc to boot properly
+	git fetch https://bitbucket.org/emiliolopez/linux.git tags/sunxi-clk-for-3.15
+
+----------------
+arm-soc non-critical bug fixes for 3.15
+
+Lots of isolated bug fixes that were not found to be important
+enough to be submitted before the merge window or backported
+into stable kernels.
+The vast majority of these came out of Arnd's randconfig testing
+and just prevents running into build-time bugs in configurations
+that we do not care about in practice.
+
+
+next/fixes-non-critical
+	patch
+		irqchip: gic: use dmb ishst instead of dsb when raising a softirq
+		ARM: clps711x: autcpu12: Fix incorrect NAND CLE GPIO
+		MAINTAINERS: ARM: clps711x: Use regex patterns to involve all CLPS711X drivers
+	omap/fixes
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v3.15/fixes-for-merge-window
+		contains depends/irqchip-mvebu-fixes
+	patch
+		CNS3xxx: Fix a WARN() related to IRQ allocation.
+		CNS3xxx: Fix PCIe early iotable_init().
+		ARM: ixp4xx: Make dma_set_coherent_mask common, correct implementation
+		ARM: mmp: allow platform devices with modular USB
+	samsung/fixes
+		git://git.kernel.org/pub/scm/linux/kernel/git/kgene/linux-samsung tags/samsung-fixes
+	randconfig-fixes
+		git://git.kernel.org/pub/scm/linux/kernel/git/arm/arm-soc.git randconfig-fixes
+	patches
+		ARM: tegra: fix board DT pinmux setup
+		ARM: nspire: Fix compiler warning
+		IXP4xx: Fix DMA masks.
+		Revert "ARM: ixp4xx: Make dma_set_coherent_mask common, correct implementation"
+		IXP4xx: Fix Goramo Multilink GPIO conversion.
+		Revert "ARM: ixp4xx: fix gpio rework"
+		ARM: moxart: fix CPU selection
+		ARM: at91: fix a typo
+
+---------------------
+arm-soc cleanups for 3.15
+
+These cleanup patches are mainly move stuff around and should all
+be harmless. They are mainly split out so that other branches can
+be based on top to avoid conflicts.
+
+Notable changes are:
+
+* We finally remove all mach/timex.h, after CLOCK_TICK_RATE is no
+  longer used. (Uwe Kleine-König)
+* The Qualcomm MSM platform is split out into legacy mach-msm and
+  new-style mach-qcom, to allow easier maintainance of the new
+  hardware support without regressions. (Kumar Gala)
+* A rework of some of the Kconfig logic to simplify multiplatform
+  support (Rob Herring)
+* Samsung Exynos gets closer to supporting multiplatform (Sachin
+  Kamat and others)
+* mach-bcm3528 gets merged into mach-bcm (Stephen Warren)
+* at91 gains some common clock framework support (Alexandre Belloni,
+  Jean-Jacques Hiblot and other French people).
+
+Conflicts are all with the Kconfig cleanup:
+* The omap Kconfig now selects ARCH_HAS_OPP for SOC_AM43XX
+  and , while some redundant options got removed.
+* Tegra Kconfig lost two redundant 'select' statements: SPARSE_IRQ
+  and USB_ARCH_HAS_EHCI
+* Zynq now needs ARCH_HAS_CPUFREQ and ARCH_HAS_OPP, but not
+  COMMON_CLK, CPU_V7 and GENERIC_CLOCKEVENTS
+* The clocksource Kconfig gained new options on both sides
+
+next/cleanup
+	cleanup/timex-removal
+		git://git.pengutronix.de/git/ukl/linux tags/dropmachtimexh-v2
+	renesas/cleanup
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-cleanup-for-v3.15
+	qcom/cleanup
+		git://git.kernel.org/pub/scm/linux/kernel/git/galak/linux-qcom tags/qcom-cleanup-for-3.15
+	mvebu/soc
+		git://git.infradead.org/linux-mvebu tags/mvebu-soc-3.15
+	efm32/cleanup
+		git://git.pengutronix.de/git/ukl/linux tags/efm32-next
+	cleanup/kconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/robh/linux tags/kconfig-cleanup-for-3.15
+	patch
+		ARM: clps711x: Remove EP72XX_ROM_BOOT option
+		ARM: clps711x: Update defconfig
+	samsung/drivers
+		http://git.kernel.org/pub/scm/linux/kernel/git/kgene/linux-samsung tags/samsung-drivers
+	samsung/cleanup
+		http://git.kernel.org/pub/scm/linux/kernel/git/kgene/linux-samsung tags/samsung-cleanup
+	mmp/irq
+		https://git.kernel.org/pub/scm/linux/kernel/git/hzhuang1/linux tags/irq-mmp
+	sirf/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/baohua/linux tags/sirf-soc-for-3.15
+	bcm/cleanup
+		git://github.com/broadcom/mach-bcm tags/armsoc/for-3.15/cleanup
+	bcm2835/move
+		git://git.kernel.org/pub/scm/linux/kernel/git/swarren/linux-rpi tags/bcm2835-for-3.15-soc
+	at91/cleanup
+		git://github.com/at91linux/linux-at91 tags/at91-cleanup
+	patch
+		ARM: prima2: build reset code standalone
+		ARM: hisi: select HAVE_ARM_SCU only for SMP
+		ARM: efm32: allow uncompress debug output
+
+---------------------
+arm soc specific changes
+
+Lots of changes specific to one of the SoC families. Some that
+stick out are:
+
+* mach-qcom gains new features, most importantly SMP support for
+  the newer chips (Stephen Boyd, Rohit Vaswani)
+* mvebu gains support for three new SoCs: Armada 375, 380 and 385
+  (Thomas Petazzoni and Free-electrons team)
+* SMP support for Rockchips (Heiko Stübner)
+* Lots of i.MX changes (Shawn Guo)
+* Added support for BCM5301x SoC (Hauke Mehrtens)
+* Multiplatform support for Marvell Kirkwood and Dove
+  (Andrew Lunn and Sebastian Hesselbarth doing the final part
+  of a long journey)
+* Unify davinci platforms and remove obsolete ones (Sekhar Nori,
+  Arnd Bergmann)
+
+Conflicts:
+* BCM5301x trivially conflicts with the moved BCM2835 code
+  in Kconfig and Makefile
+* arch/arm/mach-imx/pm-imx6q.c got renamed to pm-imx6.c
+  and needs the change from 8435cf757632a "arm: Replace various
+  irq_desc accesses" applied there.
+* some shmobile platforms now need to select both ARCH_DMA_ADDR_T_64BIT
+  and SYS_SUPPORTS_SH_CMT
+* The vmlinux.lds.h file has two new macros that are both needed
+
+next/soc
+	qcom/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/galak/linux-qcom tags/qcom-soc-for-3.15
+		contains qcom/cleanup
+	patch
+		ARM: dts: msm: Add krait-pmu to platforms with Krait CPUs
+	mvebu/soc
+		Merge branch 'mvebu/soc' into next/soc
+	mvebu/soc-3xx
+		git://git.infradead.org/linux-mvebu tags/mvebu-soc-3xx-3.15
+	patch
+		ARM: clps711x: Add CLPS711X irqchip driver
+		ARM: dts: clps711x: Add bindings documentation for CLPS711X irqchip driver
+		ARM: clps711x: Migrate CLPS711X subarch to the new irqchip driver
+	rockchip/smp
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v3.15-rockchip-smp
+	omap/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v3.15/soc-signed
+	omap/prcm
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v3.15/prcm-signed
+	imx/soc
+		git://git.linaro.org/people/shawnguo/linux-2.6 tags/imx-soc-3.15
+		contains cleanup/kconfig
+		contains depends/irqchip-mvebu-fixes
+	patch
+		ARM: enable ARM_HAS_SG_CHAIN for multiplatform
+	bcm/soc
+		git://github.com/broadcom/mach-bcm tags/armsoc/for-3.15/soc-2
+	renesas/soc2
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-soc2-for-v3.15
+	renesas/soc3
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-soc3-for-v3.15
+	mvebu/soc2
+		git://git.infradead.org/linux-mvebu tags/mvebu-soc-3.15-2
+	mvebu/soc3
+		git://git.infradead.org/linux-mvebu tags/mvebu-soc-3.15-3
+	sunxi/soc
+		https://github.com/mripard/linux tags/sunxi-core-for-3.15
+	bcm/cleanup
+		Merge branch 'bcm/cleanup' into next/soc
+	bcm/soc2
+		git://github.com/broadcom/mach-bcm tags/armsoc/for-3.15/soc-3
+	patch
+		MAINTAINERS: Update ARM STi maintainers
+		ARM: davinci: remove tnetv107x support
+	davinci/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v3.15/soc
+	bcm/soc3
+		git://github.com/broadcom/mach-bcm tags/armsoc/for-3.15/soc-4
+	tegra/tf
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-3.15-tf
+	tegra/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-3.15-soc
+	patch
+		ARM: mvebu: don't select CONFIG_NEON
+	davinci/soc2
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci.git tags/davinci-for-v3.15/soc-2
+	patch
+		ARM: cache-tauros2: remove ARMv6 code
+		ARM: sunxi: Select HAVE_ARM_ARCH_TIMER
+
+-------------------------
+arm-soc board changes
+
+As we continue to replace board files with device tree descriptions,
+this part of the ARM support is getting smaller. We have basically just
+defconfig changes here this time, and a significant number of Renesas
+shmobile changes, as Renesas is still in the process of deprecating
+board file support.
+
+next/boards
+	renesas/boards
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-boards-for-v3.15
+	renesas/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-defconfig-for-v3.15
+	renesas/boards2
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-boards2-for-v3.15
+	renesas/defconfig2
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-defconfig2-for-v3.15
+	mvebu/defconfig
+		git://git.infradead.org/linux-mvebu tags/mvebu-defconfig-3.15
+	patch
+		ARM: qcom: Enable basic support for Qualcomm platforms in multi_v7_defconfig
+	pxa/soc
+		https://git.kernel.org/pub/scm/linux/kernel/git/hzhuang1/linux tags/pxa
+	keystone/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/ssantosh/linux-keystone tags/keystone-soc
+	renesas/boards3
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-boards3-for-v3.15
+	renesas/defconfig3
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-defconfig3-for-v3.15
+	mvebu/defconfig2
+		git://git.infradead.org/linux-mvebu tags/mvebu-defconfig-3.15-2
+	patch
+		ARM: fix duplicate symbols in multi_v5_defconfig
+	sunxi/defconfig
+		https://github.com/mripard/linux tags/sunxi-defconfig-for-3.15
+	patch
+		ARM: add Marvell Dove and some drivers to multi_v7 defconfig
+	tegra/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-3.15-defconfig
+
+---------------
+arm-soc device tree changes
+
+A large part of the arm-soc patches are nowadays DT changes, adding support
+for new SoCs, boards and devices without changing kernel source. The plan
+is still to move the devicetree files out of the kernel tree and reduce
+the amount of churn going on here, but we keep finding reasons to delay
+doing that. Unfortunately, the size of this branch also causes a moderate
+number of conflicts at the moment. Changes are really all over the place,
+with little sticking out particularly. We have contributions from a total
+of 116 people in this branch.
+
+Conflicts:
+* keystone-clocks.dtsi is split up into per-soc files, which conflicts
+  with a bug-fix that went into 3.14. The new location already has the
+  correct fix, so all conflicting lines can be removed
+* qcom adds new nodes that conflict with an earlier branch. Remember
+  the closing '};' at the end of the node.
+* same issue in sun7i-a20.dtsi
+* multiple header file inclusions are added in
+  arch/arm/mach-omap2/pdata-quirks.c, they are all needed.
+* The MACH_UX500_DT gets removed, but was changed in the cleanup
+  branch. We still want to remove it.
+* A change in the at91_adc.txt binding conflicts with a typo fix
+* In the stmmac.txt binding, a clarification on the max-frame-size
+  conflicts with the missing clock documentation that was added
+* Changes to arch/arm/boot/dts/imx53-qsb.dts from 17b5001b5143e
+  "imx-drm: convert to componentised device support" and
+  e05c8c9a790a0 "ARM: dts: imx53: Add IPU DI ports and endpoints,
+  move imx-drm node to dtsi" now need to be applied to
+  arch/arm/boot/dts/imx53-qsb-common.dtsi instead, as the modified
+  nodes have been moved to a new file
+
+
+next/dt
+	renesas/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-dt-for-v3.15
+	imx/dt-imx6
+		git://git.linaro.org/people/shawnguo/linux-2.6 tags/imx6-dt-3.15
+	imx/dt
+		git://git.linaro.org/people/shawnguo/linux-2.6 tags/imx-dt-3.15
+	ux500/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-stericsson tags/ab8500-dt-for-arm-soc
+	renesas/dt2
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-dt2-for-v3.15
+	mvebu/dt
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt-3.15
+	mvebu/dt2
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt-3.15-2
+	qcom/cleanup
+		Merge branch 'qcom/cleanup' into next/dt
+	qcom/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/galak/linux-qcom tags/qcom-dt-for-3.15
+	omap/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v3.15/dt-signed
+	samsung/dt
+		http://git.kernel.org/pub/scm/linux/kernel/git/kgene/linux-samsung tags/samsung-dt
+	samsung/exynos-clk
+		http://git.kernel.org/pub/scm/linux/kernel/git/kgene/linux-samsung tags/exynos-clk
+	sunxi/dt
+		https://github.com/mripard/linux tags/sunxi-dt-for-3.15
+	ux500/dt2
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-stericsson tags/ux500-dt-v3.15-2
+	imx/dt-imx6-2
+		git://git.linaro.org/people/shawnguo/linux-2.6 tags/imx6-dt-3.15-2
+	imx/dt2
+		git://git.linaro.org/people/shawnguo/linux-2.6 tags/imx-dt-3.15-2
+	keystone/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/ssantosh/linux-keystone tags/keystone-dts
+	bcm/dt
+		git://github.com/broadcom/mach-bcm tags/armsoc/for-3.15/dt
+	bcm2835/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/swarren/linux-rpi tags/bcm2835-for-3.15-dt
+	omap/dt2
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v3.15/dt-part2
+	zynq/dt
+		git://git.xilinx.com/linux-xlnx tags/zynq-dt-for-3.15
+	renesas/dt3
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-dt3-for-v3.15
+	renesas/dt4
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-dt4-for-v3.15
+	efm32/cleanup
+		Merge branch 'efm32/cleanup' into next/dt
+		contains cleanup/timex-removal
+	efm32/dt
+		git://git.pengutronix.de/git/ukl/linux tags/efm32-next
+	mvebu/dt3
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt-3.15-3
+	mvebu/soc3
+		Merge branch 'mvebu/soc3' into next/dt
+		contains mvebu/soc
+		contains mvebu/soc-3xx
+		contains mvebu/soc2
+	mvebu/dt4
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt-3.15-4
+	mvebu/dt5
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt-3.15-5
+	at91/dt
+		git://github.com/at91linux/linux-at91 tags/at91-dt
+	sunxi/dt2
+		https://github.com/mripard/linux tags/sunxi-dt-for-3.15-2
+	omap/dt3
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v3.15/dt-part3
+	omap/overo
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v3.15/dt-overo-signed
+		contains depends/irqchip-mvebu-fixes
+	bcm/dt2
+		git://github.com/broadcom/mach-bcm tags/armsoc/for-3.15/dt-2
+	sti/dt
+		git://git.stlinux.com/devel/kernel/linux-sti tags/DT-for-v3.15-part-1-v2
+	tegra/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-3.15-dt
+	patch
+		ARM: tegra: fix Dalmore pinctrl configuration
+		ARM: enable fhandle in multi_v7_defconfig
+		ARM: tegra: enable fhandle in tegra_defconfig
+		ARM: update multi_v7_defconfig for Tegra
+		ARM: STi: stih41x: Add support for the FSM Serial Flash Controller
+		ARM: STi: stih416: Add support for the FSM Serial Flash Controller
+	keystone/dt2
+		git://git.kernel.org/pub/scm/linux/kernel/git/ssantosh/linux-keystone.git tags/keystone-dts-fixes
+	patch
+		dts: stmmac: Document the clocks property in the stmmac base document
+		dts: socfpga: Add DTS entry for adding the stmmac glue layer for stmmac.
+
+----------------------
+arm-soc driver changes
+
+These changes are mostly for ARM specific device drivers that either
+don't have an upstream maintainer, or that had the maintainer ask
+us to pick up the changes to avoid conflicts. A large chunk of this
+are clock drivers (bcm281xx, exynos, versatile, shmobile), aside from
+that, reset controllers for STi as well as a large rework of the
+Marvell Orion/EBU watchdog driver are notable.
+
+Conflicts are all in Kconfig, because of the move of kirkwood
+and dove to mvebu being slightly less coordinated than it should
+have been:
+* PHY_MVEBU_SATA now needs to depend on any of
+  ARCH_KIRKWOOD || ARCH_DOVE || MACH_KIRKWOOD || MACH_DOVE
+  Long story, will get better in 3.16 when ARCH_KIRKWOOD and
+  ARCH_DOVE are ready to be removed.
+* ORION_WATCHDOG just needs to depend on
+  ARCH_ORION5X || ARCH_KIRKWOOD || ARCH_DOVE || ARCH_MVEBU, as the latter
+  now includes support for MACH_KIRKWOOD and MACH_DOVE.
+* Same for SND_KIRKWOOD_SOC, which should now depend on
+  ARCH_KIRKWOOD || ARCH_DOVE || ARCH_MVEBU || COMPILE_TEST
+
+next/drivers
+	renesas/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-soc-for-v3.15
+	integrator/multiplatform-base
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-integrator tags/integrator-for-v3.15-1
+	davinci/nand
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v3.15/nand
+	depends/irqchip-mvebu-fixes
+		git://git.infradead.org/linux-mvebu tags/irqchip-mvebu-fixes-3.14
+	mvebu/watchdog
+		git://git.infradead.org/linux-mvebu tags/mvebu-watchdog-3.15
+	patch
+		irqchip: VIC: export vic_init_cascaded
+	qcom/cleanup
+		Merge branch 'qcom/cleanup' into next/drivers
+	qcom/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/galak/linux-qcom tags/qcom-drivers-for-3.15
+	patch
+		drivers: cci: Extend support to CCI revisions > r1p2
+		drivers: cci: Export CCI PMU revision
+	bcm/drivers
+		git://github.com/broadcom/mach-bcm tags/armsoc/for-3.15/drivers
+	mvebu/watchdog2
+		git://git.infradead.org/linux-mvebu tags/mvebu-watchdog-3.15-2
+	omap/crossbar
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v3.15/crossbar-signed
+	renesas/soc-clocks
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-clock-for-v3.15
+	renesas/soc-clocks2
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-clock2-for-v3.15
+	renesas/soc-clocks3
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-clock3-for-v3.15
+	renesas/soc-clocks4
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-clock4-for-v3.15
+	socfpga/drivers
+		git://git.rocketboards.org/linux-socfpga-next tags/socfpga_updates_for_3.15_v2
+	mvebu/drivers2
+		git://git.infradead.org/linux-mvebu tags/mvebu-drivers-3.15-2
+	sti/dt
+		Merge branch 'sti/dt' into next/drivers
+	sti/reset
+		git://git.stlinux.com/devel/kernel/linux-sti tags/sti-reset-for-v3.15
+	cleanup/kconfig
+		Merge branch 'cleanup/kconfig' into next/drivers
+	tegra/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-3.15-drivers
+	patch
+		Revert "dts: socfpga: Add DTS entry for adding the stmmac glue layer for stmmac."
+		Revert "net: stmmac: Add SOCFPGA glue driver"
+	reset/driver
+		git://git.pengutronix.de/git/pza/linux reset/for_v3.15
+	samsung/exynos-clk2
+		http://git.kernel.org/pub/scm/linux/kernel/git/kgene/linux-samsung.git tags/samsung-pm-1
+
+---------------------
+sh driver changes
+
+The drivers/sh subdirectory used to get merged through the SH architecture
+tree, but things are in flux there and some of the drivers are shared with
+ARM shmobile, we have picked it up for the time being.
+
+There is only one trivial patch from Laurent Pinchart this time.
+
+next/sh
+	renesas/sh-intc
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-intc-for-v3.15
+
+next/cleanup2
+	integrator/multiplatform-base
+		Merge branch 'integrator/multiplatform-base' into next/cleanup2
+	integrator/cleanup
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-integrator tags/integrator-for-v3.15-2
+	zynq/cleanup
+		git://git.xilinx.com/linux-xlnx.git tags/zynq-cleanup-for-3.15-v2
+
+------------------------
+arm-soc late cleanups
+
+These could not be part of the first cleanup branch, because they either
+came too late in the cycle, or they have dependencies on other branches.
+Important changes are: 
+
+* The integrator platform is almost multiplatform capable after
+  some reorganization (Linus Walleij)
+* Minor cleanups on Zynq (Michal Simek)
+* Lots of changes for Exynos and other Samsung platforms, including
+  further preparations for multiplatform support and the clocks bindings
+  are rearranged.
+
+Conflicts:
+* CONFIG_UNCOMPRESS_INCLUDE now needs debug/uncompress.h for all PLAT_SAMSUNG
+  platforms, which includes ARCH_EXYNOS.
+* The samsung-phy binding gained support for both USB and SATA descriptions,
+  which we both want.
+* ZYNQ now uses MFD_SYSCON, but doesn't always want ARM_GLOBAL_TIMER
+* zynq_init_machine() now registers a cpufreq device (don't know why
+  this is needed, but it didn't come through arm-soc) and it calls
+  zynq_slcr_init, it needs both.
+
+next/cleanup3
+	# based on next/cleanup2, let's pick one of the two
+	# pulls in samsung/cleanup, samsung/exynos-clk, and samsung/exynos-clk2
+	samsung/cleanup2
+		git://git.kernel.org/pub/scm/linux/kernel/git/kgene/linux-samsung.git tags/samsung-cleanup-2
+	samsung/dt2
+		git://git.kernel.org/pub/scm/linux/kernel/git/kgene/linux-samsung.git tags/samsung-dt-2
+	samsung/cleanup3
+		git://git.kernel.org/pub/scm/linux/kernel/git/kgene/linux-samsung.git tags/samsung-cleanup-3
+	samsung/dt3
+		git://git.kernel.org/pub/scm/linux/kernel/git/kgene/linux-samsung.git tags/samsung-dt-3
+	samsung/pm2
+		git://git.kernel.org/pub/scm/linux/kernel/git/kgene/linux-samsung.git tags/samsung-pm-2
+	samsung/cleanup4
+		git://git.kernel.org/pub/scm/linux/kernel/git/kgene/linux-samsung.git tags/exynos-cleanup
+	patch
+		devicetree: fix newly added exynos sata bindings
+
+
