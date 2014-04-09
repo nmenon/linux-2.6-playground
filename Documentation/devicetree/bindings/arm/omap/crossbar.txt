@@ -20,6 +20,8 @@ Required properties:
 Optional properties:
 - ti,irqs-safe-map: integer which maps to a safe configuration to use
   when the interrupt controller irq is unused (when not provided, default is 0)
+- ti,irqs-skip: This is similar to "ti,irqs-reserved", but are irq mappings
+  which are not supposed to be used for errata or other reasons(virtualization).
 
 
 Examples:
