@@ -805,7 +805,7 @@
 		reg = <0x4a002a48 0x130>;
 		ti,max-irqs = <160>;
 		ti,reg-size = <2>;
-		ti,irqs-reserved = <0 1 2 3 5 6 131 132 139 140>;
+		ti,irqs-reserved = <0 1 2 3 5 6 131 132>;
 	};
 };
 
