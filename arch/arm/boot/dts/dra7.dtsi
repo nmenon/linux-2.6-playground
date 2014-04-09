@@ -107,8 +107,8 @@
 		ti,hwmods = "l3_main_1", "l3_main_2";
 		reg = <0x44000000 0x2000>,
 		      <0x44800000 0x3000>;
-		interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>,
-			     <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>;
 
 		prm: prm@4ae06000 {
 			compatible = "ti,dra7-prm";
@@ -185,7 +185,7 @@
 			reg = <0x4a056000 0x1000>;
 			interrupts = <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
 			#dma-cells = <1>;
 			#dma-channels = <32>;
@@ -337,6 +337,7 @@
 		uart7: serial@48420000 {
 			compatible = "ti,omap4-uart";
 			reg = <0x48420000 0x100>;
+			interrupts = <GIC_SPI 218 IRQ_TYPE_LEVEL_HIGH>;
 			ti,hwmods = "uart7";
 			clock-frequency = <48000000>;
 			status = "disabled";
@@ -345,6 +346,7 @@
 		uart8: serial@48422000 {
 			compatible = "ti,omap4-uart";
 			reg = <0x48422000 0x100>;
+			interrupts = <GIC_SPI 219 IRQ_TYPE_LEVEL_HIGH>;
 			ti,hwmods = "uart8";
 			clock-frequency = <48000000>;
 			status = "disabled";
@@ -353,6 +355,7 @@
 		uart9: serial@48424000 {
 			compatible = "ti,omap4-uart";
 			reg = <0x48424000 0x100>;
+			interrupts = <GIC_SPI 220 IRQ_TYPE_LEVEL_HIGH>;
 			ti,hwmods = "uart9";
 			clock-frequency = <48000000>;
 			status = "disabled";
@@ -361,6 +364,7 @@
 		uart10: serial@4ae2b000 {
 			compatible = "ti,omap4-uart";
 			reg = <0x4ae2b000 0x100>;
+			interrupts = <GIC_SPI 221 IRQ_TYPE_LEVEL_HIGH>;
 			ti,hwmods = "uart10";
 			clock-frequency = <48000000>;
 			status = "disabled";
@@ -454,6 +458,7 @@
 		timer13: timer@48828000 {
 			compatible = "ti,omap5430-timer";
 			reg = <0x48828000 0x80>;
+			interrupts = <GIC_SPI 339 IRQ_TYPE_LEVEL_HIGH>;
 			ti,hwmods = "timer13";
 			status = "disabled";
 		};
@@ -461,6 +466,7 @@
 		timer14: timer@4882a000 {
 			compatible = "ti,omap5430-timer";
 			reg = <0x4882a000 0x80>;
+			interrupts = <GIC_SPI 340 IRQ_TYPE_LEVEL_HIGH>;
 			ti,hwmods = "timer14";
 			status = "disabled";
 		};
@@ -468,6 +474,7 @@
 		timer15: timer@4882c000 {
 			compatible = "ti,omap5430-timer";
 			reg = <0x4882c000 0x80>;
+			interrupts = <GIC_SPI 341 IRQ_TYPE_LEVEL_HIGH>;
 			ti,hwmods = "timer15";
 			status = "disabled";
 		};
@@ -475,6 +482,7 @@
 		timer16: timer@4882e000 {
 			compatible = "ti,omap5430-timer";
 			reg = <0x4882e000 0x80>;
+			interrupts = <GIC_SPI 342 IRQ_TYPE_LEVEL_HIGH>;
 			ti,hwmods = "timer16";
 			status = "disabled";
 		};
@@ -496,7 +504,7 @@
 		dmm@4e000000 {
 			compatible = "ti,omap5-dmm";
 			reg = <0x4e000000 0x800>;
-			interrupts = <0 113 0x4>;
+			interrupts = <GIC_SPI 108 IRQ_TYPE_LEVEL_HIGH>;
 			ti,hwmods = "dmm";
 		};
 
