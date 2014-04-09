@@ -44,7 +44,7 @@
 
 #ifdef CONFIG_MIPS_MT
 /*
- * Temporary hacks for SMTC debug. Optionally force single-threaded
+ * Temporary hacks for MT debug. Optionally force single-threaded
  * execution during I-cache flushes.
  */
 

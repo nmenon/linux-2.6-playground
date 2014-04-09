@@ -65,17 +65,8 @@ struct cpuinfo_mips {
 #ifdef CONFIG_64BIT
 	int			vmbits; /* Virtual memory size in bits */
 #endif
-#if defined(CONFIG_MIPS_MT_SMP) || defined(CONFIG_MIPS_MT_SMTC)
-	/*
-	 * In the MIPS MT "SMTC" model, each TC is considered
-	 * to be a "CPU" for the purposes of scheduling, but
-	 * exception resources, ASID spaces, etc, are common
-	 * to all TCs within the same VPE.
-	 */
+#ifdef CONFIG_MIPS_MT_SMP
 	int			vpe_id;	 /* Virtual Processor number */
-#endif
-#ifdef CONFIG_MIPS_MT_SMTC
-	int			tc_id;	 /* Thread Context number */
 #endif
 	void			*data;	/* Additional data */
 	unsigned int		watch_reg_count;   /* Number that exist */

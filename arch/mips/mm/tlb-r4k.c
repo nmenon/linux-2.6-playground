@@ -25,27 +25,8 @@
 
 extern void build_tlb_refill_handler(void);
 
-/* Atomicity and interruptability */
-#ifdef CONFIG_MIPS_MT_SMTC
-
-#include <asm/smtc.h>
-#include <asm/mipsmtregs.h>
-
-#define ENTER_CRITICAL(flags) \
-	{ \
-	unsigned int mvpflags; \
-	local_irq_save(flags);\
-	mvpflags = dvpe()
-#define EXIT_CRITICAL(flags) \
-	evpe(mvpflags); \
-	local_irq_restore(flags); \
-	}
-#else
-
 #define ENTER_CRITICAL(flags) local_irq_save(flags)
 #define EXIT_CRITICAL(flags) local_irq_restore(flags)
-
-#endif /* CONFIG_MIPS_MT_SMTC */
 
 /*
  * LOONGSON2/3 has a 4 entry itlb which is a subset of dtlb,
