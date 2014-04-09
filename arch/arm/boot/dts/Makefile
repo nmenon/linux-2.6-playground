@@ -158,6 +158,7 @@ dtb-$(CONFIG_ARCH_MXC) += \
 	imx27-phytec-phycard-s-rdk.dtb \
 	imx31-bug.dtb \
 	imx35-eukrea-mbimxsd35-baseboard.dtb \
+	imx35-pdk.dtb \
 	imx50-evk.dtb \
 	imx51-apf51.dtb \
 	imx51-apf51dev.dtb \
@@ -204,6 +205,7 @@ dtb-$(CONFIG_ARCH_MXC) += \
 	imx6q-udoo.dtb \
 	imx6q-wandboard.dtb \
 	imx6sl-evk.dtb \
+	vf610-colibri.dtb \
 	vf610-cosmic.dtb \
 	vf610-twr.dtb
 dtb-$(CONFIG_ARCH_MXS) += imx23-evk.dtb \
