@@ -471,7 +471,7 @@ static int __init powernv_hwmon_init(void)
 	struct device_node *opal, *np = NULL;
 	enum attributes attr_type;
 	enum sensors type;
-	const u32 *sensor_id;
+	u32 sensor_id;
 	u32 sensor_index;
 	int err;
 
@@ -497,14 +497,13 @@ static int __init powernv_hwmon_init(void)
 				&sensor_index))
 			continue;
 
-		sensor_id = of_get_property(np, "sensor-id", NULL);
-		if (!sensor_id) {
+		if (of_property_read_u32(np, "sensor-id", &sensor_id)) {
 			pr_info("%s: %s doesn't have sensor-id\n", __func__,
 					np->name);
 			continue;
 		}
 
-		err = powernv_sensor_init(*sensor_id, np, type, attr_type,
+		err = powernv_sensor_init(sensor_id, np, type, attr_type,
 				sensor_index);
 		if (err) {
 			of_node_put(opal);
