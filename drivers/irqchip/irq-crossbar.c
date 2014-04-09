@@ -22,12 +22,14 @@
 
 /*
  * @int_max: maximum number of supported interrupts
+ * @safe_map: crossbar map number which is safe to map for unsed interrupts
  * @irq_map: array of interrupts to crossbar number mapping
  * @crossbar_base: crossbar base address
  * @register_offsets: offsets for each irq number
  */
 struct crossbar_device {
 	uint int_max;
+	uint safe_map;
 	uint *irq_map;
 	void __iomem *crossbar_base;
 	int *register_offsets;
@@ -76,8 +78,10 @@ static void crossbar_domain_unmap(struct irq_domain *d, unsigned int irq)
 {
 	irq_hw_number_t hw = irq_get_irq_data(irq)->hwirq;
 
-	if (hw > GIC_IRQ_START)
+	if (hw > GIC_IRQ_START) {
 		cb->irq_map[hw - GIC_IRQ_START] = IRQ_FREE;
+		cb->write(hw - GIC_IRQ_START, cb->safe_map);
+	}
 }
 
 static int crossbar_domain_xlate(struct irq_domain *d,
@@ -123,6 +127,7 @@ static int __init crossbar_of_init(struct device_node *node)
 		goto err2;
 
 	cb->int_max = max;
+	of_property_read_u32(node, "ti,irqs-safe-map", &cb->safe_map);
 
 	for (i = 0; i < max; i++)
 		cb->irq_map[i] = IRQ_FREE;
@@ -177,6 +182,14 @@ static int __init crossbar_of_init(struct device_node *node)
 		cb->register_offsets[i] = reserved;
 		reserved += size;
 	}
+
+	 /* Initialize the crossbar with safe map to start with */
+	 for (i = 0; i < max; i++) {
+		if (cb->irq_map[i] == IRQ_RESERVED)
+			continue;
+		cb->write(i, cb->safe_map);
+	}
+
 
 	register_routable_domain_ops(&routable_irq_domain_ops);
 	return 0;
