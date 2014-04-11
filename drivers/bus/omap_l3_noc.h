@@ -27,8 +27,9 @@
 
 /* L3 TARG register offsets */
 #define L3_TARG_STDERRLOG_MAIN		0x48
+#define L3_TARG_STDERRLOG_MSTADDR	0x50
 #define L3_TARG_STDERRLOG_SLVOFSLSB	0x5c
-#define L3_TARG_STDERRLOG_MSTADDR	0x68
+#define L3_TARG_STDERRLOG_CINFO_MSTADDR	0x68
 #define L3_FLAGMUX_REGERR0		0xc
 
 #define NUM_OF_L3_MASTERS	(sizeof(l3_masters)/sizeof(l3_masters[0]))
