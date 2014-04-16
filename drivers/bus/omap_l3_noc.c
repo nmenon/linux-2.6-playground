@@ -56,6 +56,7 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 	u32 std_err_main, err_reg, clear, masterid;
 	void __iomem *base, *l3_targ_base;
 	void __iomem *l3_targ_stderr, *l3_targ_slvofslsb, *l3_targ_mstaddr;
+	void __iomem *l3_targ_hdr;
 	char *target_name, *master_name = "UN IDENTIFIED";
 	struct l3_target_data *l3_targ_inst;
 	char *err_description;
@@ -76,6 +77,7 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 		/* Get the corresponding error and analyse */
 		if (err_reg) {
 			bool std_err = true;
+			u8 op_code;
 
 			/* Identify the source from control status register */
 			err_src = __ffs(err_reg);
@@ -99,6 +101,8 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 
 				l3_targ_mstaddr = l3_targ_base +
 						L3_TARG_STDERRLOG_MSTADDR;
+				l3_targ_hdr = l3_targ_base +
+						L3_TARG_STDERRLOG_HDR;
 				break;
 
 			case CUSTOM_ERROR:
@@ -106,6 +110,8 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 
 				l3_targ_mstaddr = l3_targ_base +
 						L3_TARG_STDERRLOG_CINFO_MSTADDR;
+				l3_targ_hdr = l3_targ_base +
+						L3_TARG_STDERRLOG_CINFO_OPCODE;
 				break;
 
 			default:
@@ -131,10 +137,13 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 						l3_masters[k].name;
 			}
 
+			op_code = readl_relaxed(l3_targ_hdr) & 0x7;
+
 			WARN(true,
-			     "L3 %s Error: MASTER %s TARGET %s%s\n",
+			     "L3 %s Error: MASTER %s TARGET %s (%s)%s\n",
 			     err_description,
 			     master_name, target_name,
+			     l3_transaction_type[op_code],
 			     err_string);
 			/* clear the std error log*/
 			clear = std_err_main | CLEAR_STDERR_LOG;
