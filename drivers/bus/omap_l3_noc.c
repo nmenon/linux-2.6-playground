@@ -87,7 +87,12 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 					  L3_TARG_STDERRLOG_MSTADDR;
 
 			std_err_main = readl_relaxed(l3_targ_stderr);
-			masterid = readl_relaxed(l3_targ_mstaddr);
+			/*
+			 * STDERRLOG_MSTADDR Stores the NTTP master address.
+			 * The 6 MSBs are used to distinguish the different
+			 * initiators
+			 */
+			masterid = (readl_relaxed(l3_targ_mstaddr) & 0xFF) >> 2;
 
 			switch (std_err_main & CUSTOM_ERROR) {
 			case STANDARD_ERROR:
