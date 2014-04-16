@@ -56,11 +56,12 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 	u32 std_err_main, err_reg, clear, masterid;
 	void __iomem *base, *l3_targ_base;
 	void __iomem *l3_targ_stderr, *l3_targ_slvofslsb, *l3_targ_mstaddr;
-	void __iomem *l3_targ_hdr;
+	void __iomem *l3_targ_hdr, *l3_targ_info;
 	char *target_name, *master_name = "UN IDENTIFIED";
 	struct l3_target_data *l3_targ_inst;
 	char *err_description;
 	char err_string[30] = { 0 };
+	char info_string[60] = { 0 };
 
 	/* Get the Type of interrupt */
 	inttype = irq == l3->app_irq ? L3_APPLICATION_ERROR : L3_DEBUG_ERROR;
@@ -78,6 +79,7 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 		if (err_reg) {
 			bool std_err = true;
 			u8 op_code;
+			u8 m_req_info;
 
 			/* Identify the source from control status register */
 			err_src = __ffs(err_reg);
@@ -103,6 +105,8 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 						L3_TARG_STDERRLOG_MSTADDR;
 				l3_targ_hdr = l3_targ_base +
 						L3_TARG_STDERRLOG_HDR;
+				l3_targ_info = l3_targ_base +
+						L3_TARG_STDERRLOG_INFO;
 				break;
 
 			case CUSTOM_ERROR:
@@ -112,6 +116,8 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 						L3_TARG_STDERRLOG_CINFO_MSTADDR;
 				l3_targ_hdr = l3_targ_base +
 						L3_TARG_STDERRLOG_CINFO_OPCODE;
+				l3_targ_info = l3_targ_base +
+						L3_TARG_STDERRLOG_CINFO_INFO;
 				break;
 
 			default:
@@ -139,12 +145,21 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 
 			op_code = readl_relaxed(l3_targ_hdr) & 0x7;
 
+			m_req_info = readl_relaxed(l3_targ_info) & 0xF;
+			snprintf(info_string, sizeof(info_string),
+				 ": %s in %s mode during %s access",
+				 (m_req_info & BIT(0)) ? "Opcode Fetch" :
+							 "Data Access",
+				 (m_req_info & BIT(1)) ? "Supervisor" :
+							 "User",
+				 (m_req_info & BIT(3)) ? "Debug" :
+							 "Functional");
 			WARN(true,
-			     "L3 %s Error: MASTER %s TARGET %s (%s)%s\n",
+			     "L3 %s Error: MASTER %s TARGET %s (%s)%s%s\n",
 			     err_description,
 			     master_name, target_name,
 			     l3_transaction_type[op_code],
-			     err_string);
+			     err_string, info_string);
 			/* clear the std error log*/
 			clear = std_err_main | CLEAR_STDERR_LOG;
 			writel_relaxed(clear, l3_targ_stderr);
