@@ -17,6 +17,11 @@ config CPU_FREQ
 
 if CPU_FREQ
 
+config CPU_FREQ_PM_OPP
+	bool
+	depends on PM_OPP
+	default y
+
 config CPU_FREQ_GOV_COMMON
 	bool
 

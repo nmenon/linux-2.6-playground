@@ -21,10 +21,10 @@
 #include <linux/cpufreq.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
-#include <linux/pm_opp.h>
 #include <linux/types.h>
 
 #include "arm_big_little.h"
+#include "cpufreq_opp.h"
 
 static int ve_spc_init_opp_table(struct device *cpu_dev)
 {

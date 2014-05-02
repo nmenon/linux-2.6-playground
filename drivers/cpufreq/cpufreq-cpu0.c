@@ -19,11 +19,12 @@
 #include <linux/err.h>
 #include <linux/module.h>
 #include <linux/of.h>
-#include <linux/pm_opp.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/thermal.h>
+
+#include "cpufreq_opp.h"
 
 static unsigned int transition_latency;
 static unsigned int voltage_tolerance; /* in percentage */

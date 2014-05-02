@@ -26,13 +26,13 @@
 #include <linux/export.h>
 #include <linux/mutex.h>
 #include <linux/of_platform.h>
-#include <linux/pm_opp.h>
 #include <linux/slab.h>
 #include <linux/topology.h>
 #include <linux/types.h>
 #include <asm/bL_switcher.h>
 
 #include "arm_big_little.h"
+#include "cpufreq_opp.h"
 
 /* Currently we support only two clusters */
 #define A15_CLUSTER	0

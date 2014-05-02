@@ -20,9 +20,10 @@
 #include <linux/module.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
-#include <linux/pm_opp.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
+
+#include "cpufreq_opp.h"
 
 /* Register definitions */
 #define XMU_DVFS_CTRL		0x0060

@@ -24,11 +24,11 @@
 #include <linux/export.h>
 #include <linux/module.h>
 #include <linux/of_device.h>
-#include <linux/pm_opp.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/types.h>
 #include "arm_big_little.h"
+#include "cpufreq_opp.h"
 
 /* get cpu node with valid operating-points */
 static struct device_node *get_cpu_node_with_valid_op(int cpu)

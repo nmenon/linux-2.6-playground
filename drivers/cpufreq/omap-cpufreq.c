@@ -22,7 +22,6 @@
 #include <linux/err.h>
 #include <linux/clk.h>
 #include <linux/io.h>
-#include <linux/pm_opp.h>
 #include <linux/cpu.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -30,6 +29,8 @@
 
 #include <asm/smp_plat.h>
 #include <asm/cpu.h>
+
+#include "cpufreq_opp.h"
 
 /* OPP tolerance in percentage */
 #define	OPP_TOLERANCE	4
