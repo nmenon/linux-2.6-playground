@@ -44,6 +44,7 @@ struct crossbar_device {
 struct crossbar_data {
 	const uint *irqs_unused;
 	const uint size;
+	const uint safe_map;
 };
 
 static struct crossbar_device *cb;
@@ -134,7 +135,7 @@ const struct irq_domain_ops routable_irq_domain_ops = {
 static int __init crossbar_of_init(struct device_node *node,
 				   const struct crossbar_data *data)
 {
-	int i, size, max, reserved = 0, entry;
+	int i, size, max, reserved = 0, entry, safe_map;
 	const __be32 *irqsr;
 	const int *irqsk = NULL;
 
@@ -212,6 +213,7 @@ static int __init crossbar_of_init(struct device_node *node,
 	if (data) {
 		irqsk = data->irqs_unused;
 		size = data->size;
+		safe_map = data->safe_map;
 
 		for (i = 0; i < size; i++) {
 			entry = irqsk[i];
@@ -221,6 +223,14 @@ static int __init crossbar_of_init(struct device_node *node,
 				goto err3;
 			}
 			cb->irq_map[entry] = IRQ_SKIP;
+		}
+
+		for (i = 0; i < max; i++) {
+			if (cb->irq_map[i] == IRQ_RESERVED ||
+			    cb->irq_map[i] == IRQ_SKIP)
+				continue;
+
+			cb->write(i, safe_map);
 		}
 	}
 
@@ -241,7 +251,7 @@ err1:
 /* irq number 10 cannot be used because of hw bug */
 int dra_irqs_unused[] = { 10 };
 struct crossbar_data cb_dra_data = { dra_irqs_unused,
-				     ARRAY_SIZE(dra_irqs_unused) };
+				     ARRAY_SIZE(dra_irqs_unused), 0 };
 
 static const struct of_device_id crossbar_match[] __initconst = {
 	{ .compatible = "ti,irq-crossbar", .data = &cb_dra_data },
