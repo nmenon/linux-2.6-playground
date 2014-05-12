@@ -16,6 +16,7 @@
 #include <linux/of_device.h>
 #include <linux/slab.h>
 #include <linux/irqchip/arm-gic.h>
+#include <linux/irqchip/irq-crossbar.h>
 
 #define IRQ_FREE	-1
 #define IRQ_RESERVED	-2
@@ -126,7 +127,7 @@ found:
 	return 0;
 }
 
-const struct irq_domain_ops routable_irq_domain_ops = {
+static const struct irq_domain_ops routable_irq_domain_ops = {
 	.map = crossbar_domain_map,
 	.unmap = crossbar_domain_unmap,
 	.xlate = crossbar_domain_xlate
@@ -249,8 +250,8 @@ err1:
 }
 
 /* irq number 10 cannot be used because of hw bug */
-int dra_irqs_unused[] = { 10 };
-struct crossbar_data cb_dra_data = { dra_irqs_unused,
+static int dra_irqs_unused[] = { 10 };
+static struct crossbar_data cb_dra_data = { dra_irqs_unused,
 				     ARRAY_SIZE(dra_irqs_unused), 0 };
 
 static const struct of_device_id crossbar_match[] __initconst = {
