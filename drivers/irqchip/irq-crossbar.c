@@ -34,7 +34,7 @@ struct crossbar_device {
 	uint *irq_map;
 	void __iomem *crossbar_base;
 	int *register_offsets;
-	void (*write) (int, int);
+	void (*write)(int, int);
 };
 
 /**
