@@ -23,11 +23,13 @@
 #define IRQ_SKIP	-3
 #define GIC_IRQ_START	32
 
-/*
+/**
+ * struct crossbar_device - crossbar device descriptio
  * @int_max: maximum number of supported interrupts
  * @irq_map: array of interrupts to crossbar number mapping
  * @crossbar_base: crossbar base address
  * @register_offsets: offsets for each irq number
+ * @write: register write function pointer
  */
 struct crossbar_device {
 	uint int_max;
@@ -38,9 +40,10 @@ struct crossbar_device {
 };
 
 /**
- * struct crossbar_data: Platform specific data
+ * struct crossbar_data - Platform specific data
  * @irqs_unused: array of irqs that cannot be used because of hw erratas
  * @size: size of the irqs_unused array
+ * @safe_map: safe value to write to crossbar register
  */
 struct crossbar_data {
 	const uint *irqs_unused;
