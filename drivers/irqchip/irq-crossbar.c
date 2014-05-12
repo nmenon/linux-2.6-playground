@@ -13,24 +13,42 @@
 #include <linux/io.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
+#include <linux/of_device.h>
 #include <linux/slab.h>
 #include <linux/irqchip/arm-gic.h>
+#include <linux/irqchip/irq-crossbar.h>
 
 #define IRQ_FREE	-1
+#define IRQ_RESERVED	-2
+#define IRQ_SKIP	-3
 #define GIC_IRQ_START	32
 
-/*
+/**
+ * struct crossbar_device - crossbar device descriptio
  * @int_max: maximum number of supported interrupts
  * @irq_map: array of interrupts to crossbar number mapping
  * @crossbar_base: crossbar base address
  * @register_offsets: offsets for each irq number
+ * @write: register write function pointer
  */
 struct crossbar_device {
 	uint int_max;
 	uint *irq_map;
 	void __iomem *crossbar_base;
 	int *register_offsets;
-	void (*write) (int, int);
+	void (*write)(int, int);
+};
+
+/**
+ * struct crossbar_data - Platform specific data
+ * @irqs_unused: array of irqs that cannot be used because of hw erratas
+ * @size: size of the irqs_unused array
+ * @safe_map: safe value to write to crossbar register
+ */
+struct crossbar_data {
+	const uint *irqs_unused;
+	const uint size;
+	const uint safe_map;
 };
 
 static struct crossbar_device *cb;
@@ -50,11 +68,22 @@ static inline void crossbar_writeb(int irq_no, int cb_no)
 	writeb(cb_no, cb->crossbar_base + cb->register_offsets[irq_no]);
 }
 
+static inline int get_prev_map_irq(int cb_no)
+{
+	int i;
+
+	for (i = cb->int_max - 1; i >= 0; i--)
+		if (cb->irq_map[i] == cb_no)
+			return i;
+
+	return -ENODEV;
+}
+
 static inline int allocate_free_irq(int cb_no)
 {
 	int i;
 
-	for (i = 0; i < cb->int_max; i++) {
+	for (i = cb->int_max - 1; i >= 0; i--) {
 		if (cb->irq_map[i] == IRQ_FREE) {
 			cb->irq_map[i] = cb_no;
 			return i;
@@ -64,10 +93,25 @@ static inline int allocate_free_irq(int cb_no)
 	return -ENODEV;
 }
 
+static inline bool needs_crossbar_write(irq_hw_number_t hw)
+{
+	int cb_no;
+
+	if (hw > GIC_IRQ_START) {
+		cb_no = cb->irq_map[hw - GIC_IRQ_START];
+		if (cb_no != IRQ_RESERVED && cb_no != IRQ_SKIP)
+			return true;
+	 }
+
+	return false;
+}
+
 static int crossbar_domain_map(struct irq_domain *d, unsigned int irq,
 			       irq_hw_number_t hw)
 {
-	cb->write(hw - GIC_IRQ_START, cb->irq_map[hw - GIC_IRQ_START]);
+	if (needs_crossbar_write(hw))
+		cb->write(hw - GIC_IRQ_START, cb->irq_map[hw - GIC_IRQ_START]);
+
 	return 0;
 }
 
@@ -75,7 +119,7 @@ static void crossbar_domain_unmap(struct irq_domain *d, unsigned int irq)
 {
 	irq_hw_number_t hw = irq_get_irq_data(irq)->hwirq;
 
-	if (hw > GIC_IRQ_START)
+	if (needs_crossbar_write(hw))
 		cb->irq_map[hw - GIC_IRQ_START] = IRQ_FREE;
 }
 
@@ -85,27 +129,46 @@ static int crossbar_domain_xlate(struct irq_domain *d,
 				 unsigned long *out_hwirq,
 				 unsigned int *out_type)
 {
-	unsigned long ret;
+	int ret;
+	int req_no = intspec[1];
+	int cb_no;
 
-	ret = allocate_free_irq(intspec[1]);
+	/* Interrupts less that max interrupts are direct SPI maps. */
+	if (req_no < cb->int_max) {
+		cb_no = cb->irq_map[req_no];
+		WARN_ON(cb_no != IRQ_RESERVED && cb_no != IRQ_SKIP);
+		ret = req_no;
+		goto found;
+	}
 
-	if (IS_ERR_VALUE(ret))
+	cb_no = req_no - cb->int_max;
+
+	ret = get_prev_map_irq(cb_no);
+	if (ret >= 0)
+		goto found;
+
+	ret = allocate_free_irq(cb_no);
+
+	if (ret < 0)
 		return ret;
 
+found:
 	*out_hwirq = ret + GIC_IRQ_START;
 	return 0;
 }
 
-const struct irq_domain_ops routable_irq_domain_ops = {
+static const struct irq_domain_ops routable_irq_domain_ops = {
 	.map = crossbar_domain_map,
 	.unmap = crossbar_domain_unmap,
 	.xlate = crossbar_domain_xlate
 };
 
-static int __init crossbar_of_init(struct device_node *node)
+static int __init crossbar_of_init(struct device_node *node,
+				   const struct crossbar_data *data)
 {
-	int i, size, max, reserved = 0, entry;
+	int i, size, max, reserved = 0, entry, safe_map;
 	const __be32 *irqsr;
+	const int *irqsk = NULL;
 
 	cb = kzalloc(sizeof(*cb), GFP_KERNEL);
 
@@ -139,7 +202,7 @@ static int __init crossbar_of_init(struct device_node *node)
 				pr_err("Invalid reserved entry\n");
 				goto err3;
 			}
-			cb->irq_map[entry] = 0;
+			cb->irq_map[entry] = IRQ_RESERVED;
 		}
 	}
 
@@ -170,11 +233,36 @@ static int __init crossbar_of_init(struct device_node *node)
 	 * reserved irqs. so find and store the offsets once.
 	 */
 	for (i = 0; i < max; i++) {
-		if (!cb->irq_map[i])
+		if (cb->irq_map[i] == IRQ_RESERVED)
 			continue;
 
 		cb->register_offsets[i] = reserved;
 		reserved += size;
+	}
+
+	/* Skip the ones marked as unused */
+	if (data) {
+		irqsk = data->irqs_unused;
+		size = data->size;
+		safe_map = data->safe_map;
+
+		for (i = 0; i < size; i++) {
+			entry = irqsk[i];
+
+			if (entry > max) {
+				pr_err("Invalid skip entry\n");
+				goto err3;
+			}
+			cb->irq_map[entry] = IRQ_SKIP;
+		}
+
+		for (i = 0; i < max; i++) {
+			if (cb->irq_map[i] == IRQ_RESERVED ||
+			    cb->irq_map[i] == IRQ_SKIP)
+				continue;
+
+			cb->write(i, safe_map);
+		}
 	}
 
 	register_routable_domain_ops(&routable_irq_domain_ops);
@@ -191,18 +279,27 @@ err1:
 	return -ENOMEM;
 }
 
+/* irq number 10 cannot be used because of hw bug */
+static int dra_irqs_unused[] = { 10 };
+static struct crossbar_data cb_dra_data = { dra_irqs_unused,
+				     ARRAY_SIZE(dra_irqs_unused), 0 };
+
 static const struct of_device_id crossbar_match[] __initconst = {
-	{ .compatible = "ti,irq-crossbar" },
+	{ .compatible = "ti,irq-crossbar", .data = &cb_dra_data },
 	{}
 };
 
 int __init irqcrossbar_init(void)
 {
 	struct device_node *np;
-	np = of_find_matching_node(NULL, crossbar_match);
+	const struct of_device_id *of_id;
+	const struct crossbar_data *cdata;
+
+	np = of_find_matching_node_and_match(NULL, crossbar_match, &of_id);
 	if (!np)
 		return -ENODEV;
 
-	crossbar_of_init(np);
+	cdata = of_id->data;
+	crossbar_of_init(np, cdata);
 	return 0;
 }
