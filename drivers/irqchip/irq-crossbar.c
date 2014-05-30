@@ -16,30 +16,36 @@
 #include <linux/of_device.h>
 #include <linux/slab.h>
 #include <linux/irqchip/arm-gic.h>
+#include <linux/irqchip/irq-crossbar.h>
 
 #define IRQ_FREE	-1
 #define IRQ_RESERVED	-2
 #define IRQ_SKIP	-3
 #define GIC_IRQ_START	32
 
-/*
+/**
+ * struct crossbar_device - crossbar device descriptio
  * @int_max: maximum number of supported interrupts
+ * @max_crossbar_sources: Maximum number of crossbar sources
  * @irq_map: array of interrupts to crossbar number mapping
  * @crossbar_base: crossbar base address
  * @register_offsets: offsets for each irq number
+ * @write: register write function pointer
  */
 struct crossbar_device {
 	uint int_max;
+	uint max_crossbar_sources;
 	uint *irq_map;
 	void __iomem *crossbar_base;
 	int *register_offsets;
-	void (*write) (int, int);
+	void (*write)(int, int);
 };
 
 /**
- * struct crossbar_data: Platform specific data
+ * struct crossbar_data - Platform specific data
  * @irqs_unused: array of irqs that cannot be used because of hw erratas
  * @size: size of the irqs_unused array
+ * @safe_map: safe value to write to crossbar register
  */
 struct crossbar_data {
 	const uint *irqs_unused;
@@ -89,10 +95,25 @@ static inline int allocate_free_irq(int cb_no)
 	return -ENODEV;
 }
 
+static inline bool needs_crossbar_write(irq_hw_number_t hw)
+{
+	int cb_no;
+
+	if (hw > GIC_IRQ_START) {
+		cb_no = cb->irq_map[hw - GIC_IRQ_START];
+		if (cb_no != IRQ_RESERVED && cb_no != IRQ_SKIP)
+			return true;
+	}
+
+	return false;
+}
+
 static int crossbar_domain_map(struct irq_domain *d, unsigned int irq,
 			       irq_hw_number_t hw)
 {
-	cb->write(hw - GIC_IRQ_START, cb->irq_map[hw - GIC_IRQ_START]);
+	if (needs_crossbar_write(hw))
+		cb->write(hw - GIC_IRQ_START, cb->irq_map[hw - GIC_IRQ_START]);
+
 	return 0;
 }
 
@@ -100,7 +121,7 @@ static void crossbar_domain_unmap(struct irq_domain *d, unsigned int irq)
 {
 	irq_hw_number_t hw = irq_get_irq_data(irq)->hwirq;
 
-	if (hw > GIC_IRQ_START)
+	if (needs_crossbar_write(hw))
 		cb->irq_map[hw - GIC_IRQ_START] = IRQ_FREE;
 }
 
@@ -110,15 +131,33 @@ static int crossbar_domain_xlate(struct irq_domain *d,
 				 unsigned long *out_hwirq,
 				 unsigned int *out_type)
 {
-	unsigned long ret;
+	int ret;
+	int req_num = intspec[1];
+	int direct_map_num;
 
-	ret = get_prev_map_irq(intspec[1]);
-	if (!IS_ERR_VALUE(ret))
+	if (req_num >= cb->max_crossbar_sources) {
+		direct_map_num = req_num - cb->max_crossbar_sources;
+		if (direct_map_num < cb->int_max) {
+			ret = cb->irq_map[direct_map_num];
+			if (ret == IRQ_RESERVED || ret == IRQ_SKIP) {
+				/* We use the interrupt num as h/w irq num */
+				ret = direct_map_num;
+				goto found;
+			}
+		}
+
+		pr_err("%s: requested crossbar number %d > max %d\n",
+		       __func__, req_num, cb->max_crossbar_sources);
+		return -EINVAL;
+	}
+
+	ret = get_prev_map_irq(req_num);
+	if (ret >= 0)
 		goto found;
 
-	ret = allocate_free_irq(intspec[1]);
+	ret = allocate_free_irq(req_num);
 
-	if (IS_ERR_VALUE(ret))
+	if (ret < 0)
 		return ret;
 
 found:
@@ -126,7 +165,7 @@ found:
 	return 0;
 }
 
-const struct irq_domain_ops routable_irq_domain_ops = {
+static const struct irq_domain_ops routable_irq_domain_ops = {
 	.map = crossbar_domain_map,
 	.unmap = crossbar_domain_unmap,
 	.xlate = crossbar_domain_xlate
@@ -135,23 +174,37 @@ const struct irq_domain_ops routable_irq_domain_ops = {
 static int __init crossbar_of_init(struct device_node *node,
 				   const struct crossbar_data *data)
 {
-	int i, size, max, reserved = 0, entry, safe_map;
+	int i, size, max = 0, reserved = 0, entry, safe_map;
 	const __be32 *irqsr;
 	const int *irqsk = NULL;
+	int ret = -ENOMEM;
 
 	cb = kzalloc(sizeof(*cb), GFP_KERNEL);
 
 	if (!cb)
-		return -ENOMEM;
+		return ret;
 
 	cb->crossbar_base = of_iomap(node, 0);
 	if (!cb->crossbar_base)
-		goto err1;
+		goto err_cb;
+
+	of_property_read_u32(node, "ti,max-crossbar-sources",
+			     &cb->max_crossbar_sources);
+	if (!cb->max_crossbar_sources) {
+		pr_err("missing 'ti,max-crossbar-sources' property\n");
+		ret = -EINVAL;
+		goto err_base;
+	}
 
 	of_property_read_u32(node, "ti,max-irqs", &max);
+	if (!max) {
+		pr_err("missing 'ti,max-irqs' property\n");
+		ret = -EINVAL;
+		goto err_base;
+	}
 	cb->irq_map = kzalloc(max * sizeof(int), GFP_KERNEL);
 	if (!cb->irq_map)
-		goto err2;
+		goto err_base;
 
 	cb->int_max = max;
 
@@ -169,7 +222,8 @@ static int __init crossbar_of_init(struct device_node *node,
 						   i, &entry);
 			if (entry > max) {
 				pr_err("Invalid reserved entry\n");
-				goto err3;
+				ret = -EINVAL;
+				goto err_irq_map;
 			}
 			cb->irq_map[entry] = IRQ_RESERVED;
 		}
@@ -177,7 +231,7 @@ static int __init crossbar_of_init(struct device_node *node,
 
 	cb->register_offsets = kzalloc(max * sizeof(int), GFP_KERNEL);
 	if (!cb->register_offsets)
-		goto err3;
+		goto err_irq_map;
 
 	of_property_read_u32(node, "ti,reg-size", &size);
 
@@ -193,7 +247,8 @@ static int __init crossbar_of_init(struct device_node *node,
 		break;
 	default:
 		pr_err("Invalid reg-size property\n");
-		goto err4;
+		ret = -EINVAL;
+		goto err_reg_offset;
 		break;
 	}
 
@@ -220,7 +275,8 @@ static int __init crossbar_of_init(struct device_node *node,
 
 			if (entry > max) {
 				pr_err("Invalid skip entry\n");
-				goto err3;
+				ret = -EINVAL;
+				goto err_reg_offset;
 			}
 			cb->irq_map[entry] = IRQ_SKIP;
 		}
@@ -237,20 +293,20 @@ static int __init crossbar_of_init(struct device_node *node,
 	register_routable_domain_ops(&routable_irq_domain_ops);
 	return 0;
 
-err4:
+err_reg_offset:
 	kfree(cb->register_offsets);
-err3:
+err_irq_map:
 	kfree(cb->irq_map);
-err2:
+err_base:
 	iounmap(cb->crossbar_base);
-err1:
+err_cb:
 	kfree(cb);
-	return -ENOMEM;
+	return ret;
 }
 
-/* irq number 10 cannot be used because of hw bug */
-int dra_irqs_unused[] = { 10 };
-struct crossbar_data cb_dra_data = { dra_irqs_unused,
+/* irq number 10,133,139 and 140 cannot be used because of hw bug */
+static int dra_irqs_unused[] = { 10 , 133, 139, 140 };
+static struct crossbar_data cb_dra_data = { dra_irqs_unused,
 				     ARRAY_SIZE(dra_irqs_unused), 0 };
 
 static const struct of_device_id crossbar_match[] __initconst = {
