@@ -31,6 +31,11 @@
 			clock-names = "cpu";
 
 			clock-latency = <300000>; /* From omap-cpufreq driver */
+
+			/* cooling options */
+			cooling-min-level = <0>;
+			cooling-max-level = <2>;
+			#cooling-cells = <2>; /* min followed by max */
 		};
 		cpu@1 {
 			device_type = "cpu";
@@ -43,6 +48,10 @@
 		compatible = "arm,cortex-a15-pmu";
 		interrupts = <GIC_SPI DIRECT_IRQ(131) IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI DIRECT_IRQ(132) IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	thermal_zones: thermal-zones {
+		#include "omap5-cpu-thermal.dtsi"
 	};
 
 	ocp {
