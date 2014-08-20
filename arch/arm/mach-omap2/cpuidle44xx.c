@@ -306,7 +306,7 @@ int __init omap4_idle_init(void)
 {
 	struct cpuidle_driver *idle_driver;
 
-	if (soc_is_dra7xx()) {
+	if (soc_is_dra7xx() || soc_is_omap54xx()) {
 		state_ptr = &dra7_idle_data[0];
 		idle_driver = &dra7_idle_driver;
 	} else {
