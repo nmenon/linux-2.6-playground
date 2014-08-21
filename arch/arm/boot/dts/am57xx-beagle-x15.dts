@@ -227,8 +227,8 @@
 	tps659038: tps659038@58 {
 		compatible = "ti,tps659038";
 		reg = <0x58>;
-		interrupt-parent = <&gpio1>;
-		interrupts = <0 IRQ_TYPE_LEVEL_LOW>;
+		interrupts-extended = <&gpio1 0 IRQ_TYPE_LEVEL_HIGH
+					&dra7_pmx_core 0x418>;
 
 		pinctrl-names = "default";
 		pinctrl-0 = <&tps659038_pins_default>;
@@ -391,8 +391,8 @@
 		reg = <0x6f>;
 		vcc-supply = <&vdd_3v3>;
 		/* Rev A1 */
-		interrupts = <GIC_SPI 2 IRQ_TYPE_LEVEL_LOW>;  /* IRQ_SYS_1N */
-		interrupt-parent = <&gic>;
+		interrupts-extended = <&gic GIC_SPI 2 IRQ_TYPE_LEVEL_LOW
+				       &dra7_pmx_core 0x424>;
 	};
 };
 
@@ -405,6 +405,8 @@
         status = "okay";
         pinctrl-names = "default";
         pinctrl-0 = <&uart3_pins_default>;
+	interrupts-extended = <&gic GIC_SPI 69 IRQ_TYPE_LEVEL_HIGH
+			       &dra7_pmx_core 0x248>;
 };
 
 &cpu0 {
