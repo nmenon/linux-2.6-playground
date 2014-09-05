@@ -33,7 +33,7 @@ Optional properties:
 
 Example:
 
-palmas {
+palmas@48 {
 	compatible = "ti,twl6035", "ti,palmas";
 	reg = <0x48>
 	interrupt-parent = <&intc>;
