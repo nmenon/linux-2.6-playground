@@ -316,6 +316,7 @@
 		interrupt-controller;
 		#interrupt-cells = <2>;
 		ti,system-power-controller;
+		wakeup-source;
 
 		extcon_usb3: palmas_usb {
 			compatible = "ti,palmas-usb-vid";
@@ -510,6 +511,22 @@
 					regulator-boot-on;
 				};
 			};
+		};
+
+		palmas_rtc: palmas_rtc {
+			compatible = "ti,palmas-rtc";
+			interrupt-parent = <&palmas>;
+			interrupts = <8 IRQ_TYPE_NONE>;
+			wakeup-source;
+			ti,backup-battery-chargeable;
+		};
+
+		palmas_pwr_button: palmas_pwr_button {
+			compatible = "ti,palmas-pwrbutton";
+			interrupt-parent = <&palmas>;
+			interrupts = <1 IRQ_TYPE_EDGE_FALLING>;
+			wakeup-source;
+			ti,palmas-long-press-seconds = <13>;
 		};
 	};
 
