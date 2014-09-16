@@ -16,6 +16,7 @@
 #include <linux/list.h>
 #include <linux/err.h>
 #include <linux/slab.h>
+#include <linux/io.h>
 #include <asm/system_misc.h>
 
 #include "soc.h"
@@ -25,6 +26,9 @@
 #include "pm.h"
 
 u16 pm44xx_errata;
+static void __iomem *temp;
+static bool pinctrl_screwup;
+static bool pinctrl_workaround = true;
 
 struct power_state {
 	struct powerdomain *pwrdm;
@@ -42,6 +46,65 @@ static u32 cpu_suspend_state = PWRDM_POWER_OFF;
 static LIST_HEAD(pwrst_list);
 
 #ifdef CONFIG_SUSPEND
+#include "prm44xx_54xx.h"
+
+void hack_enter(void)
+{
+	u32 val;
+
+	if (!temp)
+		return;
+
+	val = readl(temp);
+
+	/* If PINCTRL SCREWED UP.... */
+	if (!(val & BIT(24))) {
+		pinctrl_screwup =  true;
+		pr_info("XXXXXXX:DOWN: PINCTRL SCREWED UP:0x%08x\n", val);
+		if (pinctrl_workaround) {
+			pr_info("XXXXXXX:DOWN: bit 24 was not set1\n");
+			writel(val|BIT(24), temp);
+			pr_info("XXXXXXX:DOWN: reconfigure again1\n");
+			omap44xx_prm_reconfigure_io_chain();
+		}
+		pinctrl_screwup = true;
+	} else {
+		pr_info("XXXXXXX:DOWN: PINCTRL DID NOT SCREW UP:0x%08X\n", val);
+	}
+
+}
+
+void hack_exit(void)
+{
+	u32 val;
+
+	if (!temp)
+		return;
+
+	val = readl(temp);
+	/* If PINCTRL SCREWED UP.... */
+	if (!(val & BIT(24))) {
+		pr_info("XXXXXXX:UP: WHO CLEARED MY BIT 24 - 0x%08x??\n", val);
+	} else {
+		pr_info("XXXXXXX:UP: BIT 24 is OK- 0x%08x\n", val);
+	}
+	if (val & BIT(25)) {
+		pr_info("XXXXXXX:UP: WUGEND bit 25:0x%08x\n", val);
+		if (pinctrl_screwup && pinctrl_workaround) {
+			/* I need to cleanup! */
+			pr_info("XXXXXXX:UP: BYPASSING PINCTRL\n");
+			val &= ~BIT(24);
+			writel(val, temp);
+			pr_info("XXXXXXX:UP: reconfigure again\n");
+			omap44xx_prm_reconfigure_io_chain();
+		}
+	} else {
+		pr_info("XXXXXXX:UP: I NO WAKEY WAKEY?- 0x%08x\n", val);
+	}
+
+	pinctrl_screwup = false;
+}
+
 static int omap4_pm_suspend(void)
 {
 	struct power_state *pwrst;
@@ -60,6 +123,8 @@ static int omap4_pm_suspend(void)
 		pwrdm_set_logic_retst(pwrst->pwrdm, pwrst->next_logic_state);
 	}
 
+	hack_enter();
+
 	/*
 	 * For MPUSS to hit power domain retention(CSWR or OSWR),
 	 * CPU0 and CPU1 power domains need to be in OFF or DORMANT state,
@@ -70,6 +135,8 @@ static int omap4_pm_suspend(void)
 	 * More details can be found in OMAP4430 TRM section 4.3.4.2.
 	 */
 	omap4_enter_lowpower(cpu_id, cpu_suspend_state);
+
+	hack_exit();
 
 	/* Restore next powerdomain state */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
@@ -304,6 +371,12 @@ int __init omap4_pm_init(void)
 	if (cpu_is_omap44xx() || soc_is_dra7xx() || soc_is_omap54xx())
 		omap4_idle_init();
 
+	if (of_machine_is_compatible("ti,dra72-evm") ||
+	    of_machine_is_compatible("ti,dra7-evm")) {
+		/* UART0 rxd line */
+		temp = ioremap(0x4A0037E0, SZ_1K);
+		pr_err("%s: RXD WA. %p\n", __func__, temp);
+	}
 err2:
 	return ret;
 }
