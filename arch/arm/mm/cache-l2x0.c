@@ -214,6 +214,11 @@ static void l2c_save(void __iomem *base)
 	l2x0_saved_regs.aux_ctrl = readl_relaxed(l2x0_base + L2X0_AUX_CTRL);
 }
 
+static void l2c_resume(void)
+{
+	l2c_enable(l2x0_base, l2x0_saved_regs.aux_ctrl, l2x0_data->num_lock);
+}
+
 /*
  * L2C-210 specific code.
  *
@@ -294,13 +299,6 @@ static void l2c210_sync(void)
 	__l2c210_cache_sync(l2x0_base);
 }
 
-static void l2c210_resume(void)
-{
-	void __iomem *base = l2x0_base;
-
-	l2c_enable(base, l2x0_saved_regs.aux_ctrl, 1);
-}
-
 static const struct l2c_init_data l2c210_data __initconst = {
 	.type = "L2C-210",
 	.way_size_0 = SZ_8K,
@@ -314,7 +312,7 @@ static const struct l2c_init_data l2c210_data __initconst = {
 		.flush_all = l2c210_flush_all,
 		.disable = l2c_disable,
 		.sync = l2c210_sync,
-		.resume = l2c210_resume,
+		.resume = l2c_resume,
 	},
 };
 
@@ -326,7 +324,7 @@ static const struct l2c_init_data l2c210_data __initconst = {
  * imprecise abort.)  Never uses sync_reg_offset, so we hard-code the
  * sync register here.
  *
- * However, we can re-use the l2c210_resume call.
+ * However, we can re-use the l2c_resume call.
  */
 static inline void __l2c220_cache_sync(void __iomem *base)
 {
@@ -471,7 +469,7 @@ static const struct l2c_init_data l2c220_data = {
 		.flush_all = l2c220_flush_all,
 		.disable = l2c_disable,
 		.sync = l2c220_sync,
-		.resume = l2c210_resume,
+		.resume = l2c_resume,
 	},
 };
 
@@ -1124,7 +1122,7 @@ static const struct l2c_init_data of_l2c210_data __initconst = {
 		.flush_all   = l2c210_flush_all,
 		.disable     = l2c_disable,
 		.sync        = l2c210_sync,
-		.resume      = l2c210_resume,
+		.resume      = l2c_resume,
 	},
 };
 
@@ -1142,7 +1140,7 @@ static const struct l2c_init_data of_l2c220_data __initconst = {
 		.flush_all   = l2c220_flush_all,
 		.disable     = l2c_disable,
 		.sync        = l2c220_sync,
-		.resume      = l2c210_resume,
+		.resume      = l2c_resume,
 	},
 };
 
