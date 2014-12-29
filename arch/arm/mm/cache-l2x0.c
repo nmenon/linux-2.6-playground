@@ -115,6 +115,11 @@ static void l2c_enable(void __iomem *base, u32 aux, unsigned num_lock)
 {
 	unsigned long flags;
 
+	/* Do not touch the controller if already enabled. */
+	if (readl_relaxed(base + L2X0_CTRL) & L2X0_CTRL_EN)
+		return;
+	l2x0_saved_regs.aux_ctrl = aux;
+
 	l2c_write_sec(aux, base, L2X0_AUX_CTRL);
 
 	l2c_unlock(base, num_lock);
@@ -293,8 +298,7 @@ static void l2c210_resume(void)
 {
 	void __iomem *base = l2x0_base;
 
-	if (!(readl_relaxed(base + L2X0_CTRL) & L2X0_CTRL_EN))
-		l2c_enable(base, l2x0_saved_regs.aux_ctrl, 1);
+	l2c_enable(base, l2x0_saved_regs.aux_ctrl, 1);
 }
 
 static const struct l2c_init_data l2c210_data __initconst = {
@@ -699,6 +703,20 @@ static void __init l2c310_enable(void __iomem *base, u32 aux, unsigned num_lock)
 		pr_err("L2C-310: disabling Cortex-A9 specific feature bits\n");
 		aux &= ~(L310_AUX_CTRL_FULL_LINE_ZERO | L310_AUX_CTRL_EARLY_BRESP);
 	}
+	if (rev >= L310_CACHE_ID_RTL_R3P0) {
+		l2c_write_sec(L310_DYNAMIC_CLK_GATING_EN | L310_STNDBY_MODE_EN,
+			      base, L310_POWER_CTRL);
+	}
+	/*
+	 * Always enable non-secure access to the lockdown registers -
+	 * we write to them as part of the L2C enable sequence so they
+	 * need to be accessible.
+	 */
+	aux |= L310_AUX_CTRL_NS_LOCKDOWN;
+
+	l2c_enable(base, aux, num_lock);
+	/* Read back resulting AUX_CTRL value as it could have been altered. */
+	aux = readl_relaxed(base + L2X0_AUX_CTRL);
 
 	if (aux & (L310_AUX_CTRL_DATA_PREFETCH | L310_AUX_CTRL_INSTR_PREFETCH)) {
 		u32 prefetch = readl_relaxed(base + L310_PREFETCH_CTRL);
@@ -713,22 +731,11 @@ static void __init l2c310_enable(void __iomem *base, u32 aux, unsigned num_lock)
 	if (rev >= L310_CACHE_ID_RTL_R3P0) {
 		u32 power_ctrl;
 
-		l2c_write_sec(L310_DYNAMIC_CLK_GATING_EN | L310_STNDBY_MODE_EN,
-			      base, L310_POWER_CTRL);
 		power_ctrl = readl_relaxed(base + L310_POWER_CTRL);
 		pr_info("L2C-310 dynamic clock gating %sabled, standby mode %sabled\n",
 			power_ctrl & L310_DYNAMIC_CLK_GATING_EN ? "en" : "dis",
 			power_ctrl & L310_STNDBY_MODE_EN ? "en" : "dis");
 	}
-
-	/*
-	 * Always enable non-secure access to the lockdown registers -
-	 * we write to them as part of the L2C enable sequence so they
-	 * need to be accessible.
-	 */
-	aux |= L310_AUX_CTRL_NS_LOCKDOWN;
-
-	l2c_enable(base, aux, num_lock);
 
 	if (aux & L310_AUX_CTRL_FULL_LINE_ZERO) {
 		set_auxcr(get_auxcr() | BIT(3) | BIT(2) | BIT(1));
