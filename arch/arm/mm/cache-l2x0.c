@@ -627,40 +627,41 @@ static void __init l2c310_save(void __iomem *base)
 							L310_POWER_CTRL);
 }
 
+static void l2c310_configure(void __iomem *base)
+{
+	unsigned revision;
+
+	/* restore pl310 setup */
+	writel_relaxed(l2x0_saved_regs.tag_latency,
+		       base + L310_TAG_LATENCY_CTRL);
+	writel_relaxed(l2x0_saved_regs.data_latency,
+		       base + L310_DATA_LATENCY_CTRL);
+	writel_relaxed(l2x0_saved_regs.filter_end,
+		       base + L310_ADDR_FILTER_END);
+	writel_relaxed(l2x0_saved_regs.filter_start,
+		       base + L310_ADDR_FILTER_START);
+
+	revision = readl_relaxed(base + L2X0_CACHE_ID) &
+			L2X0_CACHE_ID_RTL_MASK;
+
+	if (revision >= L310_CACHE_ID_RTL_R2P0)
+		l2c_write_sec(l2x0_saved_regs.prefetch_ctrl, base,
+			      L310_PREFETCH_CTRL);
+	if (revision >= L310_CACHE_ID_RTL_R3P0)
+		l2c_write_sec(l2x0_saved_regs.pwr_ctrl, base,
+			      L310_POWER_CTRL);
+
+}
+
 static void l2c310_resume(void)
 {
-	void __iomem *base = l2x0_base;
+	l2c_resume();
 
-	if (!(readl_relaxed(base + L2X0_CTRL) & L2X0_CTRL_EN)) {
-		unsigned revision;
-
-		/* restore pl310 setup */
-		writel_relaxed(l2x0_saved_regs.tag_latency,
-			       base + L310_TAG_LATENCY_CTRL);
-		writel_relaxed(l2x0_saved_regs.data_latency,
-			       base + L310_DATA_LATENCY_CTRL);
-		writel_relaxed(l2x0_saved_regs.filter_end,
-			       base + L310_ADDR_FILTER_END);
-		writel_relaxed(l2x0_saved_regs.filter_start,
-			       base + L310_ADDR_FILTER_START);
-
-		revision = readl_relaxed(base + L2X0_CACHE_ID) &
-				L2X0_CACHE_ID_RTL_MASK;
-
-		if (revision >= L310_CACHE_ID_RTL_R2P0)
-			l2c_write_sec(l2x0_saved_regs.prefetch_ctrl, base,
-				      L310_PREFETCH_CTRL);
-		if (revision >= L310_CACHE_ID_RTL_R3P0)
-			l2c_write_sec(l2x0_saved_regs.pwr_ctrl, base,
-				      L310_POWER_CTRL);
-
-		l2c_enable(base, l2x0_saved_regs.aux_ctrl, 8);
-
-		/* Re-enable full-line-of-zeros for Cortex-A9 */
-		if (l2x0_saved_regs.aux_ctrl & L310_AUX_CTRL_FULL_LINE_ZERO)
-			set_auxcr(get_auxcr() | BIT(3) | BIT(2) | BIT(1));
-	}
+	/* Re-enable full-line-of-zeros for Cortex-A9 */
+	if (l2x0_saved_regs.aux_ctrl & L310_AUX_CTRL_FULL_LINE_ZERO)
+		set_auxcr(get_auxcr() | BIT(3) | BIT(2) | BIT(1));
 }
+
 
 static int l2c310_cpu_enable_flz(struct notifier_block *nb, unsigned long act, void *data)
 {
@@ -710,10 +711,11 @@ static void __init l2c310_enable(void __iomem *base, u32 aux, unsigned num_lock)
 		pr_err("L2C-310: disabling Cortex-A9 specific feature bits\n");
 		aux &= ~(L310_AUX_CTRL_FULL_LINE_ZERO | L310_AUX_CTRL_EARLY_BRESP);
 	}
-	if (rev >= L310_CACHE_ID_RTL_R3P0) {
-		l2c_write_sec(L310_DYNAMIC_CLK_GATING_EN | L310_STNDBY_MODE_EN,
-			      base, L310_POWER_CTRL);
-	}
+
+	if (rev >= L310_CACHE_ID_RTL_R3P0)
+		l2x0_saved_regs.pwr_ctrl = L310_DYNAMIC_CLK_GATING_EN |
+					   L310_STNDBY_MODE_EN;
+
 	/*
 	 * Always enable non-secure access to the lockdown registers -
 	 * we write to them as part of the L2C enable sequence so they
@@ -822,6 +824,7 @@ static const struct l2c_init_data l2c310_init_fns __initconst = {
 	.enable = l2c310_enable,
 	.fixup = l2c310_fixup,
 	.save = l2c310_save,
+	.configure = l2c310_configure,
 	.outer_cache = {
 		.inv_range = l2c210_inv_range,
 		.clean_range = l2c210_clean_range,
@@ -1217,6 +1220,7 @@ static const struct l2c_init_data of_l2c310_data __initconst = {
 	.enable = l2c310_enable,
 	.fixup = l2c310_fixup,
 	.save  = l2c310_save,
+	.configure = l2c310_configure,
 	.outer_cache = {
 		.inv_range   = l2c210_inv_range,
 		.clean_range = l2c210_clean_range,
@@ -1245,6 +1249,7 @@ static const struct l2c_init_data of_l2c310_coherent_data __initconst = {
 	.enable = l2c310_enable,
 	.fixup = l2c310_fixup,
 	.save  = l2c310_save,
+	.configure = l2c310_configure,
 	.outer_cache = {
 		.inv_range   = l2c210_inv_range,
 		.clean_range = l2c210_clean_range,
