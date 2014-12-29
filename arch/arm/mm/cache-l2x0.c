@@ -947,6 +947,10 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 		break;
 	}
 
+	/* Read back current (default) hardware configuration */
+	if (data->save)
+		data->save(l2x0_base);
+
 	__l2c_init(data, aux_val, aux_mask, cache_id);
 }
 
@@ -1660,6 +1664,7 @@ int __init l2x0_of_init(u32 aux_val, u32 aux_mask)
 	    of_property_read_bool(np, "arm,io-coherent"))
 		data = &of_l2c310_coherent_data;
 
+
 	old_aux = readl_relaxed(l2x0_base + L2X0_AUX_CTRL);
 	if (old_aux != ((old_aux & aux_mask) | aux_val)) {
 		pr_warn("L2C: platform modifies aux control register: 0x%08x -> 0x%08x\n",
@@ -1671,6 +1676,10 @@ int __init l2x0_of_init(u32 aux_val, u32 aux_mask)
 	/* All L2 caches are unified, so this property should be specified */
 	if (!of_property_read_bool(np, "cache-unified"))
 		pr_err("L2C: device tree omits to specify unified cache\n");
+
+	/* Read back current (default) hardware configuration */
+	if (data->save)
+		data->save(l2x0_base);
 
 	/* L2 configuration can only be changed if the cache is disabled */
 	if (!(readl_relaxed(l2x0_base + L2X0_CTRL) & L2X0_CTRL_EN))
