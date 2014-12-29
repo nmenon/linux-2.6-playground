@@ -47,6 +47,7 @@ struct l2c_init_data {
 #define CACHE_LINE_SIZE		32
 
 static void __iomem *l2x0_base;
+static const struct l2c_init_data *l2x0_data;
 static DEFINE_RAW_SPINLOCK(l2x0_lock);
 static u32 l2x0_way_mask;	/* Bitmask of active ways */
 static u32 l2x0_size;
@@ -818,12 +819,20 @@ static const struct l2c_init_data l2c310_init_fns __initconst = {
 	},
 };
 
-static void __init __l2c_init(const struct l2c_init_data *data,
+static int __init __l2c_init(const struct l2c_init_data *data,
 	u32 aux_val, u32 aux_mask, u32 cache_id)
 {
 	struct outer_cache_fns fns;
 	unsigned way_size_bits, ways;
 	u32 aux, old_aux;
+
+	/*
+	 * Save the pointer globally so that callbacks which do not receive
+	 * context from callers can access the structure.
+	 */
+	l2x0_data = kmemdup(data, sizeof(*data), GFP_KERNEL);
+	if (!l2x0_data)
+		return -ENOMEM;
 
 	/*
 	 * Sanity check the aux values.  aux_mask is the bits we preserve
@@ -880,19 +889,19 @@ static void __init __l2c_init(const struct l2c_init_data *data,
 	 */
 	way_size_bits = (aux & L2C_AUX_CTRL_WAY_SIZE_MASK) >>
 			L2C_AUX_CTRL_WAY_SIZE_SHIFT;
-	l2x0_size = ways * (data->way_size_0 << way_size_bits);
+	l2x0_size = ways * (l2x0_data->way_size_0 << way_size_bits);
 
-	fns = data->outer_cache;
+	fns = l2x0_data->outer_cache;
 	fns.write_sec = outer_cache.write_sec;
-	if (data->fixup)
-		data->fixup(l2x0_base, cache_id, &fns);
+	if (l2x0_data->fixup)
+		l2x0_data->fixup(l2x0_base, cache_id, &fns);
 
 	/*
 	 * Check if l2x0 controller is already enabled.  If we are booting
 	 * in non-secure mode accessing the below registers will fault.
 	 */
 	if (!(readl_relaxed(l2x0_base + L2X0_CTRL) & L2X0_CTRL_EN))
-		data->enable(l2x0_base, aux, data->num_lock);
+		l2x0_data->enable(l2x0_base, aux, l2x0_data->num_lock);
 
 	outer_cache = fns;
 
@@ -900,16 +909,18 @@ static void __init __l2c_init(const struct l2c_init_data *data,
 	 * It is strange to save the register state before initialisation,
 	 * but hey, this is what the DT implementations decided to do.
 	 */
-	if (data->save)
-		data->save(l2x0_base);
+	if (l2x0_data->save)
+		l2x0_data->save(l2x0_base);
 
 	/* Re-read it in case some bits are reserved. */
 	aux = readl_relaxed(l2x0_base + L2X0_AUX_CTRL);
 
 	pr_info("%s cache controller enabled, %d ways, %d kB\n",
-		data->type, ways, l2x0_size >> 10);
+		l2x0_data->type, ways, l2x0_size >> 10);
 	pr_info("%s: CACHE_ID 0x%08x, AUX_CTRL 0x%08x\n",
-		data->type, cache_id, aux);
+		l2x0_data->type, cache_id, aux);
+
+	return 0;
 }
 
 void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
@@ -1671,8 +1682,6 @@ int __init l2x0_of_init(u32 aux_val, u32 aux_mask)
 	else
 		cache_id = readl_relaxed(l2x0_base + L2X0_CACHE_ID);
 
-	__l2c_init(data, aux_val, aux_mask, cache_id);
-
-	return 0;
+	return __l2c_init(data, aux_val, aux_mask, cache_id);
 }
 #endif
