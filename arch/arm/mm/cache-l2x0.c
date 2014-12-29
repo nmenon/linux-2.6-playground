@@ -41,6 +41,7 @@ struct l2c_init_data {
 	void (*enable)(void __iomem *, u32, unsigned);
 	void (*fixup)(void __iomem *, u32, struct outer_cache_fns *);
 	void (*save)(void __iomem *);
+	void (*configure)(void __iomem *);
 	struct outer_cache_fns outer_cache;
 };
 
@@ -107,6 +108,14 @@ static inline void l2c_unlock(void __iomem *base, unsigned num)
 	}
 }
 
+static void l2c_configure(void __iomem *base)
+{
+	if (l2x0_data->configure)
+		l2x0_data->configure(base);
+
+	l2c_write_sec(l2x0_saved_regs.aux_ctrl, base, L2X0_AUX_CTRL);
+}
+
 /*
  * Enable the L2 cache controller.  This function must only be
  * called when the cache controller is known to be disabled.
@@ -118,9 +127,9 @@ static void l2c_enable(void __iomem *base, u32 aux, unsigned num_lock)
 	/* Do not touch the controller if already enabled. */
 	if (readl_relaxed(base + L2X0_CTRL) & L2X0_CTRL_EN)
 		return;
-	l2x0_saved_regs.aux_ctrl = aux;
 
-	l2c_write_sec(aux, base, L2X0_AUX_CTRL);
+	l2x0_saved_regs.aux_ctrl = aux;
+	l2c_configure(base);
 
 	l2c_unlock(base, num_lock);
 
