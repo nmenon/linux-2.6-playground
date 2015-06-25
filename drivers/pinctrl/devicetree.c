@@ -107,7 +107,8 @@ struct pinctrl_dev *of_pinctrl_get(struct device_node *np)
 }
 
 static int dt_to_map_one_config(struct pinctrl *p, const char *statename,
-				struct device_node *np_config)
+				struct device_node *np_config, int args_count,
+				struct of_phandle_args *args)
 {
 	struct device_node *np_pctldev;
 	struct pinctrl_dev *pctldev;
@@ -179,7 +180,7 @@ int pinctrl_dt_to_map(struct pinctrl *p)
 	char *propname;
 	struct property *prop;
 	const char *statename;
-	const __be32 *list;
+	const __be32 *list, *list_end;
 	int size, config;
 	phandle phandle;
 	struct device_node *np_config;
@@ -205,6 +206,7 @@ int pinctrl_dt_to_map(struct pinctrl *p)
 			break;
 		list = prop->value;
 		size /= sizeof(*list);
+		list_end = list + size / sizeof(*list);
 
 		/* Determine whether pinctrl-names property names the state */
 		ret = of_property_read_string_index(np, "pinctrl-names",
@@ -220,8 +222,13 @@ int pinctrl_dt_to_map(struct pinctrl *p)
 		}
 
 		/* For every referenced pin configuration node in it */
-		for (config = 0; config < size; config++) {
+		config = -1;
+		while (list < list_end) {
+			int argscount = 0, i;
+			struct of_phandle_args pinctrl_args = { NULL };
+
 			phandle = be32_to_cpup(list++);
+			config++;
 
 			/* Look up the pin configuration node */
 			np_config = of_find_node_by_phandle(phandle);
@@ -233,8 +240,32 @@ int pinctrl_dt_to_map(struct pinctrl *p)
 				goto err;
 			}
 
-			/* Parse the node */
-			ret = dt_to_map_one_config(p, statename, np_config);
+			/* Check if we need arguments for the phandle */
+			ret = of_property_read_u32(np_config,
+						   "#pinctrl-cells",
+						   &argscount);
+			if (ret)
+				goto skip_arg_pickup;
+
+			/* Parse the arguments */
+			if (list + argscount > list_end) {
+				of_node_put(np_config);
+				dev_err(p->dev,
+					"prop %s index %i args out of bound\n",
+					prop->name, config);
+				ret = -EINVAL;
+				goto err;
+			}
+			pinctrl_args.np = np_config;
+			pinctrl_args.args_count = argscount;
+			if (WARN_ON(argscount > MAX_PHANDLE_ARGS))
+				argscount = MAX_PHANDLE_ARGS;
+			for (i = 0; i < argscount; i++)
+				pinctrl_args.args[i] = be32_to_cpup(list++);
+
+skip_arg_pickup:
+			ret = dt_to_map_one_config(p, statename, np_config,
+						   argscount, &pinctrl_args);
 			of_node_put(np_config);
 			if (ret < 0)
 				goto err;
