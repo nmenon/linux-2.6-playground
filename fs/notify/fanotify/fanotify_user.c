@@ -614,8 +614,8 @@ static __u32 fanotify_mark_add_to_mask(struct fsnotify_mark *fsn_mark,
 }
 
 static struct fsnotify_mark *fanotify_add_new_mark(struct fsnotify_group *group,
-						   struct inode *inode,
-						   struct vfsmount *mnt)
+						   struct fsnotify_obj *obj,
+						   unsigned int type)
 {
 	struct fsnotify_mark *mark;
 	int ret;
@@ -628,7 +628,7 @@ static struct fsnotify_mark *fanotify_add_new_mark(struct fsnotify_group *group,
 		return ERR_PTR(-ENOMEM);
 
 	fsnotify_init_mark(mark, group);
-	ret = fsnotify_add_mark_locked(mark, inode, mnt, 0);
+	ret = fsnotify_add_mark_locked(mark, obj, type, 0);
 	if (ret) {
 		fsnotify_put_mark(mark);
 		return ERR_PTR(ret);
@@ -642,13 +642,14 @@ static int fanotify_add_vfsmount_mark(struct fsnotify_group *group,
 				      struct vfsmount *mnt, __u32 mask,
 				      unsigned int flags)
 {
+	struct fsnotify_obj *obj = &real_mount(mnt)->mnt_fsnotify;
 	struct fsnotify_mark *fsn_mark;
 	__u32 added;
 
 	mutex_lock(&group->mark_mutex);
-	fsn_mark = fsnotify_find_mark(&real_mount(mnt)->mnt_fsnotify, group);
+	fsn_mark = fsnotify_find_mark(obj, group);
 	if (!fsn_mark) {
-		fsn_mark = fanotify_add_new_mark(group, NULL, mnt);
+		fsn_mark = fanotify_add_new_mark(group, obj, FSNOTIFY_OBJ_TYPE_VFSMOUNT);
 		if (IS_ERR(fsn_mark)) {
 			mutex_unlock(&group->mark_mutex);
 			return PTR_ERR(fsn_mark);
@@ -667,6 +668,7 @@ static int fanotify_add_inode_mark(struct fsnotify_group *group,
 				   struct inode *inode, __u32 mask,
 				   unsigned int flags)
 {
+	struct fsnotify_obj *obj = &inode->i_fsnotify;
 	struct fsnotify_mark *fsn_mark;
 	__u32 added;
 
@@ -683,9 +685,9 @@ static int fanotify_add_inode_mark(struct fsnotify_group *group,
 		return 0;
 
 	mutex_lock(&group->mark_mutex);
-	fsn_mark = fsnotify_find_mark(&inode->i_fsnotify, group);
+	fsn_mark = fsnotify_find_mark(obj, group);
 	if (!fsn_mark) {
-		fsn_mark = fanotify_add_new_mark(group, inode, NULL);
+		fsn_mark = fanotify_add_new_mark(group, obj, FSNOTIFY_OBJ_TYPE_INODE);
 		if (IS_ERR(fsn_mark)) {
 			mutex_unlock(&group->mark_mutex);
 			return PTR_ERR(fsn_mark);

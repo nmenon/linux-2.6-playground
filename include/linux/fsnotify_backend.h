@@ -211,6 +211,11 @@ enum fsnotify_obj_type {
 #define FSNOTIFY_OBJ_TYPE_VFSMOUNT_FL	(1U << FSNOTIFY_OBJ_TYPE_VFSMOUNT)
 #define FSNOTIFY_OBJ_ALL_TYPES_MASK	((1U << FSNOTIFY_OBJ_TYPE_COUNT) - 1)
 
+static inline bool fsnotify_valid_obj_type(unsigned int type)
+{
+	return (type < FSNOTIFY_OBJ_TYPE_COUNT);
+}
+
 struct fsnotify_iter_info {
 	struct fsnotify_mark *marks[FSNOTIFY_OBJ_TYPE_COUNT];
 	unsigned int report_mask;
@@ -398,23 +403,26 @@ extern void fsnotify_init_mark(struct fsnotify_mark *mark,
 extern struct fsnotify_mark *fsnotify_find_mark(struct fsnotify_obj *obj,
 						struct fsnotify_group *group);
 /* attach the mark to the inode or vfsmount */
-extern int fsnotify_add_mark(struct fsnotify_mark *mark, struct inode *inode,
-			     struct vfsmount *mnt, int allow_dups);
+extern int fsnotify_add_mark(struct fsnotify_mark *mark,
+			     struct fsnotify_obj *obj, unsigned int type,
+			     int allow_dups);
 extern int fsnotify_add_mark_locked(struct fsnotify_mark *mark,
-				    struct inode *inode, struct vfsmount *mnt,
+				    struct fsnotify_obj *obj, unsigned int type,
 				    int allow_dups);
 /* attach the mark to the inode */
 static inline int fsnotify_add_inode_mark(struct fsnotify_mark *mark,
 					  struct inode *inode,
 					  int allow_dups)
 {
-	return fsnotify_add_mark(mark, inode, NULL, allow_dups);
+	return fsnotify_add_mark(mark, &inode->i_fsnotify,
+				 FSNOTIFY_OBJ_TYPE_INODE, allow_dups);
 }
 static inline int fsnotify_add_inode_mark_locked(struct fsnotify_mark *mark,
 						 struct inode *inode,
 						 int allow_dups)
 {
-	return fsnotify_add_mark_locked(mark, inode, NULL, allow_dups);
+	return fsnotify_add_mark_locked(mark, &inode->i_fsnotify,
+					FSNOTIFY_OBJ_TYPE_INODE, allow_dups);
 }
 /* given a group and a mark, flag mark to be freed when all references are dropped */
 extern void fsnotify_destroy_mark(struct fsnotify_mark *mark,
