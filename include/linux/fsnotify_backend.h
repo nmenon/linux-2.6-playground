@@ -265,9 +265,9 @@ FSNOTIFY_ITER_FUNCS(vfsmount, VFSMOUNT)
 struct fsnotify_mark_connector {
 	spinlock_t lock;
 	unsigned int type;	/* Type of object [lock] */
-	union {	/* Object pointer [lock] */
-		struct inode *inode;
-		struct vfsmount *mnt;
+	union {
+		/* Object pointer [lock] */
+		struct fsnotify_obj *obj;
 		/* Used listing heads to free after srcu period expires */
 		struct fsnotify_mark_connector *destroy_next;
 	};
