@@ -19,17 +19,17 @@ extern struct srcu_struct fsnotify_mark_srcu;
 extern int fsnotify_compare_groups(struct fsnotify_group *a,
 				   struct fsnotify_group *b);
 
-/* Destroy all marks connected via given connector */
-extern void fsnotify_destroy_marks(struct fsnotify_mark_connector __rcu **connp);
+/* Destroy all marks connected to a given object */
+extern void fsnotify_destroy_marks(struct fsnotify_obj *obj);
 /* run the list of all marks associated with inode and destroy them */
 static inline void fsnotify_clear_marks_by_inode(struct inode *inode)
 {
-	fsnotify_destroy_marks(&inode->i_fsnotify.marks);
+	fsnotify_destroy_marks(&inode->i_fsnotify);
 }
 /* run the list of all marks associated with vfsmount and destroy them */
 static inline void fsnotify_clear_marks_by_mount(struct vfsmount *mnt)
 {
-	fsnotify_destroy_marks(&real_mount(mnt)->mnt_fsnotify.marks);
+	fsnotify_destroy_marks(&real_mount(mnt)->mnt_fsnotify);
 }
 /* Wait until all marks queued for destruction are destroyed */
 extern void fsnotify_wait_marks_destroyed(void);

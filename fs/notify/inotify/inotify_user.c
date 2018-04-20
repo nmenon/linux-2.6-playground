@@ -514,7 +514,7 @@ static int inotify_update_existing_watch(struct fsnotify_group *group,
 
 	mask = inotify_arg_to_mask(arg);
 
-	fsn_mark = fsnotify_find_mark(&inode->i_fsnotify.marks, group);
+	fsn_mark = fsnotify_find_mark(&inode->i_fsnotify, group);
 	if (!fsn_mark)
 		return -ENOENT;
 
