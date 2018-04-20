@@ -514,7 +514,7 @@ static int inotify_update_existing_watch(struct fsnotify_group *group,
 
 	mask = inotify_arg_to_mask(arg);
 
-	fsn_mark = fsnotify_find_mark(&inode->i_fsnotify_marks, group);
+	fsn_mark = fsnotify_find_mark(&inode->i_fsnotify.marks, group);
 	if (!fsn_mark)
 		return -ENOENT;
 
@@ -533,11 +533,11 @@ static int inotify_update_existing_watch(struct fsnotify_group *group,
 		/* more bits in old than in new? */
 		int dropped = (old_mask & ~new_mask);
 		/* more bits in this fsn_mark than the inode's mask? */
-		int do_inode = (new_mask & ~inode->i_fsnotify_mask);
+		int do_inode = (new_mask & ~inode->i_fsnotify.mask);
 
 		/* update the inode with this new fsn_mark */
 		if (dropped || do_inode)
-			fsnotify_recalc_mask(inode->i_fsnotify_marks);
+			fsnotify_recalc_mask(inode->i_fsnotify.marks);
 
 	}
 

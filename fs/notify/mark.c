@@ -120,9 +120,9 @@ static void __fsnotify_recalc_mask(struct fsnotify_mark_connector *conn)
 			new_mask |= mark->mask;
 	}
 	if (conn->type == FSNOTIFY_OBJ_TYPE_INODE)
-		conn->inode->i_fsnotify_mask = new_mask;
+		conn->inode->i_fsnotify.mask = new_mask;
 	else if (conn->type == FSNOTIFY_OBJ_TYPE_VFSMOUNT)
-		real_mount(conn->mnt)->mnt_fsnotify_mask = new_mask;
+		real_mount(conn->mnt)->mnt_fsnotify.mask = new_mask;
 }
 
 /*
@@ -168,14 +168,14 @@ static struct inode *fsnotify_detach_connector_from_object(
 
 	if (conn->type == FSNOTIFY_OBJ_TYPE_INODE) {
 		inode = conn->inode;
-		rcu_assign_pointer(inode->i_fsnotify_marks, NULL);
-		inode->i_fsnotify_mask = 0;
+		rcu_assign_pointer(inode->i_fsnotify.marks, NULL);
+		inode->i_fsnotify.mask = 0;
 		conn->inode = NULL;
 		conn->type = FSNOTIFY_OBJ_TYPE_DETACHED;
 	} else if (conn->type == FSNOTIFY_OBJ_TYPE_VFSMOUNT) {
-		rcu_assign_pointer(real_mount(conn->mnt)->mnt_fsnotify_marks,
+		rcu_assign_pointer(real_mount(conn->mnt)->mnt_fsnotify.marks,
 				   NULL);
-		real_mount(conn->mnt)->mnt_fsnotify_mask = 0;
+		real_mount(conn->mnt)->mnt_fsnotify.mask = 0;
 		conn->mnt = NULL;
 		conn->type = FSNOTIFY_OBJ_TYPE_DETACHED;
 	}
@@ -515,9 +515,9 @@ static int fsnotify_add_mark_list(struct fsnotify_mark *mark,
 	if (WARN_ON(!inode && !mnt))
 		return -EINVAL;
 	if (inode)
-		connp = &inode->i_fsnotify_marks;
+		connp = &inode->i_fsnotify.marks;
 	else
-		connp = &real_mount(mnt)->mnt_fsnotify_marks;
+		connp = &real_mount(mnt)->mnt_fsnotify.marks;
 restart:
 	spin_lock(&mark->lock);
 	conn = fsnotify_grab_connector(connp);

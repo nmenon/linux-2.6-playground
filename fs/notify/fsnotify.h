@@ -24,12 +24,12 @@ extern void fsnotify_destroy_marks(struct fsnotify_mark_connector __rcu **connp)
 /* run the list of all marks associated with inode and destroy them */
 static inline void fsnotify_clear_marks_by_inode(struct inode *inode)
 {
-	fsnotify_destroy_marks(&inode->i_fsnotify_marks);
+	fsnotify_destroy_marks(&inode->i_fsnotify.marks);
 }
 /* run the list of all marks associated with vfsmount and destroy them */
 static inline void fsnotify_clear_marks_by_mount(struct vfsmount *mnt)
 {
-	fsnotify_destroy_marks(&real_mount(mnt)->mnt_fsnotify_marks);
+	fsnotify_destroy_marks(&real_mount(mnt)->mnt_fsnotify.marks);
 }
 /* Wait until all marks queued for destruction are destroyed */
 extern void fsnotify_wait_marks_destroyed(void);

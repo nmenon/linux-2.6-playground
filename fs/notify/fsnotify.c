@@ -160,7 +160,7 @@ int __fsnotify_parent(const struct path *path, struct dentry *dentry, __u32 mask
 
 	if (unlikely(!fsnotify_inode_watches_children(p_inode)))
 		__fsnotify_update_child_dentry_flags(p_inode);
-	else if (p_inode->i_fsnotify_mask & mask) {
+	else if (p_inode->i_fsnotify.mask & mask) {
 		struct name_snapshot name;
 
 		/* we are notifying a parent so come up with the new mask which
@@ -331,13 +331,13 @@ int fsnotify(struct inode *to_tell, __u32 mask, const void *data, int data_is,
 
 	/*
 	 * Optimization: srcu_read_lock() has a memory barrier which can
-	 * be expensive.  It protects walking the *_fsnotify_marks lists.
+	 * be expensive.  It protects walking the *_fsnotify.marks lists.
 	 * However, if we do not walk the lists, we do not have to do
 	 * SRCU because we have no references to any objects and do not
 	 * need SRCU to keep them "alive".
 	 */
-	if (!to_tell->i_fsnotify_marks &&
-	    (!mnt || !mnt->mnt_fsnotify_marks))
+	if (!to_tell->i_fsnotify.marks &&
+	    (!mnt || !mnt->mnt_fsnotify.marks))
 		return 0;
 	/*
 	 * if this is a modify event we may need to clear the ignored masks
@@ -345,24 +345,24 @@ int fsnotify(struct inode *to_tell, __u32 mask, const void *data, int data_is,
 	 * this type of event.
 	 */
 	if (!(mask & FS_MODIFY) &&
-	    !(test_mask & to_tell->i_fsnotify_mask) &&
-	    !(mnt && test_mask & mnt->mnt_fsnotify_mask))
+	    !(test_mask & to_tell->i_fsnotify.mask) &&
+	    !(mnt && test_mask & mnt->mnt_fsnotify.mask))
 		return 0;
 
 	iter_info.srcu_idx = srcu_read_lock(&fsnotify_mark_srcu);
 
 	if ((mask & FS_MODIFY) ||
-	    (test_mask & to_tell->i_fsnotify_mask)) {
+	    (test_mask & to_tell->i_fsnotify.mask)) {
 		iter_info.marks[FSNOTIFY_OBJ_TYPE_INODE] =
-			fsnotify_first_mark(&to_tell->i_fsnotify_marks);
+			fsnotify_first_mark(&to_tell->i_fsnotify.marks);
 	}
 
 	if (mnt && ((mask & FS_MODIFY) ||
-		    (test_mask & mnt->mnt_fsnotify_mask))) {
+		    (test_mask & mnt->mnt_fsnotify.mask))) {
 		iter_info.marks[FSNOTIFY_OBJ_TYPE_INODE] =
-			fsnotify_first_mark(&to_tell->i_fsnotify_marks);
+			fsnotify_first_mark(&to_tell->i_fsnotify.marks);
 		iter_info.marks[FSNOTIFY_OBJ_TYPE_VFSMOUNT] =
-			fsnotify_first_mark(&mnt->mnt_fsnotify_marks);
+			fsnotify_first_mark(&mnt->mnt_fsnotify.marks);
 	}
 
 	/*

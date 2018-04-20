@@ -393,7 +393,7 @@ static int tag_chunk(struct inode *inode, struct audit_tree *tree)
 	struct node *p;
 	int n;
 
-	old_entry = fsnotify_find_mark(&inode->i_fsnotify_marks,
+	old_entry = fsnotify_find_mark(&inode->i_fsnotify.marks,
 				       audit_tree_group);
 	if (!old_entry)
 		return create_chunk(inode, tree);
