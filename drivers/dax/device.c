@@ -247,13 +247,14 @@ __weak phys_addr_t dax_pgoff_to_phys(struct dev_dax *dev_dax, pgoff_t pgoff,
 static vm_fault_t __dev_dax_pte_fault(struct dev_dax *dev_dax,
 				struct vm_fault *vmf)
 {
+	struct vm_area_struct *vma = vmf->vma;
 	struct device *dev = &dev_dax->dev;
 	struct dax_region *dax_region;
 	phys_addr_t phys;
 	pfn_t pfn;
 	unsigned int fault_size = PAGE_SIZE;
 
-	if (check_vma(dev_dax, vmf->vma, __func__))
+	if (check_vma(dev_dax, vma, __func__))
 		return VM_FAULT_SIGBUS;
 
 	dax_region = dev_dax->region;
@@ -274,13 +275,14 @@ static vm_fault_t __dev_dax_pte_fault(struct dev_dax *dev_dax,
 
 	pfn = phys_to_pfn_t(phys, dax_region->pfn_flags);
 
-	return vmf_insert_mixed(vmf->vma, vmf->address, pfn);
+	return vmf_insert_mixed(vma, vmf->address, pfn);
 }
 
 static vm_fault_t __dev_dax_pmd_fault(struct dev_dax *dev_dax,
 				struct vm_fault *vmf)
 {
 	unsigned long pmd_addr = vmf->address & PMD_MASK;
+	struct vm_area_struct *vma = vmf->vma;
 	struct device *dev = &dev_dax->dev;
 	struct dax_region *dax_region;
 	phys_addr_t phys;
@@ -288,7 +290,7 @@ static vm_fault_t __dev_dax_pmd_fault(struct dev_dax *dev_dax,
 	pfn_t pfn;
 	unsigned int fault_size = PMD_SIZE;
 
-	if (check_vma(dev_dax, vmf->vma, __func__))
+	if (check_vma(dev_dax, vma, __func__))
 		return VM_FAULT_SIGBUS;
 
 	dax_region = dev_dax->region;
@@ -310,11 +312,10 @@ static vm_fault_t __dev_dax_pmd_fault(struct dev_dax *dev_dax,
 		return VM_FAULT_FALLBACK;
 
 	/* if we are outside of the VMA */
-	if (pmd_addr < vmf->vma->vm_start ||
-			(pmd_addr + PMD_SIZE) > vmf->vma->vm_end)
+	if (pmd_addr < vma->vm_start || (pmd_addr + PMD_SIZE) > vma->vm_end)
 		return VM_FAULT_SIGBUS;
 
-	pgoff = linear_page_index(vmf->vma, pmd_addr);
+	pgoff = linear_page_index(vma, pmd_addr);
 	phys = dax_pgoff_to_phys(dev_dax, pgoff, PMD_SIZE);
 	if (phys == -1) {
 		dev_dbg(dev, "pgoff_to_phys(%#lx) failed\n", pgoff);
@@ -323,7 +324,7 @@ static vm_fault_t __dev_dax_pmd_fault(struct dev_dax *dev_dax,
 
 	pfn = phys_to_pfn_t(phys, dax_region->pfn_flags);
 
-	return vmf_insert_pfn_pmd(vmf->vma, vmf->address, vmf->pmd, pfn,
+	return vmf_insert_pfn_pmd(vma, vmf->address, vmf->pmd, pfn,
 			vmf->flags & FAULT_FLAG_WRITE);
 }
 
@@ -332,6 +333,7 @@ static vm_fault_t __dev_dax_pud_fault(struct dev_dax *dev_dax,
 				struct vm_fault *vmf)
 {
 	unsigned long pud_addr = vmf->address & PUD_MASK;
+	struct vm_area_struct *vma = vmf->vma;
 	struct device *dev = &dev_dax->dev;
 	struct dax_region *dax_region;
 	phys_addr_t phys;
@@ -340,7 +342,7 @@ static vm_fault_t __dev_dax_pud_fault(struct dev_dax *dev_dax,
 	unsigned int fault_size = PUD_SIZE;
 
 
-	if (check_vma(dev_dax, vmf->vma, __func__))
+	if (check_vma(dev_dax, vma, __func__))
 		return VM_FAULT_SIGBUS;
 
 	dax_region = dev_dax->region;
@@ -362,11 +364,10 @@ static vm_fault_t __dev_dax_pud_fault(struct dev_dax *dev_dax,
 		return VM_FAULT_FALLBACK;
 
 	/* if we are outside of the VMA */
-	if (pud_addr < vmf->vma->vm_start ||
-			(pud_addr + PUD_SIZE) > vmf->vma->vm_end)
+	if (pud_addr < vma->vm_start || (pud_addr + PUD_SIZE) > vma->vm_end)
 		return VM_FAULT_SIGBUS;
 
-	pgoff = linear_page_index(vmf->vma, pud_addr);
+	pgoff = linear_page_index(vma, pud_addr);
 	phys = dax_pgoff_to_phys(dev_dax, pgoff, PUD_SIZE);
 	if (phys == -1) {
 		dev_dbg(dev, "pgoff_to_phys(%#lx) failed\n", pgoff);
@@ -375,7 +376,7 @@ static vm_fault_t __dev_dax_pud_fault(struct dev_dax *dev_dax,
 
 	pfn = phys_to_pfn_t(phys, dax_region->pfn_flags);
 
-	return vmf_insert_pfn_pud(vmf->vma, vmf->address, vmf->pud, pfn,
+	return vmf_insert_pfn_pud(vma, vmf->address, vmf->pud, pfn,
 			vmf->flags & FAULT_FLAG_WRITE);
 }
 #else
@@ -390,12 +391,13 @@ static vm_fault_t dev_dax_huge_fault(struct vm_fault *vmf,
 		enum page_entry_size pe_size)
 {
 	int rc, id;
-	struct file *filp = vmf->vma->vm_file;
+	struct vm_area_struct *vma = vmf->vma;
+	struct file *filp = vma->vm_file;
 	struct dev_dax *dev_dax = filp->private_data;
 
 	dev_dbg(&dev_dax->dev, "%s: %s (%#lx - %#lx) size = %d\n", current->comm,
 			(vmf->flags & FAULT_FLAG_WRITE) ? "write" : "read",
-			vmf->vma->vm_start, vmf->vma->vm_end, pe_size);
+			vma->vm_start, vma->vm_end, pe_size);
 
 	id = dax_read_lock();
 	switch (pe_size) {
