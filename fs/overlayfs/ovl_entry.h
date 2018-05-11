@@ -20,6 +20,7 @@ struct ovl_config {
 	bool nfs_export;
 	bool copy_up_shared;
 	int xino;
+	bool metacopy;
 };
 
 struct ovl_sb {
