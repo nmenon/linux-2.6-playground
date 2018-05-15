@@ -30,6 +30,20 @@ next/dt
 		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt-4.18
 	samsung/dt64
 		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt64-4.18
+	mediatek/dts32
+		https://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v4.17-next-dts32
+	mediatek/dts64
+		https://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v4.17-next-dts64
+	sti/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/pchotard/sti tags/sti-dt-for-v4.18-round1
+	vexpress/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/vexpress-updates-4.18
+	juno/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/juno-updates-4.18
+	rockchip/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.18-rockchip-dts32-1
+	rockchip/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.18-rockchip-dts64-1
 
 next/drivers
 	patch
@@ -44,6 +58,15 @@ next/drivers
 		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.18/drivers
 	samsung/drivers
 		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-drivers-4.18
+	mediatek/soc
+		https://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v4.17-next-soc
+		contains depends/regmap-ktime-fix
+	drivers/scmi
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/scmi-updates-4.18
+	drivers/reset
+		git://git.pengutronix.de/pza/linux tags/reset-for-4.18
+	rockchip/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.18-rockchip-drivers-1
 
 next/defconfig
 	patch
@@ -54,6 +77,10 @@ next/defconfig
 		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.18/defconfig-arm64
 	samsung/defconfig
 		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-defconfig-4.18
+	mediatek/defconfig
+		https://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v4.17-next-defconfig
+	rockchip/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.18-rockchip-defconfig64-1
 
 fixes
 	<no branch> (8b82b66e68b32dd8e22a04db6a0494bfdd65156f)
@@ -82,4 +109,6 @@ fixes
 		git://git.infradead.org/linux-mvebu tags/mvebu-fixes-4.17-1
 	<no branch> (e6914365fd280fce303a89b8a8d4529af5a2e0f9)
 		git://git.pengutronix.de/pza/linux tags/reset-fixes-for-4.17
+	<no branch> (bb7298a7e87cf3430eb62be8746e5d7a07ca9d7c)
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-fixes-for-v4.17-part-2
 
