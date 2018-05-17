@@ -310,15 +310,12 @@ void printk_nmi_enter(void)
 {
 	/*
 	 * The size of the extra per-CPU buffer is limited. Use it only when
-	 * the main one is locked. If this CPU is not in the safe context,
-	 * the lock must be taken on another CPU and we could wait for it.
+	 * the main one is locked.
 	 */
-	if ((this_cpu_read(printk_context) & PRINTK_SAFE_CONTEXT_MASK) &&
-	    raw_spin_is_locked(&logbuf_lock)) {
+	if (raw_spin_is_locked(&logbuf_lock))
 		this_cpu_or(printk_context, PRINTK_NMI_CONTEXT_MASK);
-	} else {
+	else
 		this_cpu_or(printk_context, PRINTK_NMI_DEFERRED_CONTEXT_MASK);
-	}
 }
 
 void printk_nmi_exit(void)
