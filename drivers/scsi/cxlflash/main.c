@@ -19,8 +19,6 @@
 
 #include <asm/unaligned.h>
 
-#include <misc/cxl.h>
-
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_host.h>
 #include <uapi/scsi/cxlflash_ioctl.h>
@@ -339,8 +337,8 @@ static int send_cmd_ioarrin(struct afu *afu, struct afu_cmd *cmd)
 	writeq_be((u64)&cmd->rcb, &hwq->host_map->ioarrin);
 out:
 	spin_unlock_irqrestore(&hwq->hsq_slock, lock_flags);
-	dev_dbg(dev, "%s: cmd=%p len=%u ea=%016llx rc=%d\n", __func__,
-		cmd, cmd->rcb.data_len, cmd->rcb.data_ea, rc);
+	dev_dbg_ratelimited(dev, "%s: cmd=%p len=%u ea=%016llx rc=%d\n",
+		__func__, cmd, cmd->rcb.data_len, cmd->rcb.data_ea, rc);
 	return rc;
 }
 
@@ -616,6 +614,7 @@ static int cxlflash_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *scp)
 		rc = 0;
 		goto out;
 	default:
+		atomic_inc(&afu->cmds_active);
 		break;
 	}
 
@@ -641,6 +640,7 @@ static int cxlflash_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *scp)
 	memcpy(cmd->rcb.cdb, scp->cmnd, sizeof(cmd->rcb.cdb));
 
 	rc = afu->send_cmd(afu, cmd);
+	atomic_dec(&afu->cmds_active);
 out:
 	return rc;
 }
@@ -2124,6 +2124,7 @@ static int init_afu(struct cxlflash_cfg *cfg)
 
 	cfg->ops->perst_reloads_same_image(cfg->afu_cookie, true);
 
+	mutex_init(&afu->sync_active);
 	afu->num_hwqs = afu->desired_hwqs;
 	for (i = 0; i < afu->num_hwqs; i++) {
 		rc = init_mc(cfg, i);
@@ -2307,7 +2308,6 @@ static int send_afu_cmd(struct afu *afu, struct sisl_ioarcb *rcb)
 	char *buf = NULL;
 	int rc = 0;
 	int nretry = 0;
-	static DEFINE_MUTEX(sync_active);
 
 	if (cfg->state != STATE_NORMAL) {
 		dev_dbg(dev, "%s: Sync not required state=%u\n",
@@ -2315,7 +2315,7 @@ static int send_afu_cmd(struct afu *afu, struct sisl_ioarcb *rcb)
 		return 0;
 	}
 
-	mutex_lock(&sync_active);
+	mutex_lock(&afu->sync_active);
 	atomic_inc(&afu->cmds_active);
 	buf = kmalloc(sizeof(*cmd) + __alignof__(*cmd) - 1, GFP_KERNEL);
 	if (unlikely(!buf)) {
@@ -2370,7 +2370,7 @@ retry:
 		*rcb->ioasa = cmd->sa;
 out:
 	atomic_dec(&afu->cmds_active);
-	mutex_unlock(&sync_active);
+	mutex_unlock(&afu->sync_active);
 	kfree(buf);
 	dev_dbg(dev, "%s: returning rc=%d\n", __func__, rc);
 	return rc;
@@ -3706,11 +3706,8 @@ static int cxlflash_probe(struct pci_dev *pdev,
 	cfg->init_state = INIT_STATE_NONE;
 	cfg->dev = pdev;
 	cfg->cxl_fops = cxlflash_cxl_fops;
-
-	if (ddv->flags & CXLFLASH_OCXL_DEV)
-		cfg->ops = &cxlflash_ocxl_ops;
-	else
-		cfg->ops = &cxlflash_cxl_ops;
+	cfg->ops = cxlflash_assign_ops(ddv);
+	WARN_ON_ONCE(!cfg->ops);
 
 	/*
 	 * Promoted LUNs move to the top of the LUN table. The rest stay on
