@@ -21,6 +21,12 @@ next/soc
 		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.18/ti-sysc-fix-signed
 	omap/soc
 		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.18/soc-signed
+	berlin/core
+		git://git.kernel.org/pub/scm/linux/kernel/git/jszhang/linux-berlin tags/berlin-core-for-v4.18
+	omap/soc-late
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.18/soc-late-signed
+	patch
+		ARM: stm32: Don't select DMA unconditionally on STM32MP157C
 
 next/dt
 	ux500/dts
@@ -92,6 +98,27 @@ next/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-arm64-for-4.18
 	qcom/dts
 		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-dts-for-4.18
+	amlogic/dt-2
+		https://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt-2
+	amlogic/dt64-2
+		https://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt64-2
+	amlogic/dt64-3
+		https://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt64-3
+	berlin/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/jszhang/linux-berlin tags/berlin64-dt-for-v4.18
+	berlin/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/jszhang/linux-berlin tags/berlin-dt-for-v4.18
+	samsung/dt-2
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt-4.18-2
+	samsung/dt64-2
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt64-4.18-2
+	patch
+		arm64: dts: sprd: fix typo in 'remote-endpoint'
+	aspeed/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/joel/aspeed tags/aspeed-4.18-devicetree
+	patch
+		arm64: dts: sprd: Add GPIO and GPIO keys device nodes
+		arm64: dts: sprd: whale2: Add the rtc enable clock for watchdog
 
 next/drivers
 	patch
@@ -119,6 +146,8 @@ next/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.18-memory-v2
 	imx/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-drivers-4.18
+	rockchip/drivers-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.18-rockchip-drivers-2
 
 next/defconfig
 	patch
@@ -143,8 +172,12 @@ next/defconfig
 		git://git.infradead.org/linux-mvebu tags/mvebu-arm64-4.18-1
 	imx/defconfig
 		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-defconfig-4.18
+	hisi/defconfig
+		git://github.com/hisilicon/linux-hisi tags/hisi-defconfig-for-4.18v3
 
 fixes
 	<no branch> (d89ad4f0b44dde8c5333ef7a5d5824829cc72de3)
 		https://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-fixes-for-4.17
+	<no branch> (5ec3444c8346c922316f4effafa8afc17defda0e)
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-fixes-for-4.17-rc7
 
