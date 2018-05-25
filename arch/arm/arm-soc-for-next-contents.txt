@@ -9,6 +9,10 @@ next/soc
 		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.18/soc
 	samsung/soc
 		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-soc-4.18
+	davinci/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v4.18/soc
+	tegra/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.18-arm-soc
 
 next/dt
 	ux500/dts
@@ -44,6 +48,26 @@ next/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.18-rockchip-dts32-1
 	rockchip/dt64
 		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.18-rockchip-dts64-1
+	hisi/dt64-v2
+		git://github.com/hisilicon/linux-hisi tags/hisi-arm64-dt-for-4.18v2
+	amlogic/dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt
+	amlogic/dt64
+		https://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt64
+	davinci/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v4.18/dt
+	tegra/dt-bindings
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.18-dt-bindings
+	tegra/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.18-arm-dt
+	mvebu/dt
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt-4.18-1
+	mvebu/dt64
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt64-4.18-1
+	uniphier/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/masahiroy/linux-uniphier tags/uniphier-dt-v4.18
+	uniphier/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/masahiroy/linux-uniphier tags/uniphier-dt64-v4.18
 
 next/drivers
 	patch
@@ -67,6 +91,8 @@ next/drivers
 		git://git.pengutronix.de/pza/linux tags/reset-for-4.18
 	rockchip/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.18-rockchip-drivers-1
+	tegra/memory
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.18-memory-v2
 
 next/defconfig
 	patch
@@ -81,34 +107,14 @@ next/defconfig
 		https://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v4.17-next-defconfig
 	rockchip/defconfig
 		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.18-rockchip-defconfig64-1
+	amlogic/defconfig
+		https://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-defconfig
+	davinci/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v4.18/defconfig
+	renesas/arm64-defconfig
+		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-defconfig-for-v4.18
+	mvebu/arm64
+		git://git.infradead.org/linux-mvebu tags/mvebu-arm64-4.18-1
 
 fixes
-	<no branch> (8b82b66e68b32dd8e22a04db6a0494bfdd65156f)
-		git://git.kernel.org/pub/scm/linux/kernel/git/masahiroy/linux-uniphier tags/uniphier-fixes-v4.17
-	<no branch> (edb0c3affe5214a21d71ffb82ca92ed068e828df)
-		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-fixes-for-v4.17
-	<no branch> (9411ac07cd764be34bbd7ff09125a6b7b9175d4c)
-		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-fixes-for-v4.17
-	<no branch> (9bf4e370048d2bbae5262d0c6280e0142804a272)
-		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.17-fixes
-	patch
-		arm64: dts: exynos: Fix interrupt type for I2S1 device on Exynos5433
-	<no branch> (ab9d3db5b320a052452b9cd035599ee3c84bbee9)
-		git://git.linaro.org/people/jens.wiklander/linux-tee tags/tee-drv-fixes-for-4.17
-	<no branch> (675c7215aacf54242b2e8bc64bab698abbe764db)
-		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.17/devicetree-fixes
-	<no branch> (41bd6adf3c5d3990d7a67639aff53d54483744fa)
-		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v17/fixes-rc4
-	<no branch> (31c6085562a03124d3f6a5c43dd9888ac44495a5)
-		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/scmi-fixes-4.17
-	<no branch> (6d3299aef7df7225ecff653feedafb5d1646998b)
-		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-fixes-4.17
-	patch
-		ARM: keystone: fix platform_domain_notifier array overrun
-	<no branch> (f43194c1447c9536efb0859c2f3f46f6bf2b9154)
-		git://git.infradead.org/linux-mvebu tags/mvebu-fixes-4.17-1
-	<no branch> (e6914365fd280fce303a89b8a8d4529af5a2e0f9)
-		git://git.pengutronix.de/pza/linux tags/reset-fixes-for-4.17
-	<no branch> (bb7298a7e87cf3430eb62be8746e5d7a07ca9d7c)
-		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-fixes-for-v4.17-part-2
 
