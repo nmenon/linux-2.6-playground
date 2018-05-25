@@ -401,6 +401,7 @@ dtb-$(CONFIG_SOC_IMX6Q) += \
 	imx6dl-hummingboard2-som-v15.dtb \
 	imx6dl-icore.dtb \
 	imx6dl-icore-rqs.dtb \
+	imx6dl-mamoj.dtb \
 	imx6dl-nit6xlite.dtb \
 	imx6dl-nitrogen6x.dtb \
 	imx6dl-phytec-mira-rdk-nand.dtb \
@@ -441,6 +442,7 @@ dtb-$(CONFIG_SOC_IMX6Q) += \
 	imx6q-cubox-i-emmc-som-v15.dtb \
 	imx6q-cubox-i-som-v15.dtb \
 	imx6q-dfi-fs700-m60.dtb \
+	imx6q-dhcom-pdk2.dtb \
 	imx6q-display5-tianma-tm070-1280x768.dtb \
 	imx6q-dmo-edmqmx6.dtb \
 	imx6q-dms-ba16.dtb \
@@ -465,9 +467,11 @@ dtb-$(CONFIG_SOC_IMX6Q) += \
 	imx6q-hummingboard2-emmc-som-v15.dtb \
 	imx6q-hummingboard2-som-v15.dtb \
 	imx6q-icore.dtb \
+	imx6q-icore-mipi.dtb \
 	imx6q-icore-ofcap10.dtb \
 	imx6q-icore-ofcap12.dtb \
 	imx6q-icore-rqs.dtb \
+	imx6q-kp-tpc.dtb \
 	imx6q-marsboard.dtb \
 	imx6q-mccmon6.dtb \
 	imx6q-nitrogen6x.dtb \
@@ -962,6 +966,7 @@ dtb-$(CONFIG_MACH_SUN7I) += \
 	sun7i-a20-m3.dtb \
 	sun7i-a20-mk808c.dtb \
 	sun7i-a20-olimex-som-evb.dtb \
+	sun7i-a20-olimex-som-evb-emmc.dtb \
 	sun7i-a20-olimex-som204-evb.dtb \
 	sun7i-a20-olimex-som204-evb-emmc.dtb \
 	sun7i-a20-olinuxino-lime.dtb \
@@ -995,8 +1000,9 @@ dtb-$(CONFIG_MACH_SUN8I) += \
 	sun8i-a83t-bananapi-m3.dtb \
 	sun8i-a83t-cubietruck-plus.dtb \
 	sun8i-a83t-tbs-a711.dtb \
-	sun8i-h2-plus-orangepi-r1.dtb \
 	sun8i-h2-plus-bananapi-m2-zero.dtb \
+	sun8i-h2-plus-libretech-all-h3-cc.dtb \
+	sun8i-h2-plus-orangepi-r1.dtb \
 	sun8i-h2-plus-orangepi-zero.dtb \
 	sun8i-h3-bananapi-m2-plus.dtb \
 	sun8i-h3-beelink-x2.dtb \
@@ -1013,6 +1019,8 @@ dtb-$(CONFIG_MACH_SUN8I) += \
 	sun8i-h3-orangepi-plus.dtb \
 	sun8i-h3-orangepi-plus2e.dtb \
 	sun8i-r16-bananapi-m2m.dtb \
+	sun8i-r16-nintendo-nes-classic.dtb \
+	sun8i-r16-nintendo-super-nes-classic.dtb \
 	sun8i-r16-parrot.dtb \
 	sun8i-r40-bananapi-m2-ultra.dtb \
 	sun8i-v3s-licheepi-zero.dtb \
