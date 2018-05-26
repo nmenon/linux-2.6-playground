@@ -78,8 +78,11 @@ void nmi_trigger_cpumask_backtrace(const cpumask_t *mask,
 	/*
 	 * Force flush any remote buffers that might be stuck in IRQ context
 	 * and therefore could not run their irq_work.
+	 * Call nmi-safe version of printk_safe_flush() because this function can be
+	 * called in NMI context like watchdog_overflow_callback() if
+	 * sysctl_hardlockup_all_cpu_backtrace is true.
 	 */
-	printk_safe_flush();
+	printk_safe_flush_on_panic();
 
 	clear_bit_unlock(0, &backtrace_flag);
 	put_cpu();
