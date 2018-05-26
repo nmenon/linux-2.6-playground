@@ -125,6 +125,8 @@ next/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-arm64-for-4.18-2
 	qcom/dts-2
 		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-dts-for-4.18-2
+	renesas/dt-bindings
+		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-dt-bindings-for-v4.18
 
 next/drivers
 	patch
@@ -182,6 +184,12 @@ next/defconfig
 		git://github.com/hisilicon/linux-hisi tags/hisi-defconfig-for-4.18v3
 	qcom/arm64-defconfig
 		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-arm64-defconfig-for-4.18
+	renesas/defconfig
+		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-defconfig-for-v4.18
+
+next/late
+	qcom/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-drivers-for-4.18
 
 fixes
 	<no branch> (d89ad4f0b44dde8c5333ef7a5d5824829cc72de3)
@@ -190,8 +198,6 @@ fixes
 		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-fixes-for-4.17-rc7
 	patch
 		ARM: Fix i2c-gpio GPIO descriptor tables
-
-next/late
-	qcom/drivers
-		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-drivers-for-4.18
+	<no branch> (9c6d26df1fae6ad4718d51c48e6517913304ed27)
+		git://github.com/hisilicon/linux-hisi tags/hisi-fixes-for-4.17v2
 
