@@ -306,7 +306,7 @@ int slab_unmergeable(struct kmem_cache *s)
 	/*
 	 * We may have set a slab to be unmergeable during bootstrap.
 	 */
-	if (s->alias_count < 0)
+	if (s->shared_count < 0)
 		return 1;
 
 	return 0;
@@ -391,7 +391,7 @@ static struct kmem_cache *create_cache(const char *name,
 	if (err)
 		goto out_free_cache;
 
-	s->alias_count = 1;
+	s->shared_count = 1;
 	refcount_set(&s->refcount, 1);
 	list_add(&s->list, &slab_caches);
 	memcg_link_cache(s);
@@ -615,8 +615,13 @@ void memcg_create_kmem_cache(struct mem_cgroup *memcg,
 	/*
 	 * The root cache has been requested to be destroyed while its memcg
 	 * cache was in creation queue.
+	 *
+	 * The shared_count can be out-dated or can be incremented after return.
+	 * No big worries, at worst the creation of memcg kmem_cache is delayed.
+	 * The next allocation will again trigger the memcg kmem_cache creation
+	 * request.
 	 */
-	if (!root_cache->alias_count)
+	if (!root_cache->shared_count)
 		goto out_unlock;
 
 	idx = memcg_cache_id(memcg);
@@ -863,7 +868,7 @@ static void __kmem_cache_destroy(struct kmem_cache *s, bool lock)
 		mutex_lock(&slab_mutex);
 	}
 
-	VM_BUG_ON(s->alias_count);
+	VM_BUG_ON(s->shared_count);
 
 	err = shutdown_memcg_caches(s);
 	if (!err)
@@ -882,6 +887,14 @@ static void __kmem_cache_destroy(struct kmem_cache *s, bool lock)
 	}
 }
 
+/*
+ * kmem_cache_tryget - Try to get a reference on a kmem_cache
+ * @s: target kmem_cache
+ *
+ * Obtain a reference on a kmem_cache unless it already has reached zero and is
+ * being released. The caller needs to ensure that kmem_cache is accessible.
+ * Currently only root kmem_cache supports reference counting.
+ */
 bool kmem_cache_tryget(struct kmem_cache *s)
 {
 	if (is_root_cache(s))
@@ -889,6 +902,14 @@ bool kmem_cache_tryget(struct kmem_cache *s)
 	return false;
 }
 
+/*
+ * kmem_cache_put - Put a reference on a kmem_cache
+ * @s: target kmem_cache
+ *
+ * Put a reference obtained via kmem_cache_tryget(). This function can not be
+ * called within slab_mutex as it can trigger a destruction of a kmem_cache
+ * which requires slab_mutex.
+ */
 void kmem_cache_put(struct kmem_cache *s)
 {
 	if (is_root_cache(s) &&
@@ -896,6 +917,16 @@ void kmem_cache_put(struct kmem_cache *s)
 		__kmem_cache_destroy(s, true);
 }
 
+/*
+ * kmem_cache_put_locked - Put a reference on a kmem_cache while holding
+ * slab_mutex
+ * @s: target kmem_cache
+ *
+ * Put a reference obtained via kmem_cache_tryget(). Use this function instead
+ * of kmem_cache_put if the caller has already acquired slab_mutex.
+ *
+ * At the moment this function is not exposed externally and is used by SLUB.
+ */
 void kmem_cache_put_locked(struct kmem_cache *s)
 {
 	if (is_root_cache(s) &&
@@ -908,7 +939,14 @@ void kmem_cache_destroy(struct kmem_cache *s)
 	if (unlikely(!s))
 		return;
 
-	s->alias_count--;
+	/*
+	 * It is safe to decrement shared_count without any lock. In
+	 * __kmem_cache_alias the kmem_cache's refcount is elevated before
+	 * incrementing shared_count and below the reference is dropped after
+	 * decrementing shared_count. At worst shared_count can be outdated for
+	 * a small window but that is tolerable.
+	 */
+	s->shared_count--;
 	kmem_cache_put(s);
 }
 EXPORT_SYMBOL(kmem_cache_destroy);
@@ -961,7 +999,7 @@ void __init create_boot_cache(struct kmem_cache *s, const char *name,
 		panic("Creation of kmalloc slab %s size=%u failed. Reason %d\n",
 					name, size, err);
 
-	s->alias_count = -1;	/* Exempt from merging for now */
+	s->shared_count = -1;	/* Exempt from merging for now */
 	refcount_set(&s->refcount, 1);
 }
 
@@ -977,7 +1015,7 @@ struct kmem_cache *__init create_kmalloc_cache(const char *name,
 	create_boot_cache(s, name, size, flags, useroffset, usersize);
 	list_add(&s->list, &slab_caches);
 	memcg_link_cache(s);
-	s->alias_count = 1;
+	s->shared_count = 1;
 	refcount_set(&s->refcount, 1);
 	return s;
 }

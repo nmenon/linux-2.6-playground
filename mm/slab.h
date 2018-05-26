@@ -25,8 +25,8 @@ struct kmem_cache {
 	unsigned int useroffset;/* Usercopy region offset */
 	unsigned int usersize;	/* Usercopy region size */
 	const char *name;	/* Slab name for sysfs */
-	refcount_t refcount;	/* Use counter */
-	int alias_count;
+	refcount_t refcount;	/* Refcount for root kmem cache */
+	int shared_count;	/* Number of kmem caches sharing this cache */
 	void (*ctor)(void *);	/* Called on object slot creation */
 	struct list_head list;	/* List of all slab caches on the system */
 };

@@ -97,8 +97,8 @@ struct kmem_cache {
 	struct kmem_cache_order_objects max;
 	struct kmem_cache_order_objects min;
 	gfp_t allocflags;	/* gfp flags to use on each alloc */
-	refcount_t refcount;	/* Refcount for slab cache destroy */
-	int alias_count;	/* Number of root kmem caches merged */
+	refcount_t refcount;	/* Refcount for root kmem cache */
+	int shared_count;	/* Number of kmem caches sharing this cache */
 	void (*ctor)(void *);
 	unsigned int inuse;		/* Offset to metadata */
 	unsigned int align;		/* Alignment */

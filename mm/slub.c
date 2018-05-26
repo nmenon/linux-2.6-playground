@@ -4275,7 +4275,7 @@ __kmem_cache_alias(const char *name, unsigned int size, unsigned int align,
 
 	s = find_mergeable(size, align, flags, name, ctor);
 	if (s && kmem_cache_tryget(s)) {
-		s->alias_count++;
+		s->shared_count++;
 
 		/*
 		 * Adjust the object sizes so that we clear
@@ -4290,7 +4290,7 @@ __kmem_cache_alias(const char *name, unsigned int size, unsigned int align,
 		}
 
 		if (sysfs_slab_alias(s, name)) {
-			s->alias_count--;
+			s->shared_count--;
 			kmem_cache_put_locked(s);
 			s = NULL;
 		}
@@ -5015,7 +5015,7 @@ SLAB_ATTR_RO(ctor);
 static ssize_t aliases_show(struct kmem_cache *s, char *buf)
 {
 	return sprintf(buf, "%d\n",
-		       s->alias_count < 0 ? 0 : s->alias_count - 1);
+		       s->shared_count < 0 ? 0 : s->shared_count - 1);
 }
 SLAB_ATTR_RO(aliases);
 
@@ -5168,7 +5168,7 @@ static ssize_t trace_store(struct kmem_cache *s, const char *buf,
 	 * as well as cause other issues like converting a mergeable
 	 * cache into an umergeable one.
 	 */
-	if (s->alias_count > 1)
+	if (s->shared_count > 1)
 		return -EINVAL;
 
 	s->flags &= ~SLAB_TRACE;
@@ -5286,7 +5286,7 @@ static ssize_t failslab_show(struct kmem_cache *s, char *buf)
 static ssize_t failslab_store(struct kmem_cache *s, const char *buf,
 							size_t length)
 {
-	if (s->alias_count > 1)
+	if (s->shared_count > 1)
 		return -EINVAL;
 
 	s->flags &= ~SLAB_FAILSLAB;
