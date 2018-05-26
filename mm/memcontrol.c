@@ -1123,33 +1123,39 @@ static const char *const memcg1_stat_names[] = {
 };
 
 #define K(x) ((x) << (PAGE_SHIFT-10))
+
 /**
- * mem_cgroup_print_oom_info: Print OOM information relevant to memory controller.
- * @memcg: The memory cgroup that went over limit
- * @p: Task that is going to be killed
+ * mem_cgroup_print_oom_context: Print OOM context information including allocation
+ * constraint, nodemask, orgin memcg that has reached its limit, kill memcg that
+ * contains the killed process, killed process's command, pid and pid.
  *
- * NOTE: @memcg and @p's mem_cgroup can be different when hierarchy is
- * enabled
+ * @oc: pointer to struct oom_control
+ * @p: Task that is going to be killed
  */
-void mem_cgroup_print_oom_info(struct mem_cgroup *memcg, struct task_struct *p)
+void mem_cgroup_print_oom_context(struct mem_cgroup *memcg, struct task_struct *p)
+{
+	rcu_read_lock();
+	pr_cont("origin_memcg=");
+	if (memcg)
+		pr_cont_cgroup_path(memcg->css.cgroup);
+	if (p) {
+		pr_cont(" kill_memcg=");
+		pr_cont_cgroup_path(task_cgroup(p, memory_cgrp_id));
+		pr_cont(" task=%s pid=%5d uid=%5d\n", p->comm, p->pid,
+			from_kuid(&init_user_ns, task_uid(p)));
+	}
+	rcu_read_unlock();
+}
+
+/**
+ * mem_cgroup_print_oom_meminfo: Print OOM memory information relevant to
+ * memory controller.
+ * @memcg: The memory cgroup that went over limit
+ */
+void mem_cgroup_print_oom_meminfo(struct mem_cgroup *memcg)
 {
 	struct mem_cgroup *iter;
 	unsigned int i;
-
-	rcu_read_lock();
-
-	if (p) {
-		pr_info("Task in ");
-		pr_cont_cgroup_path(task_cgroup(p, memory_cgrp_id));
-		pr_cont(" killed as a result of limit of ");
-	} else {
-		pr_info("Memory limit reached of cgroup ");
-	}
-
-	pr_cont_cgroup_path(memcg->css.cgroup);
-	pr_cont("\n");
-
-	rcu_read_unlock();
 
 	pr_info("memory: usage %llukB, limit %llukB, failcnt %lu\n",
 		K((u64)page_counter_read(&memcg->memory)),

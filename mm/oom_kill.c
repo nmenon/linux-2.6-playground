@@ -421,6 +421,8 @@ static void dump_tasks(struct mem_cgroup *memcg, const nodemask_t *nodemask)
 
 static void dump_header(struct oom_control *oc, struct task_struct *p)
 {
+	enum oom_constraint constraint = constrained_alloc(oc);
+
 	pr_warn("%s invoked oom-killer: gfp_mask=%#x(%pGg), nodemask=%*pbl, order=%d, oom_score_adj=%hd\n",
 		current->comm, oc->gfp_mask, &oc->gfp_mask,
 		nodemask_pr_args(oc->nodemask), oc->order,
@@ -430,8 +432,26 @@ static void dump_header(struct oom_control *oc, struct task_struct *p)
 
 	cpuset_print_current_mems_allowed();
 	dump_stack();
+	pr_info("oom-kill: constrain=CONSTRAINT_");
+	switch (constraint) {
+	case CONSTRAINT_NONE:
+		pr_cont("NONE ");
+		break;
+	case CONSTRAINT_CPUSET:
+		pr_cont("CPUSET ");
+		break;
+	case CONSTRAINT_MEMORY_POLICY:
+		pr_cont("MEMORY_POLICY ");
+		break;
+	default:
+		pr_cont("MEMCG ");
+		break;
+	}
+	pr_cont("nodemask=%*pbl ", nodemask_pr_args(oc->nodemask));
+	mem_cgroup_print_oom_context(oc->memcg, p);
+	pr_cont("\n");
 	if (is_memcg_oom(oc))
-		mem_cgroup_print_oom_info(oc->memcg, p);
+		mem_cgroup_print_oom_meminfo(oc->memcg);
 	else {
 		show_mem(SHOW_MEM_FILTER_NODES, oc->nodemask);
 		if (is_dump_unreclaim_slabs())
