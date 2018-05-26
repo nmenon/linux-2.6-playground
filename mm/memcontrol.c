@@ -1894,6 +1894,18 @@ void mem_cgroup_handle_over_high(void)
 	current->memcg_nr_pages_over_high = 0;
 }
 
+/*
+ * Based on try_charge() force charge conditions.
+ */
+static inline bool should_force_charge(gfp_t gfp_mask)
+{
+	return (unlikely(tsk_is_oom_victim(current) ||
+			 fatal_signal_pending(current) ||
+			 current->flags & PF_EXITING ||
+			 current->flags & PF_MEMALLOC ||
+			 gfp_mask & __GFP_NOFAIL));
+}
+
 static int try_charge(struct mem_cgroup *memcg, gfp_t gfp_mask,
 		      unsigned int nr_pages)
 {
@@ -2009,6 +2021,8 @@ force:
 	 * The allocation either can't fail or will lead to more memory
 	 * being freed very soon.  Allow memory usage go over the limit
 	 * temporarily by force charging it.
+	 *
+	 * NOTE: Please keep the should_force_charge() conditions in sync.
 	 */
 	page_counter_charge(&memcg->memory, nr_pages);
 	if (do_memsw_account())
@@ -2332,8 +2346,11 @@ int memcg_kmem_charge_memcg(struct page *page, gfp_t gfp, int order,
 
 	if (!cgroup_subsys_on_dfl(memory_cgrp_subsys) &&
 	    !page_counter_try_charge(&memcg->kmem, nr_pages, &counter)) {
-		cancel_charge(memcg, nr_pages);
-		return -ENOMEM;
+		if (!should_force_charge(gfp)) {
+			cancel_charge(memcg, nr_pages);
+			return -ENOMEM;
+		}
+		page_counter_charge(&memcg->kmem, nr_pages);
 	}
 
 	page->mem_cgroup = memcg;
