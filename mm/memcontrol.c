@@ -2181,6 +2181,7 @@ static void memcg_kmem_cache_create_func(struct work_struct *w)
 	memcg_create_kmem_cache(memcg, cachep);
 
 	css_put(&memcg->css);
+	kmem_cache_put(cachep);
 	kfree(cw);
 }
 
@@ -2195,6 +2196,12 @@ static void __memcg_schedule_kmem_cache_create(struct mem_cgroup *memcg,
 	cw = kmalloc(sizeof(*cw), GFP_NOWAIT | __GFP_NOWARN);
 	if (!cw)
 		return;
+
+	/* Make sure root kmem cache does not get destroyed in the middle */
+	if (!kmem_cache_tryget(cachep)) {
+		kfree(cw);
+		return;
+	}
 
 	css_get(&memcg->css);
 

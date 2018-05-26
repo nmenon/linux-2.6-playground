@@ -41,7 +41,8 @@ struct kmem_cache {
 /* 4) cache creation/removal */
 	const char *name;
 	struct list_head list;
-	int refcount;
+	refcount_t refcount;
+	int alias_count;
 	int object_size;
 	int align;
 

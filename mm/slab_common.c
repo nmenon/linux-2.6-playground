@@ -306,7 +306,7 @@ int slab_unmergeable(struct kmem_cache *s)
 	/*
 	 * We may have set a slab to be unmergeable during bootstrap.
 	 */
-	if (s->refcount < 0)
+	if (s->alias_count < 0)
 		return 1;
 
 	return 0;
@@ -391,7 +391,8 @@ static struct kmem_cache *create_cache(const char *name,
 	if (err)
 		goto out_free_cache;
 
-	s->refcount = 1;
+	s->alias_count = 1;
+	refcount_set(&s->refcount, 1);
 	list_add(&s->list, &slab_caches);
 	memcg_link_cache(s);
 out:
@@ -611,6 +612,13 @@ void memcg_create_kmem_cache(struct mem_cgroup *memcg,
 	if (memcg->kmem_state != KMEM_ONLINE)
 		goto out_unlock;
 
+	/*
+	 * The root cache has been requested to be destroyed while its memcg
+	 * cache was in creation queue.
+	 */
+	if (!root_cache->alias_count)
+		goto out_unlock;
+
 	idx = memcg_cache_id(memcg);
 	arr = rcu_dereference_protected(root_cache->memcg_params.memcg_caches,
 					lockdep_is_held(&slab_mutex));
@@ -663,6 +671,8 @@ static void kmemcg_deactivate_workfn(struct work_struct *work)
 {
 	struct kmem_cache *s = container_of(work, struct kmem_cache,
 					    memcg_params.deact_work);
+	struct kmem_cache *root = s->memcg_params.root_cache;
+	struct mem_cgroup *memcg = s->memcg_params.memcg;
 
 	get_online_cpus();
 	get_online_mems();
@@ -677,7 +687,8 @@ static void kmemcg_deactivate_workfn(struct work_struct *work)
 	put_online_cpus();
 
 	/* done, put the ref from slab_deactivate_memcg_cache_rcu_sched() */
-	css_put(&s->memcg_params.memcg->css);
+	css_put(&memcg->css);
+	kmem_cache_put(root);
 }
 
 static void kmemcg_deactivate_rcufn(struct rcu_head *head)
@@ -710,6 +721,10 @@ void slab_deactivate_memcg_cache_rcu_sched(struct kmem_cache *s,
 {
 	if (WARN_ON_ONCE(is_root_cache(s)) ||
 	    WARN_ON_ONCE(s->memcg_params.deact_fn))
+		return;
+
+	/* Make sure root kmem_cache does not get destroyed in the middle */
+	if (!kmem_cache_tryget(s->memcg_params.root_cache))
 		return;
 
 	/* pin memcg so that @s doesn't get destroyed in the middle */
@@ -838,21 +853,17 @@ void slab_kmem_cache_release(struct kmem_cache *s)
 	kmem_cache_free(kmem_cache, s);
 }
 
-void kmem_cache_destroy(struct kmem_cache *s)
+static void __kmem_cache_destroy(struct kmem_cache *s, bool lock)
 {
 	int err;
 
-	if (unlikely(!s))
-		return;
+	if (lock) {
+		get_online_cpus();
+		get_online_mems();
+		mutex_lock(&slab_mutex);
+	}
 
-	get_online_cpus();
-	get_online_mems();
-
-	mutex_lock(&slab_mutex);
-
-	s->refcount--;
-	if (s->refcount)
-		goto out_unlock;
+	VM_BUG_ON(s->alias_count);
 
 	err = shutdown_memcg_caches(s);
 	if (!err)
@@ -863,11 +874,42 @@ void kmem_cache_destroy(struct kmem_cache *s)
 		       s->name);
 		dump_stack();
 	}
-out_unlock:
-	mutex_unlock(&slab_mutex);
 
-	put_online_mems();
-	put_online_cpus();
+	if (lock) {
+		mutex_unlock(&slab_mutex);
+		put_online_mems();
+		put_online_cpus();
+	}
+}
+
+bool kmem_cache_tryget(struct kmem_cache *s)
+{
+	if (is_root_cache(s))
+		return refcount_inc_not_zero(&s->refcount);
+	return false;
+}
+
+void kmem_cache_put(struct kmem_cache *s)
+{
+	if (is_root_cache(s) &&
+	    refcount_dec_and_test(&s->refcount))
+		__kmem_cache_destroy(s, true);
+}
+
+void kmem_cache_put_locked(struct kmem_cache *s)
+{
+	if (is_root_cache(s) &&
+	    refcount_dec_and_test(&s->refcount))
+		__kmem_cache_destroy(s, false);
+}
+
+void kmem_cache_destroy(struct kmem_cache *s)
+{
+	if (unlikely(!s))
+		return;
+
+	s->alias_count--;
+	kmem_cache_put(s);
 }
 EXPORT_SYMBOL(kmem_cache_destroy);
 
@@ -919,7 +961,8 @@ void __init create_boot_cache(struct kmem_cache *s, const char *name,
 		panic("Creation of kmalloc slab %s size=%u failed. Reason %d\n",
 					name, size, err);
 
-	s->refcount = -1;	/* Exempt from merging for now */
+	s->alias_count = -1;	/* Exempt from merging for now */
+	refcount_set(&s->refcount, 1);
 }
 
 struct kmem_cache *__init create_kmalloc_cache(const char *name,
@@ -934,7 +977,8 @@ struct kmem_cache *__init create_kmalloc_cache(const char *name,
 	create_boot_cache(s, name, size, flags, useroffset, usersize);
 	list_add(&s->list, &slab_caches);
 	memcg_link_cache(s);
-	s->refcount = 1;
+	s->alias_count = 1;
+	refcount_set(&s->refcount, 1);
 	return s;
 }
 

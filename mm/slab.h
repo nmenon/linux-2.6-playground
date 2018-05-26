@@ -25,7 +25,8 @@ struct kmem_cache {
 	unsigned int useroffset;/* Usercopy region offset */
 	unsigned int usersize;	/* Usercopy region size */
 	const char *name;	/* Slab name for sysfs */
-	int refcount;		/* Use counter */
+	refcount_t refcount;	/* Use counter */
+	int alias_count;
 	void (*ctor)(void *);	/* Called on object slot creation */
 	struct list_head list;	/* List of all slab caches on the system */
 };
@@ -295,7 +296,7 @@ extern void slab_init_memcg_params(struct kmem_cache *);
 extern void memcg_link_cache(struct kmem_cache *s);
 extern void slab_deactivate_memcg_cache_rcu_sched(struct kmem_cache *s,
 				void (*deact_fn)(struct kmem_cache *));
-
+extern void kmem_cache_put_locked(struct kmem_cache *s);
 #else /* CONFIG_MEMCG && !CONFIG_SLOB */
 
 /* If !memcg, all caches are root. */
