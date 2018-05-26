@@ -5832,20 +5832,15 @@ enum mem_cgroup_protection mem_cgroup_protected(struct mem_cgroup *root,
 	if (mem_cgroup_disabled())
 		return MEMCG_PROT_NONE;
 
-	if (!root)
-		root = root_mem_cgroup;
-	if (memcg == root)
+	if (memcg == root_mem_cgroup)
 		return MEMCG_PROT_NONE;
 
 	usage = page_counter_read(&memcg->memory);
-	if (!usage)
-		return MEMCG_PROT_NONE;
-
 	emin = memcg->memory.min;
 	elow = memcg->memory.low;
 
 	parent = parent_mem_cgroup(memcg);
-	if (parent == root)
+	if (parent == root_mem_cgroup)
 		goto exit;
 
 	parent_emin = READ_ONCE(parent->memory.emin);
@@ -5879,6 +5874,12 @@ enum mem_cgroup_protection mem_cgroup_protected(struct mem_cgroup *root,
 exit:
 	memcg->memory.emin = emin;
 	memcg->memory.elow = elow;
+
+	if (root && memcg == root)
+		return MEMCG_PROT_NONE;
+
+	if (!usage)
+		return MEMCG_PROT_NONE;
 
 	if (usage <= emin)
 		return MEMCG_PROT_MIN;
