@@ -2006,8 +2006,10 @@ struct page *alloc_huge_page(struct vm_area_struct *vma,
 	 * code of zero indicates a reservation exists (no change).
 	 */
 	map_chg = gbl_chg = vma_needs_reservation(h, vma, addr);
-	if (map_chg < 0)
-		return ERR_PTR(-ENOMEM);
+	if (map_chg < 0) {
+		ret = -ENOMEM;
+		goto out;
+	}
 
 	/*
 	 * Processes that did not create the mapping will have no
@@ -2019,8 +2021,8 @@ struct page *alloc_huge_page(struct vm_area_struct *vma,
 	if (map_chg || avoid_reserve) {
 		gbl_chg = hugepage_subpool_get_pages(spool, 1);
 		if (gbl_chg < 0) {
-			vma_end_reservation(h, vma, addr);
-			return ERR_PTR(-ENOSPC);
+			ret = -ENOSPC;
+			goto out_reservation;
 		}
 
 		/*
@@ -2049,8 +2051,10 @@ struct page *alloc_huge_page(struct vm_area_struct *vma,
 	if (!page) {
 		spin_unlock(&hugetlb_lock);
 		page = alloc_buddy_huge_page_with_mpol(h, vma, addr);
-		if (!page)
+		if (!page) {
+			ret = -ENOSPC;
 			goto out_uncharge_cgroup;
+		}
 		if (!avoid_reserve && vma_has_reserves(vma, gbl_chg)) {
 			SetPagePrivate(page);
 			h->resv_huge_pages--;
@@ -2087,8 +2091,10 @@ out_uncharge_cgroup:
 out_subpool_put:
 	if (map_chg || avoid_reserve)
 		hugepage_subpool_put_pages(spool, 1);
+out_reservation:
 	vma_end_reservation(h, vma, addr);
-	return ERR_PTR(-ENOSPC);
+out:
+	return ERR_PTR(ret);
 }
 
 int alloc_bootmem_huge_page(struct hstate *h)
