@@ -432,7 +432,7 @@ static void dump_header(struct oom_control *oc, struct task_struct *p)
 
 	cpuset_print_current_mems_allowed();
 	dump_stack();
-	pr_info("oom-kill: constrain=CONSTRAINT_");
+	pr_info("oom-kill: constraint=CONSTRAINT_");
 	switch (constraint) {
 	case CONSTRAINT_NONE:
 		pr_cont("NONE ");
