@@ -5397,7 +5397,7 @@ static int memory_min_show(struct seq_file *m, void *v)
 static ssize_t memory_min_write(struct kernfs_open_file *of,
 				char *buf, size_t nbytes, loff_t off)
 {
-	struct mem_cgroup *memcg = mem_cgroup_from_css(of_css(of));
+	struct mem_cgroup *iter, *memcg = mem_cgroup_from_css(of_css(of));
 	unsigned long min;
 	int err;
 
@@ -5407,6 +5407,11 @@ static ssize_t memory_min_write(struct kernfs_open_file *of,
 		return err;
 
 	page_counter_set_min(&memcg->memory, min);
+
+	rcu_read_lock();
+	for_each_mem_cgroup_tree(iter, memcg)
+		mem_cgroup_protected(NULL, iter);
+	rcu_read_unlock();
 
 	return nbytes;
 }
@@ -5427,7 +5432,7 @@ static int memory_low_show(struct seq_file *m, void *v)
 static ssize_t memory_low_write(struct kernfs_open_file *of,
 				char *buf, size_t nbytes, loff_t off)
 {
-	struct mem_cgroup *memcg = mem_cgroup_from_css(of_css(of));
+	struct mem_cgroup *iter, *memcg = mem_cgroup_from_css(of_css(of));
 	unsigned long low;
 	int err;
 
@@ -5437,6 +5442,11 @@ static ssize_t memory_low_write(struct kernfs_open_file *of,
 		return err;
 
 	page_counter_set_low(&memcg->memory, low);
+
+	rcu_read_lock();
+	for_each_mem_cgroup_tree(iter, memcg)
+		mem_cgroup_protected(NULL, iter);
+	rcu_read_unlock();
 
 	return nbytes;
 }
