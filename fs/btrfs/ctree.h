@@ -3271,8 +3271,9 @@ void btrfs_get_block_group_info(struct list_head *groups_list,
 				struct btrfs_ioctl_space_info *space);
 void update_ioctl_balance_args(struct btrfs_fs_info *fs_info, int lock,
 			       struct btrfs_ioctl_balance_args *bargs);
-loff_t btrfs_dedupe_file_range(struct file *src_file, u64 loff, u64 olen,
-			    struct file *dst_file, u64 dst_loff);
+loff_t btrfs_dedupe_file_range(struct file *src_file, loff_t loff,
+			       struct file *dst_file, loff_t dst_loff,
+			       loff_t olen);
 
 /* file.c */
 int __init btrfs_auto_defrag_init(void);

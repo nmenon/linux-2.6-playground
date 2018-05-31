@@ -1738,8 +1738,8 @@ struct file_operations {
 			loff_t, size_t, unsigned int);
 	int (*clone_file_range)(struct file *, loff_t, struct file *, loff_t,
 			u64);
-	loff_t (*dedupe_file_range)(struct file *, u64, u64, struct file *,
-			u64);
+	loff_t (*dedupe_file_range)(struct file *, loff_t,
+				    struct file *, loff_t, loff_t);
 } __randomize_layout;
 
 struct inode_operations {

@@ -875,10 +875,10 @@ xfs_file_clone_range(
 STATIC loff_t
 xfs_file_dedupe_range(
 	struct file	*src_file,
-	u64		loff,
-	u64		len,
+	loff_t		loff,
 	struct file	*dst_file,
-	u64		dst_loff)
+	loff_t		dst_loff,
+	loff_t		len)
 {
 	struct inode	*srci = file_inode(src_file);
 	u64		max_dedupe;

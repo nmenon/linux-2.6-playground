@@ -2538,10 +2538,10 @@ static int ocfs2_file_clone_range(struct file *file_in,
 }
 
 static loff_t ocfs2_file_dedupe_range(struct file *src_file,
-				      u64 loff,
-				      u64 len,
+				      loff_t loff,
 				      struct file *dst_file,
-				      u64 dst_loff)
+				      loff_t dst_loff,
+				      loff_t len)
 {
 	int error;
 
