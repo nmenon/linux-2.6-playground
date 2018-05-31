@@ -203,6 +203,19 @@ static int disable_axi(struct msm_gpu *gpu)
 	return 0;
 }
 
+void msm_gpu_resume_devfreq(struct msm_gpu *gpu)
+{
+	gpu->devfreq.busy_cycles = 0;
+	gpu->devfreq.time = ktime_get();
+
+	devfreq_resume_device(gpu->devfreq.devfreq);
+}
+
+void msm_gpu_suspend_devfreq(struct msm_gpu *gpu)
+{
+	devfreq_suspend_device(gpu->devfreq.devfreq);
+}
+
 int msm_gpu_pm_resume(struct msm_gpu *gpu)
 {
 	int ret;
@@ -221,12 +234,7 @@ int msm_gpu_pm_resume(struct msm_gpu *gpu)
 	if (ret)
 		return ret;
 
-	if (gpu->devfreq.devfreq) {
-		gpu->devfreq.busy_cycles = 0;
-		gpu->devfreq.time = ktime_get();
-
-		devfreq_resume_device(gpu->devfreq.devfreq);
-	}
+	msm_gpu_resume_devfreq(gpu);
 
 	gpu->needs_hw_init = true;
 
@@ -239,8 +247,7 @@ int msm_gpu_pm_suspend(struct msm_gpu *gpu)
 
 	DBG("%s", gpu->name);
 
-	if (gpu->devfreq.devfreq)
-		devfreq_suspend_device(gpu->devfreq.devfreq);
+	msm_gpu_suspend_devfreq(gpu);
 
 	ret = disable_axi(gpu);
 	if (ret)
