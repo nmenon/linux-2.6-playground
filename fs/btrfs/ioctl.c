@@ -3194,13 +3194,13 @@ out_unlock:
 
 #define BTRFS_MAX_DEDUPE_LEN	SZ_16M
 
-ssize_t btrfs_dedupe_file_range(struct file *src_file, u64 loff, u64 olen,
-				struct file *dst_file, u64 dst_loff)
+loff_t btrfs_dedupe_file_range(struct file *src_file, u64 loff, u64 olen,
+			       struct file *dst_file, u64 dst_loff)
 {
 	struct inode *src = file_inode(src_file);
 	struct inode *dst = file_inode(dst_file);
 	u64 bs = BTRFS_I(src)->root->fs_info->sb->s_blocksize;
-	ssize_t res;
+	int res;
 
 	if (olen > BTRFS_MAX_DEDUPE_LEN)
 		olen = BTRFS_MAX_DEDUPE_LEN;
