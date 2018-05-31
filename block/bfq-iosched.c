@@ -49,9 +49,39 @@
  *
  * In particular, to provide these low-latency guarantees, BFQ
  * explicitly privileges the I/O of two classes of time-sensitive
- * applications: interactive and soft real-time. This feature enables
- * BFQ to provide applications in these classes with a very low
- * latency. Finally, BFQ also features additional heuristics for
+ * applications: interactive and soft real-time. In more detail, BFQ
+ * behaves this way if the low_latency parameter is set (default
+ * configuration). This feature enables BFQ to provide applications in
+ * these classes with a very low latency.
+ *
+ * To implement this feature, BFQ constantly tries to detect whether
+ * the I/O requests in a bfq_queue come from an interactive or a soft
+ * real-time application. For brevity, in these cases, the queue is
+ * said to be interactive or soft real-time. In both cases, BFQ
+ * privileges the service of the queue, over that of non-interactive
+ * and non-soft-real-time queues. This privileging is performed,
+ * mainly, by raising the weight of the queue. So, for brevity, we
+ * call just weight-raising periods the time periods during which a
+ * queue is privileged, because deemed interactive or soft real-time.
+ *
+ * The detection of soft real-time queues/applications is described in
+ * detail in the comments on the function
+ * bfq_bfqq_softrt_next_start. On the other hand, the detection of an
+ * interactive queue works as follows: a queue is deemed interactive
+ * if it is constantly non empty only for a limited time interval,
+ * after which it does become empty. The queue may be deemed
+ * interactive again (for a limited time), if it restarts being
+ * constantly non empty, provided that this happens only after the
+ * queue has remained empty for a given minimum idle time.
+ *
+ * By default, BFQ computes automatically the above maximum time
+ * interval, i.e., the time interval after which a constantly
+ * non-empty queue stops being deemed interactive. Since a queue is
+ * weight-raised while it is deemed interactive, this maximum time
+ * interval happens to coincide with the (maximum) duration of the
+ * weight-raising for interactive queues.
+ *
+ * Finally, BFQ also features additional heuristics for
  * preserving both a low latency and a high throughput on NCQ-capable,
  * rotational or flash-based devices, and to get the job done quickly
  * for applications consisting in many I/O-bound processes.
@@ -61,14 +91,14 @@
  * all low-latency heuristics for that device, by setting low_latency
  * to 0.
  *
- * BFQ is described in [1], where also a reference to the initial, more
- * theoretical paper on BFQ can be found. The interested reader can find
- * in the latter paper full details on the main algorithm, as well as
- * formulas of the guarantees and formal proofs of all the properties.
- * With respect to the version of BFQ presented in these papers, this
- * implementation adds a few more heuristics, such as the one that
- * guarantees a low latency to soft real-time applications, and a
- * hierarchical extension based on H-WF2Q+.
+ * BFQ is described in [1], where also a reference to the initial,
+ * more theoretical paper on BFQ can be found. The interested reader
+ * can find in the latter paper full details on the main algorithm, as
+ * well as formulas of the guarantees and formal proofs of all the
+ * properties.  With respect to the version of BFQ presented in these
+ * papers, this implementation adds a few more heuristics, such as the
+ * ones that guarantee a low latency to interactive and soft real-time
+ * applications, and a hierarchical extension based on H-WF2Q+.
  *
  * B-WF2Q+ is based on WF2Q+, which is described in [2], together with
  * H-WF2Q+, while the augmented tree used here to implement B-WF2Q+
@@ -218,56 +248,46 @@ static struct kmem_cache *bfq_pool;
 #define BFQ_RATE_SHIFT		16
 
 /*
- * By default, BFQ computes the duration of the weight raising for
- * interactive applications automatically, using the following formula:
- * duration = (R / r) * T, where r is the peak rate of the device, and
- * R and T are two reference parameters.
- * In particular, R is the peak rate of the reference device (see
- * below), and T is a reference time: given the systems that are
- * likely to be installed on the reference device according to its
- * speed class, T is about the maximum time needed, under BFQ and
- * while reading two files in parallel, to load typical large
- * applications on these systems (see the comments on
- * max_service_from_wr below, for more details on how T is obtained).
- * In practice, the slower/faster the device at hand is, the more/less
- * it takes to load applications with respect to the reference device.
- * Accordingly, the longer/shorter BFQ grants weight raising to
- * interactive applications.
+ * When configured for computing the duration of the weight-raising
+ * for interactive queues automatically (see the comments at the
+ * beginning of this file), BFQ does it using the following formula:
+ * duration = (ref_rate / r) * ref_wr_duration,
+ * where r is the peak rate of the device, and ref_rate and
+ * ref_wr_duration are two reference parameters.  In particular,
+ * ref_rate is the peak rate of the reference storage device (see
+ * below), and ref_wr_duration is about the maximum time needed, with
+ * BFQ and while reading two files in parallel, to load typical large
+ * applications on the reference device (see the comments on
+ * max_service_from_wr below, for more details on how ref_wr_duration
+ * is obtained).  In practice, the slower/faster the device at hand
+ * is, the more/less it takes to load applications with respect to the
+ * reference device.  Accordingly, the longer/shorter BFQ grants
+ * weight raising to interactive applications.
  *
- * BFQ uses four different reference pairs (R, T), depending on:
- * . whether the device is rotational or non-rotational;
- * . whether the device is slow, such as old or portable HDDs, as well as
- *   SD cards, or fast, such as newer HDDs and SSDs.
+ * BFQ uses two different reference pairs (ref_rate, ref_wr_duration),
+ * depending on whether the device is rotational or non-rotational.
  *
- * The device's speed class is dynamically (re)detected in
- * bfq_update_peak_rate() every time the estimated peak rate is updated.
+ * In the following definitions, ref_rate[0] and ref_wr_duration[0]
+ * are the reference values for a rotational device, whereas
+ * ref_rate[1] and ref_wr_duration[1] are the reference values for a
+ * non-rotational device. The reference rates are not the actual peak
+ * rates of the devices used as a reference, but slightly lower
+ * values. The reason for using slightly lower values is that the
+ * peak-rate estimator tends to yield slightly lower values than the
+ * actual peak rate (it can yield the actual peak rate only if there
+ * is only one process doing I/O, and the process does sequential
+ * I/O).
  *
- * In the following definitions, R_slow[0]/R_fast[0] and
- * T_slow[0]/T_fast[0] are the reference values for a slow/fast
- * rotational device, whereas R_slow[1]/R_fast[1] and
- * T_slow[1]/T_fast[1] are the reference values for a slow/fast
- * non-rotational device. Finally, device_speed_thresh are the
- * thresholds used to switch between speed classes. The reference
- * rates are not the actual peak rates of the devices used as a
- * reference, but slightly lower values. The reason for using these
- * slightly lower values is that the peak-rate estimator tends to
- * yield slightly lower values than the actual peak rate (it can yield
- * the actual peak rate only if there is only one process doing I/O,
- * and the process does sequential I/O).
- *
- * Both the reference peak rates and the thresholds are measured in
- * sectors/usec, left-shifted by BFQ_RATE_SHIFT.
+ * The reference peak rates are measured in sectors/usec, left-shifted
+ * by BFQ_RATE_SHIFT.
  */
-static int R_slow[2] = {1000, 10700};
-static int R_fast[2] = {14000, 33000};
+static int ref_rate[2] = {14000, 33000};
 /*
- * To improve readability, a conversion function is used to initialize the
- * following arrays, which entails that they can be initialized only in a
- * function.
+ * To improve readability, a conversion function is used to initialize
+ * the following array, which entails that the array can be
+ * initialized only in a function.
  */
-static int T_slow[2];
-static int T_fast[2];
-static int device_speed_thresh[2];
+static int ref_wr_duration[2];
 
 /*
  * BFQ uses the above-detailed, time-based weight-raising mechanism to
@@ -852,26 +872,30 @@ static unsigned int bfq_wr_duration(struct bfq_data *bfqd)
 	if (bfqd->bfq_wr_max_time > 0)
 		return bfqd->bfq_wr_max_time;
 
-	dur = bfqd->RT_prod;
+	dur = bfqd->rate_dur_prod;
 	do_div(dur, bfqd->peak_rate);
 
 	/*
-	 * Limit duration between 3 and 13 seconds. Tests show that
-	 * higher values than 13 seconds often yield the opposite of
-	 * the desired result, i.e., worsen responsiveness by letting
-	 * non-interactive and non-soft-real-time applications
-	 * preserve weight raising for a too long time interval.
+	 * Limit duration between 3 and 25 seconds. The upper limit
+	 * has been conservatively set after the following worst case:
+	 * on a QEMU/KVM virtual machine
+	 * - running in a slow PC
+	 * - with a virtual disk stacked on a slow low-end 5400rpm HDD
+	 * - serving a heavy I/O workload, such as the sequential reading
+	 *   of several files
+	 * mplayer took 23 seconds to start, if constantly weight-raised.
+	 *
+	 * As for higher values than that accomodating the above bad
+	 * scenario, tests show that higher values would often yield
+	 * the opposite of the desired result, i.e., would worsen
+	 * responsiveness by allowing non-interactive applications to
+	 * preserve weight raising for too long.
 	 *
 	 * On the other end, lower values than 3 seconds make it
 	 * difficult for most interactive tasks to complete their jobs
 	 * before weight-raising finishes.
 	 */
-	if (dur > msecs_to_jiffies(13000))
-		dur = msecs_to_jiffies(13000);
-	else if (dur < msecs_to_jiffies(3000))
-		dur = msecs_to_jiffies(3000);
-
-	return dur;
+	return clamp_val(dur, msecs_to_jiffies(3000), msecs_to_jiffies(25000));
 }
 
 /* switch back from soft real-time to interactive weight raising */
@@ -1339,15 +1363,6 @@ static bool bfq_bfqq_update_budg_for_activation(struct bfq_data *bfqd,
 }
 
 /*
- * Return the farthest future time instant according to jiffies
- * macros.
- */
-static unsigned long bfq_greatest_from_now(void)
-{
-	return jiffies + MAX_JIFFY_OFFSET;
-}
-
-/*
  * Return the farthest past time instant according to jiffies
  * macros.
  */
@@ -1491,7 +1506,8 @@ static void bfq_bfqq_handle_idle_busy_switch(struct bfq_data *bfqd,
 	in_burst = bfq_bfqq_in_large_burst(bfqq);
 	soft_rt = bfqd->bfq_wr_max_softrt_rate > 0 &&
 		!in_burst &&
-		time_is_before_jiffies(bfqq->soft_rt_next_start);
+		time_is_before_jiffies(bfqq->soft_rt_next_start) &&
+		bfqq->dispatched == 0;
 	*interactive = !in_burst && idle_for_long_time;
 	wr_or_deserves_wr = bfqd->low_latency &&
 		(bfqq->wr_coeff > 1 ||
@@ -1839,15 +1855,25 @@ static void bfq_request_merged(struct request_queue *q, struct request *req,
 	}
 }
 
+/*
+ * This function is called to notify the scheduler that the requests
+ * rq and 'next' have been merged, with 'next' going away.  BFQ
+ * exploits this hook to address the following issue: if 'next' has a
+ * fifo_time lower that rq, then the fifo_time of rq must be set to
+ * the value of 'next', to not forget the greater age of 'next'.
+ *
+ * NOTE: in this function we assume that rq is in a bfq_queue, basing
+ * on that rq is picked from the hash table q->elevator->hash, which,
+ * in its turn, is filled only with I/O requests present in
+ * bfq_queues, while BFQ is in use for the request queue q. In fact,
+ * the function that fills this hash table (elv_rqhash_add) is called
+ * only by bfq_insert_request.
+ */
 static void bfq_requests_merged(struct request_queue *q, struct request *rq,
 				struct request *next)
 {
 	struct bfq_queue *bfqq = bfq_init_rq(rq),
 		*next_bfqq = bfq_init_rq(next);
-
-	if (!RB_EMPTY_NODE(&rq->rb_node))
-		goto end;
-	spin_lock_irq(&bfqq->bfqd->lock);
 
 	/*
 	 * If next and rq belong to the same bfq_queue and next is older
@@ -1869,11 +1895,6 @@ static void bfq_requests_merged(struct request_queue *q, struct request *rq,
 	if (bfqq->next_rq == next)
 		bfqq->next_rq = rq;
 
-	bfq_remove_request(q, next);
-	bfqg_stats_update_io_remove(bfqq_group(bfqq), next->cmd_flags);
-
-	spin_unlock_irq(&bfqq->bfqd->lock);
-end:
 	bfqg_stats_update_io_merged(bfqq_group(bfqq), next->cmd_flags);
 }
 
@@ -2455,37 +2476,15 @@ static unsigned long bfq_calc_max_budget(struct bfq_data *bfqd)
 /*
  * Update parameters related to throughput and responsiveness, as a
  * function of the estimated peak rate. See comments on
- * bfq_calc_max_budget(), and on T_slow and T_fast arrays.
+ * bfq_calc_max_budget(), and on the ref_wr_duration array.
  */
 static void update_thr_responsiveness_params(struct bfq_data *bfqd)
 {
-	int dev_type = blk_queue_nonrot(bfqd->queue);
-
-	if (bfqd->bfq_user_max_budget == 0)
+	if (bfqd->bfq_user_max_budget == 0) {
 		bfqd->bfq_max_budget =
 			bfq_calc_max_budget(bfqd);
-
-	if (bfqd->device_speed == BFQ_BFQD_FAST &&
-	    bfqd->peak_rate < device_speed_thresh[dev_type]) {
-		bfqd->device_speed = BFQ_BFQD_SLOW;
-		bfqd->RT_prod = R_slow[dev_type] *
-			T_slow[dev_type];
-	} else if (bfqd->device_speed == BFQ_BFQD_SLOW &&
-		   bfqd->peak_rate > device_speed_thresh[dev_type]) {
-		bfqd->device_speed = BFQ_BFQD_FAST;
-		bfqd->RT_prod = R_fast[dev_type] *
-			T_fast[dev_type];
+		bfq_log(bfqd, "new max_budget = %d", bfqd->bfq_max_budget);
 	}
-
-	bfq_log(bfqd,
-"dev_type %s dev_speed_class = %s (%llu sects/sec), thresh %llu setcs/sec",
-		dev_type == 0 ? "ROT" : "NONROT",
-		bfqd->device_speed == BFQ_BFQD_FAST ? "FAST" : "SLOW",
-		bfqd->device_speed == BFQ_BFQD_FAST ?
-		(USEC_PER_SEC*(u64)R_fast[dev_type])>>BFQ_RATE_SHIFT :
-		(USEC_PER_SEC*(u64)R_slow[dev_type])>>BFQ_RATE_SHIFT,
-		(USEC_PER_SEC*(u64)device_speed_thresh[dev_type])>>
-		BFQ_RATE_SHIFT);
 }
 
 static void bfq_reset_rate_computation(struct bfq_data *bfqd,
@@ -3214,23 +3213,6 @@ void bfq_bfqq_expire(struct bfq_data *bfqd,
 			bfqq->soft_rt_next_start =
 				bfq_bfqq_softrt_next_start(bfqd, bfqq);
 		else {
-			/*
-			 * The application is still waiting for the
-			 * completion of one or more requests:
-			 * prevent it from possibly being incorrectly
-			 * deemed as soft real-time by setting its
-			 * soft_rt_next_start to infinity. In fact,
-			 * without this assignment, the application
-			 * would be incorrectly deemed as soft
-			 * real-time if:
-			 * 1) it issued a new request before the
-			 *    completion of all its in-flight
-			 *    requests, and
-			 * 2) at that time, its soft_rt_next_start
-			 *    happened to be in the past.
-			 */
-			bfqq->soft_rt_next_start =
-				bfq_greatest_from_now();
 			/*
 			 * Schedule an update of soft_rt_next_start to when
 			 * the task may be discovered to be isochronous.
@@ -5274,14 +5256,12 @@ static int bfq_init_queue(struct request_queue *q, struct elevator_type *e)
 	bfqd->wr_busy_queues = 0;
 
 	/*
-	 * Begin by assuming, optimistically, that the device is a
-	 * high-speed one, and that its peak rate is equal to 2/3 of
-	 * the highest reference rate.
+	 * Begin by assuming, optimistically, that the device peak
+	 * rate is equal to 2/3 of the highest reference rate.
 	 */
-	bfqd->RT_prod = R_fast[blk_queue_nonrot(bfqd->queue)] *
-			T_fast[blk_queue_nonrot(bfqd->queue)];
-	bfqd->peak_rate = R_fast[blk_queue_nonrot(bfqd->queue)] * 2 / 3;
-	bfqd->device_speed = BFQ_BFQD_FAST;
+	bfqd->rate_dur_prod = ref_rate[blk_queue_nonrot(bfqd->queue)] *
+		ref_wr_duration[blk_queue_nonrot(bfqd->queue)];
+	bfqd->peak_rate = ref_rate[blk_queue_nonrot(bfqd->queue)] * 2 / 3;
 
 	spin_lock_init(&bfqd->lock);
 
@@ -5589,8 +5569,8 @@ static int __init bfq_init(void)
 	/*
 	 * Times to load large popular applications for the typical
 	 * systems installed on the reference devices (see the
-	 * comments before the definitions of the next two
-	 * arrays). Actually, we use slightly slower values, as the
+	 * comments before the definition of the next
+	 * array). Actually, we use slightly lower values, as the
 	 * estimated peak rate tends to be smaller than the actual
 	 * peak rate.  The reason for this last fact is that estimates
 	 * are computed over much shorter time intervals than the long
@@ -5599,25 +5579,8 @@ static int __init bfq_init(void)
 	 * scheduler cannot rely on a peak-rate-evaluation workload to
 	 * be run for a long time.
 	 */
-	T_slow[0] = msecs_to_jiffies(3500); /* actually 4 sec */
-	T_slow[1] = msecs_to_jiffies(6000); /* actually 6.5 sec */
-	T_fast[0] = msecs_to_jiffies(7000); /* actually 8 sec */
-	T_fast[1] = msecs_to_jiffies(2500); /* actually 3 sec */
-
-	/*
-	 * Thresholds that determine the switch between speed classes
-	 * (see the comments before the definition of the array
-	 * device_speed_thresh). These thresholds are biased towards
-	 * transitions to the fast class. This is safer than the
-	 * opposite bias. In fact, a wrong transition to the slow
-	 * class results in short weight-raising periods, because the
-	 * speed of the device then tends to be higher that the
-	 * reference peak rate. On the opposite end, a wrong
-	 * transition to the fast class tends to increase
-	 * weight-raising periods, because of the opposite reason.
-	 */
-	device_speed_thresh[0] = (4 * R_slow[0]) / 3;
-	device_speed_thresh[1] = (4 * R_slow[1]) / 3;
+	ref_wr_duration[0] = msecs_to_jiffies(7000); /* actually 8 sec */
+	ref_wr_duration[1] = msecs_to_jiffies(2500); /* actually 3 sec */
 
 	ret = elv_register(&iosched_bfq_mq);
 	if (ret)
