@@ -103,3 +103,24 @@ config OVERLAY_FS_XINO_AUTO
 	  For more information, see Documentation/filesystems/overlayfs.txt
 
 	  If unsure, say N.
+
+config OVERLAY_FS_COPY_UP_SHARED
+	bool "Overlayfs: copy up when mapping a file shared"
+	default n
+	depends on OVERLAY_FS
+	help
+	  If this option is enabled then on mapping a file with MAP_SHARED
+	  overlayfs copies up the file in anticipation of it being modified
+	  (just like we copy up the file on O_WRONLY and O_RDWR in anticipation
+	  of modification).  This does not interfere with shared library
+	  loading, as that uses MAP_PRIVATE.  But there might be use cases out
+	  there where this impacts performance and disk usage.
+
+	  This just selects the default, the feature can also be enabled or
+	  disabled in the running kernel or individually on each overlay mount.
+
+	  To get maximally standard compliant behavior, enable this option.
+
+	  To get a maximally backward compatible kernel, disable this option.
+
+	  If unsure, say N.

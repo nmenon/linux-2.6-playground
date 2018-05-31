@@ -10,6 +10,7 @@
 #include <linux/file.h>
 #include <linux/mount.h>
 #include <linux/xattr.h>
+#include <linux/mman.h>
 #include <linux/uio.h>
 #include "overlayfs.h"
 
@@ -259,6 +260,26 @@ static int ovl_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 	return ret;
 }
 
+static int ovl_pre_mmap(struct file *file, unsigned long prot,
+			unsigned long flag)
+{
+	int err = 0;
+
+	/*
+	 * Take MAP_SHARED as hint about future writes to the file (through
+	 * another file descriptor).  Caller might not have had such an intent,
+	 * but we hope MAP_PRIVATE will be used in most such cases.
+	 *
+	 * If we don't copy up now and the file is modified, it becomes really
+	 * difficult to change the mapping to match that of the file's content
+	 * later.
+	 */
+	if ((flag & MAP_SHARED) && ovl_copy_up_shared(file_inode(file)->i_sb))
+		err = ovl_copy_up(file_dentry(file));
+
+	return err;
+}
+
 static int ovl_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct fd real;
@@ -476,6 +497,7 @@ const struct file_operations ovl_file_operations = {
 	.read_iter	= ovl_read_iter,
 	.write_iter	= ovl_write_iter,
 	.fsync		= ovl_fsync,
+	.pre_mmap	= ovl_pre_mmap,
 	.mmap		= ovl_mmap,
 	.fallocate	= ovl_fallocate,
 	.unlocked_ioctl	= ovl_ioctl,

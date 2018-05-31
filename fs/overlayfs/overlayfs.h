@@ -266,6 +266,13 @@ static inline unsigned int ovl_xino_bits(struct super_block *sb)
 	return ofs->xino_bits;
 }
 
+static inline bool ovl_copy_up_shared(struct super_block *sb)
+{
+	struct ovl_fs *ofs = sb->s_fs_info;
+
+	return !(sb->s_flags & SB_RDONLY) && ofs->config.copy_up_shared;
+}
+
 
 /* namei.c */
 int ovl_check_fh_len(struct ovl_fh *fh, int fh_len);

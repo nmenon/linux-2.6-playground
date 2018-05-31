@@ -56,6 +56,12 @@ module_param_named(xino_auto, ovl_xino_auto_def, bool, 0644);
 MODULE_PARM_DESC(ovl_xino_auto_def,
 		 "Auto enable xino feature");
 
+static bool ovl_copy_up_shared_def =
+	IS_ENABLED(CONFIG_OVERLAY_FS_COPY_UP_SHARED);
+module_param_named(copy_up_shared, ovl_copy_up_shared_def, bool, 0644);
+MODULE_PARM_DESC(ovl_copy_up_shared_def,
+		 "Copy up when mapping a file shared");
+
 static void ovl_entry_stack_free(struct ovl_entry *oe)
 {
 	unsigned int i;
@@ -380,6 +386,9 @@ static int ovl_show_options(struct seq_file *m, struct dentry *dentry)
 						"on" : "off");
 	if (ofs->config.xino != ovl_xino_def())
 		seq_printf(m, ",xino=%s", ovl_xino_str[ofs->config.xino]);
+	if (ofs->config.copy_up_shared != ovl_copy_up_shared_def)
+		seq_printf(m, ",copy_up_shared=%s",
+			   ofs->config.copy_up_shared ? "on" : "off");
 	return 0;
 }
 
@@ -417,6 +426,8 @@ enum {
 	OPT_XINO_ON,
 	OPT_XINO_OFF,
 	OPT_XINO_AUTO,
+	OPT_COPY_UP_SHARED_ON,
+	OPT_COPY_UP_SHARED_OFF,
 	OPT_ERR,
 };
 
@@ -433,6 +444,8 @@ static const match_table_t ovl_tokens = {
 	{OPT_XINO_ON,			"xino=on"},
 	{OPT_XINO_OFF,			"xino=off"},
 	{OPT_XINO_AUTO,			"xino=auto"},
+	{OPT_COPY_UP_SHARED_ON,		"copy_up_shared=on"},
+	{OPT_COPY_UP_SHARED_OFF,	"copy_up_shared=off"},
 	{OPT_ERR,			NULL}
 };
 
@@ -557,6 +570,14 @@ static int ovl_parse_opt(char *opt, struct ovl_config *config)
 
 		case OPT_XINO_AUTO:
 			config->xino = OVL_XINO_AUTO;
+			break;
+
+		case OPT_COPY_UP_SHARED_ON:
+			config->copy_up_shared = true;
+			break;
+
+		case OPT_COPY_UP_SHARED_OFF:
+			config->copy_up_shared = false;
 			break;
 
 		default:
@@ -1379,6 +1400,7 @@ static int ovl_fill_super(struct super_block *sb, void *data, int silent)
 	ofs->config.index = ovl_index_def;
 	ofs->config.nfs_export = ovl_nfs_export_def;
 	ofs->config.xino = ovl_xino_def();
+	ofs->config.copy_up_shared = ovl_copy_up_shared_def;
 	err = ovl_parse_opt((char *) data, &ofs->config);
 	if (err)
 		goto out_err;
