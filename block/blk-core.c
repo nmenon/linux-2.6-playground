@@ -999,6 +999,11 @@ struct request_queue *blk_alloc_queue_node(gfp_t gfp_mask, int node_id,
 	if (!q)
 		return NULL;
 
+	INIT_LIST_HEAD(&q->queue_head);
+	q->last_merge = NULL;
+	q->end_sector = 0;
+	q->boundary_rq = NULL;
+
 	q->id = ida_simple_get(&blk_queue_ida, 0, 0, gfp_mask);
 	if (q->id < 0)
 		goto fail_q;
@@ -1170,16 +1175,8 @@ int blk_init_allocated_queue(struct request_queue *q)
 
 	q->sg_reserved_size = INT_MAX;
 
-	/* Protect q->elevator from elevator_change */
-	mutex_lock(&q->sysfs_lock);
-
-	/* init elevator */
-	if (elevator_init(q, NULL)) {
-		mutex_unlock(&q->sysfs_lock);
+	if (elevator_init(q))
 		goto out_exit_flush_rq;
-	}
-
-	mutex_unlock(&q->sysfs_lock);
 	return 0;
 
 out_exit_flush_rq:
