@@ -56,6 +56,7 @@ struct gdsc {
 #define SW_RESET	BIT(3)
 #define AON_RESET	BIT(4)
 #define POLL_CFG_GDSCR	BIT(5)
+#define ALWAYS_ON	BIT(6)
 	struct reset_controller_dev	*rcdev;
 	unsigned int			*resets;
 	unsigned int			reset_count;
