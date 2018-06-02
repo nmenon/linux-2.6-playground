@@ -27,6 +27,12 @@ next/soc
 		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.18/soc-late-signed
 	patch
 		ARM: stm32: Don't select DMA unconditionally on STM32MP157C
+	renesas/soc
+		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-soc-for-v4.18
+	imx/maintainers
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-maintainers-4.18
+	pxa/soc
+		https://github.com/rjarzmik/linux tags/pxa-for-4.18
 
 next/dt
 	ux500/dts
@@ -127,6 +133,10 @@ next/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-dts-for-4.18-2
 	renesas/dt-bindings
 		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-dt-bindings-for-v4.18
+	patch
+		ARM: dts: aspeed: Fix hwrng register address
+	pxa/dt
+		https://github.com/rjarzmik/linux tags/pxa-dt-4.18
 
 next/drivers
 	patch
@@ -156,6 +166,8 @@ next/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-drivers-4.18
 	rockchip/drivers-2
 		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.18-rockchip-drivers-2
+	patch
+		ARM: tegra: fix compile-testing PCI host driver
 
 next/defconfig
 	patch
@@ -190,14 +202,10 @@ next/defconfig
 next/late
 	qcom/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-drivers-for-4.18
+	renesas/arm64-dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-dt-for-v4.18
+	renesas/dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-dt-for-v4.18
 
 fixes
-	<no branch> (d89ad4f0b44dde8c5333ef7a5d5824829cc72de3)
-		https://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-fixes-for-4.17
-	<no branch> (5ec3444c8346c922316f4effafa8afc17defda0e)
-		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-fixes-for-4.17-rc7
-	patch
-		ARM: Fix i2c-gpio GPIO descriptor tables
-	<no branch> (9c6d26df1fae6ad4718d51c48e6517913304ed27)
-		git://github.com/hisilicon/linux-hisi tags/hisi-fixes-for-4.17v2
 
