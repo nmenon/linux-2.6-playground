@@ -179,12 +179,20 @@ EXPORT_SYMBOL_GPL(hwpoison_filter);
  * ``action required'' if error happened in current execution context
  */
 static int kill_proc(struct task_struct *t, unsigned long addr,
-			unsigned long pfn, unsigned size_shift, int flags)
+		struct address_space *mapping, struct page *page,
+		unsigned size_shift, int flags)
 {
-	int ret;
+	int ret = 0;
+
+	/* revalidate the page before killing the process */
+	xa_lock_irq(&mapping->i_pages);
+	if (page->mapping != mapping) {
+		xa_unlock_irq(&mapping->i_pages);
+		return 0;
+	}
 
 	pr_err("Memory failure: %#lx: Killing %s:%d due to hardware memory corruption\n",
-		pfn, t->comm, t->pid);
+			page_to_pfn(page), t->comm, t->pid);
 
 	if ((flags & MF_ACTION_REQUIRED) && t->mm == current->mm) {
 		ret = force_sig_mceerr(BUS_MCEERR_AR, (void __user *)addr,
@@ -199,6 +207,7 @@ static int kill_proc(struct task_struct *t, unsigned long addr,
 		ret = send_sig_mceerr(BUS_MCEERR_AO, (void __user *)addr,
 				      size_shift, t);  /* synchronous? */
 	}
+	xa_unlock_irq(&mapping->i_pages);
 	if (ret < 0)
 		pr_info("Memory failure: Error sending signal to %s:%d: %d\n",
 			t->comm, t->pid, ret);
@@ -316,8 +325,8 @@ static void add_to_kill(struct task_struct *tsk, struct page *p,
  * wrong earlier.
  */
 static void kill_procs(struct list_head *to_kill, int forcekill,
-			  bool fail, unsigned size_shift, unsigned long pfn,
-			  int flags)
+		bool fail, unsigned size_shift, struct address_space *mapping,
+		struct page *page, int flags)
 {
 	struct to_kill *tk, *next;
 
@@ -330,7 +339,8 @@ static void kill_procs(struct list_head *to_kill, int forcekill,
 			 */
 			if (fail || tk->addr_valid == 0) {
 				pr_err("Memory failure: %#lx: forcibly killing %s:%d because of failure to unmap corrupted page\n",
-				       pfn, tk->tsk->comm, tk->tsk->pid);
+						page_to_pfn(page), tk->tsk->comm,
+						tk->tsk->pid);
 				force_sig(SIGKILL, tk->tsk);
 			}
 
@@ -341,9 +351,10 @@ static void kill_procs(struct list_head *to_kill, int forcekill,
 			 * process anyways.
 			 */
 			else if (kill_proc(tk->tsk, tk->addr,
-					      pfn, size_shift, flags) < 0)
+					      mapping, page, size_shift, flags) < 0)
 				pr_err("Memory failure: %#lx: Cannot send advisory machine check signal to %s:%d\n",
-				       pfn, tk->tsk->comm, tk->tsk->pid);
+						page_to_pfn(page), tk->tsk->comm,
+						tk->tsk->pid);
 		}
 		put_task_struct(tk->tsk);
 		kfree(tk);
@@ -429,21 +440,27 @@ static void collect_procs_anon(struct page *page, struct list_head *to_kill,
 /*
  * Collect processes when the error hit a file mapped page.
  */
-static void collect_procs_file(struct page *page, struct list_head *to_kill,
-			      struct to_kill **tkc, int force_early)
+static void collect_procs_file(struct address_space *mapping, struct page *page,
+		struct list_head *to_kill, struct to_kill **tkc,
+		int force_early)
 {
 	struct vm_area_struct *vma;
 	struct task_struct *tsk;
-	struct address_space *mapping = page->mapping;
 
 	i_mmap_lock_read(mapping);
 	read_lock(&tasklist_lock);
 	for_each_process(tsk) {
-		pgoff_t pgoff = page_to_pgoff(page);
+		pgoff_t pgoff;
 		struct task_struct *t = task_early_kill(tsk, force_early);
 
 		if (!t)
 			continue;
+		xa_lock_irq(&mapping->i_pages);
+		if (page->mapping != mapping) {
+			xa_unlock_irq(&mapping->i_pages);
+			break;
+		}
+		pgoff = page_to_pgoff(page);
 		vma_interval_tree_foreach(vma, &mapping->i_mmap, pgoff,
 				      pgoff) {
 			/*
@@ -456,6 +473,7 @@ static void collect_procs_file(struct page *page, struct list_head *to_kill,
 			if (vma->vm_mm == t->mm)
 				add_to_kill(t, page, vma, to_kill, tkc);
 		}
+		xa_unlock_irq(&mapping->i_pages);
 	}
 	read_unlock(&tasklist_lock);
 	i_mmap_unlock_read(mapping);
@@ -467,12 +485,12 @@ static void collect_procs_file(struct page *page, struct list_head *to_kill,
  * First preallocate one tokill structure outside the spin locks,
  * so that we can kill at least one process reasonably reliable.
  */
-static void collect_procs(struct page *page, struct list_head *tokill,
-				int force_early)
+static void collect_procs(struct address_space *mapping, struct page *page,
+		struct list_head *tokill, int force_early)
 {
 	struct to_kill *tk;
 
-	if (!page->mapping)
+	if (!mapping)
 		return;
 
 	tk = kmalloc(sizeof(struct to_kill), GFP_NOIO);
@@ -481,7 +499,7 @@ static void collect_procs(struct page *page, struct list_head *tokill,
 	if (PageAnon(page))
 		collect_procs_anon(page, tokill, &tk, force_early);
 	else
-		collect_procs_file(page, tokill, &tk, force_early);
+		collect_procs_file(mapping, page, tokill, &tk, force_early);
 	kfree(tk);
 }
 
@@ -986,7 +1004,8 @@ static bool hwpoison_user_mappings(struct page *p, unsigned long pfn,
 	 * there's nothing that can be done.
 	 */
 	if (kill)
-		collect_procs(hpage, &tokill, flags & MF_ACTION_REQUIRED);
+		collect_procs(mapping, hpage, &tokill,
+				flags & MF_ACTION_REQUIRED);
 
 	unmap_success = try_to_unmap(hpage, ttu);
 	if (!unmap_success)
@@ -1012,7 +1031,8 @@ static bool hwpoison_user_mappings(struct page *p, unsigned long pfn,
 	 */
 	forcekill = PageDirty(hpage) || (flags & MF_MUST_KILL);
 	size_shift = compound_order(compound_head(p)) + PAGE_SHIFT;
-	kill_procs(&tokill, forcekill, !unmap_success, size_shift, pfn, flags);
+	kill_procs(&tokill, forcekill, !unmap_success, size_shift, mapping,
+			hpage, flags);
 
 	return unmap_success;
 }
