@@ -33,7 +33,7 @@ static struct kmem_cache *dnotify_mark_cache __read_mostly;
 static struct fsnotify_group *dnotify_group __read_mostly;
 
 /*
- * dnotify will attach one of these to each inode (i_fsnotify_marks) which
+ * dnotify will attach one of these to each inode (i_fsnotify.marks) which
  * is being watched by dnotify.  If multiple userspace applications are watching
  * the same directory with dnotify their information is chained in dn
  */
@@ -79,12 +79,11 @@ static void dnotify_recalc_inode_mask(struct fsnotify_mark *fsn_mark)
  */
 static int dnotify_handle_event(struct fsnotify_group *group,
 				struct inode *inode,
-				struct fsnotify_mark *inode_mark,
-				struct fsnotify_mark *vfsmount_mark,
 				u32 mask, const void *data, int data_type,
 				const unsigned char *file_name, u32 cookie,
 				struct fsnotify_iter_info *iter_info)
 {
+	struct fsnotify_mark *inode_mark = fsnotify_iter_inode_mark(iter_info);
 	struct dnotify_mark *dn_mark;
 	struct dnotify_struct *dn;
 	struct dnotify_struct **prev;
@@ -95,7 +94,8 @@ static int dnotify_handle_event(struct fsnotify_group *group,
 	if (!S_ISDIR(inode->i_mode))
 		return 0;
 
-	BUG_ON(vfsmount_mark);
+	if (WARN_ON(fsnotify_iter_vfsmount_mark(iter_info)))
+		return 0;
 
 	dn_mark = container_of(inode_mark, struct dnotify_mark, fsn_mark);
 
@@ -158,7 +158,7 @@ void dnotify_flush(struct file *filp, fl_owner_t id)
 	if (!S_ISDIR(inode->i_mode))
 		return;
 
-	fsn_mark = fsnotify_find_mark(&inode->i_fsnotify_marks, dnotify_group);
+	fsn_mark = fsnotify_find_mark(&inode->i_fsnotify, dnotify_group);
 	if (!fsn_mark)
 		return;
 	dn_mark = container_of(fsn_mark, struct dnotify_mark, fsn_mark);
@@ -218,7 +218,7 @@ static __u32 convert_arg(unsigned long arg)
 
 /*
  * If multiple processes watch the same inode with dnotify there is only one
- * dnotify mark in inode->i_fsnotify_marks but we chain a dnotify_struct
+ * dnotify mark in inode->i_fsnotify.marks but we chain a dnotify_struct
  * onto that mark.  This function either attaches the new dnotify_struct onto
  * that list, or it |= the mask onto an existing dnofiy_struct.
  */
@@ -314,12 +314,12 @@ int fcntl_dirnotify(int fd, struct file *filp, unsigned long arg)
 	mutex_lock(&dnotify_group->mark_mutex);
 
 	/* add the new_fsn_mark or find an old one. */
-	fsn_mark = fsnotify_find_mark(&inode->i_fsnotify_marks, dnotify_group);
+	fsn_mark = fsnotify_find_mark(&inode->i_fsnotify, dnotify_group);
 	if (fsn_mark) {
 		dn_mark = container_of(fsn_mark, struct dnotify_mark, fsn_mark);
 		spin_lock(&fsn_mark->lock);
 	} else {
-		error = fsnotify_add_mark_locked(new_fsn_mark, inode, NULL, 0);
+		error = fsnotify_add_inode_mark_locked(new_fsn_mark, inode, 0);
 		if (error) {
 			mutex_unlock(&dnotify_group->mark_mutex);
 			goto out_err;

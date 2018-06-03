@@ -4,6 +4,7 @@
 #include <linux/poll.h>
 #include <linux/ns_common.h>
 #include <linux/fs_pin.h>
+#include <linux/fsnotify_obj.h>
 
 struct mnt_namespace {
 	atomic_t		count;
@@ -61,8 +62,7 @@ struct mount {
 	struct hlist_node mnt_mp_list;	/* list mounts with the same mountpoint */
 	struct list_head mnt_umounting; /* list entry for umount propagation */
 #ifdef CONFIG_FSNOTIFY
-	struct fsnotify_mark_connector __rcu *mnt_fsnotify_marks;
-	__u32 mnt_fsnotify_mask;
+	struct fsnotify_obj mnt_fsnotify;
 #endif
 	int mnt_id;			/* mount identifier */
 	int mnt_group_id;		/* peer group identifier */
@@ -89,6 +89,13 @@ static inline int is_mounted(struct vfsmount *mnt)
 	/* neither detached nor internal? */
 	return !IS_ERR_OR_NULL(real_mount(mnt)->mnt_ns);
 }
+
+#ifdef CONFIG_FSNOTIFY
+static inline struct mount *fsnotify_obj_mount(struct fsnotify_obj *obj)
+{
+	return container_of(obj, struct mount, mnt_fsnotify);
+}
+#endif
 
 extern struct mount *__lookup_mnt(struct vfsmount *, struct dentry *);
 

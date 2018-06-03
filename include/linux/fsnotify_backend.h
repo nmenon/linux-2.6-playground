@@ -19,6 +19,7 @@
 #include <linux/atomic.h>
 #include <linux/user_namespace.h>
 #include <linux/refcount.h>
+#include <linux/fsnotify_obj.h>
 
 /*
  * IN_* from inotfy.h lines up EXACTLY with FS_*, this is so we can easily
@@ -98,8 +99,6 @@ struct fsnotify_iter_info;
 struct fsnotify_ops {
 	int (*handle_event)(struct fsnotify_group *group,
 			    struct inode *inode,
-			    struct fsnotify_mark *inode_mark,
-			    struct fsnotify_mark *vfsmount_mark,
 			    u32 mask, const void *data, int data_type,
 			    const unsigned char *file_name, u32 cookie,
 			    struct fsnotify_iter_info *iter_info);
@@ -201,6 +200,62 @@ struct fsnotify_group {
 #define FSNOTIFY_EVENT_PATH	1
 #define FSNOTIFY_EVENT_INODE	2
 
+enum fsnotify_obj_type {
+	FSNOTIFY_OBJ_TYPE_INODE,
+	FSNOTIFY_OBJ_TYPE_VFSMOUNT,
+	FSNOTIFY_OBJ_TYPE_COUNT,
+	FSNOTIFY_OBJ_TYPE_DETACHED = FSNOTIFY_OBJ_TYPE_COUNT
+};
+
+#define FSNOTIFY_OBJ_TYPE_INODE_FL	(1U << FSNOTIFY_OBJ_TYPE_INODE)
+#define FSNOTIFY_OBJ_TYPE_VFSMOUNT_FL	(1U << FSNOTIFY_OBJ_TYPE_VFSMOUNT)
+#define FSNOTIFY_OBJ_ALL_TYPES_MASK	((1U << FSNOTIFY_OBJ_TYPE_COUNT) - 1)
+
+static inline bool fsnotify_valid_obj_type(unsigned int type)
+{
+	return (type < FSNOTIFY_OBJ_TYPE_COUNT);
+}
+
+struct fsnotify_iter_info {
+	struct fsnotify_mark *marks[FSNOTIFY_OBJ_TYPE_COUNT];
+	unsigned int report_mask;
+	int srcu_idx;
+};
+
+static inline bool fsnotify_iter_should_report_type(
+		struct fsnotify_iter_info *iter_info, int type)
+{
+	return (iter_info->report_mask & (1U << type));
+}
+
+static inline void fsnotify_iter_set_report_type(
+		struct fsnotify_iter_info *iter_info, int type)
+{
+	iter_info->report_mask |= (1U << type);
+}
+
+static inline void fsnotify_iter_set_report_type_mark(
+		struct fsnotify_iter_info *iter_info, int type,
+		struct fsnotify_mark *mark)
+{
+	iter_info->marks[type] = mark;
+	iter_info->report_mask |= (1U << type);
+}
+
+#define FSNOTIFY_ITER_FUNCS(name, NAME) \
+static inline struct fsnotify_mark *fsnotify_iter_##name##_mark( \
+		struct fsnotify_iter_info *iter_info) \
+{ \
+	return (iter_info->report_mask & FSNOTIFY_OBJ_TYPE_##NAME##_FL) ? \
+		iter_info->marks[FSNOTIFY_OBJ_TYPE_##NAME] : NULL; \
+}
+
+FSNOTIFY_ITER_FUNCS(inode, INODE)
+FSNOTIFY_ITER_FUNCS(vfsmount, VFSMOUNT)
+
+#define fsnotify_foreach_obj_type(type) \
+	for (type = 0; type < FSNOTIFY_OBJ_TYPE_COUNT; type++)
+
 /*
  * Inode / vfsmount point to this structure which tracks all marks attached to
  * the inode / vfsmount. The reference to inode / vfsmount is held by this
@@ -209,14 +264,10 @@ struct fsnotify_group {
  */
 struct fsnotify_mark_connector {
 	spinlock_t lock;
-#define FSNOTIFY_OBJ_TYPE_INODE		0x01
-#define FSNOTIFY_OBJ_TYPE_VFSMOUNT	0x02
-#define FSNOTIFY_OBJ_ALL_TYPES		(FSNOTIFY_OBJ_TYPE_INODE | \
-					 FSNOTIFY_OBJ_TYPE_VFSMOUNT)
-	unsigned int flags;	/* Type of object [lock] */
-	union {	/* Object pointer [lock] */
-		struct inode *inode;
-		struct vfsmount *mnt;
+	unsigned int type;	/* Type of object [lock] */
+	union {
+		/* Object pointer [lock] */
+		struct fsnotify_obj *obj;
 		/* Used listing heads to free after srcu period expires */
 		struct fsnotify_mark_connector *destroy_next;
 	};
@@ -279,11 +330,11 @@ extern u32 fsnotify_get_cookie(void);
 static inline int fsnotify_inode_watches_children(struct inode *inode)
 {
 	/* FS_EVENT_ON_CHILD is set if the inode may care */
-	if (!(inode->i_fsnotify_mask & FS_EVENT_ON_CHILD))
+	if (!(inode->i_fsnotify.mask & FS_EVENT_ON_CHILD))
 		return 0;
 	/* this inode might care about child events, does it care about the
 	 * specific set of events that can happen on a child? */
-	return inode->i_fsnotify_mask & FS_EVENTS_POSS_ON_CHILD;
+	return inode->i_fsnotify.mask & FS_EVENTS_POSS_ON_CHILD;
 }
 
 /*
@@ -348,15 +399,31 @@ extern struct fsnotify_event *fsnotify_remove_first_event(struct fsnotify_group 
 extern void fsnotify_recalc_mask(struct fsnotify_mark_connector *conn);
 extern void fsnotify_init_mark(struct fsnotify_mark *mark,
 			       struct fsnotify_group *group);
-/* Find mark belonging to given group in the list of marks */
-extern struct fsnotify_mark *fsnotify_find_mark(
-				struct fsnotify_mark_connector __rcu **connp,
-				struct fsnotify_group *group);
+/* Find mark belonging to given group in the list of object marks */
+extern struct fsnotify_mark *fsnotify_find_mark(struct fsnotify_obj *obj,
+						struct fsnotify_group *group);
 /* attach the mark to the inode or vfsmount */
-extern int fsnotify_add_mark(struct fsnotify_mark *mark, struct inode *inode,
-			     struct vfsmount *mnt, int allow_dups);
+extern int fsnotify_add_mark(struct fsnotify_mark *mark,
+			     struct fsnotify_obj *obj, unsigned int type,
+			     int allow_dups);
 extern int fsnotify_add_mark_locked(struct fsnotify_mark *mark,
-				    struct inode *inode, struct vfsmount *mnt, int allow_dups);
+				    struct fsnotify_obj *obj, unsigned int type,
+				    int allow_dups);
+/* attach the mark to the inode */
+static inline int fsnotify_add_inode_mark(struct fsnotify_mark *mark,
+					  struct inode *inode,
+					  int allow_dups)
+{
+	return fsnotify_add_mark(mark, &inode->i_fsnotify,
+				 FSNOTIFY_OBJ_TYPE_INODE, allow_dups);
+}
+static inline int fsnotify_add_inode_mark_locked(struct fsnotify_mark *mark,
+						 struct inode *inode,
+						 int allow_dups)
+{
+	return fsnotify_add_mark_locked(mark, &inode->i_fsnotify,
+					FSNOTIFY_OBJ_TYPE_INODE, allow_dups);
+}
 /* given a group and a mark, flag mark to be freed when all references are dropped */
 extern void fsnotify_destroy_mark(struct fsnotify_mark *mark,
 				  struct fsnotify_group *group);
@@ -369,12 +436,12 @@ extern void fsnotify_clear_marks_by_group(struct fsnotify_group *group, unsigned
 /* run all the marks in a group, and clear all of the vfsmount marks */
 static inline void fsnotify_clear_vfsmount_marks_by_group(struct fsnotify_group *group)
 {
-	fsnotify_clear_marks_by_group(group, FSNOTIFY_OBJ_TYPE_VFSMOUNT);
+	fsnotify_clear_marks_by_group(group, FSNOTIFY_OBJ_TYPE_VFSMOUNT_FL);
 }
 /* run all the marks in a group, and clear all of the inode marks */
 static inline void fsnotify_clear_inode_marks_by_group(struct fsnotify_group *group)
 {
-	fsnotify_clear_marks_by_group(group, FSNOTIFY_OBJ_TYPE_INODE);
+	fsnotify_clear_marks_by_group(group, FSNOTIFY_OBJ_TYPE_INODE_FL);
 }
 extern void fsnotify_get_mark(struct fsnotify_mark *mark);
 extern void fsnotify_put_mark(struct fsnotify_mark *mark);
