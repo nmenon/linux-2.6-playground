@@ -2334,6 +2334,14 @@ S:	Maintained
 F:	drivers/gpio/gpio-ath79.c
 F:	Documentation/devicetree/bindings/gpio/gpio-ath79.txt
 
+ATHEROS 71XX/9XXX USB PHY DRIVER
+M:	Alban Bedel <albeu@free.fr>
+W:	https://github.com/AlbanBedel/linux
+T:	git git://github.com/AlbanBedel/linux
+S:	Maintained
+F:	drivers/phy/qualcomm/phy-ath79-usb.c
+F:	Documentation/devicetree/bindings/phy/phy-ath79-usb.txt
+
 ATHEROS ATH GENERIC UTILITIES
 M:	Kalle Valo <kvalo@codeaurora.org>
 L:	linux-wireless@vger.kernel.org
@@ -14794,6 +14802,7 @@ S:	Maintained
 F:	Documentation/usb/usbip_protocol.txt
 F:	drivers/usb/usbip/
 F:	tools/usb/usbip/
+F:	tools/testing/selftests/drivers/usb/usbip/
 
 USB PEGASUS DRIVER
 M:	Petko Manolov <petkan@nucleusys.com>

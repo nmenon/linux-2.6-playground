@@ -14,6 +14,7 @@
 #include <linux/mutex.h>
 #include <linux/power_supply.h>
 #include <linux/proc_fs.h>
+#include <linux/property.h>
 #include <linux/sched/clock.h>
 #include <linux/seq_file.h>
 #include <linux/slab.h>
@@ -565,21 +566,16 @@ DEFINE_SHOW_ATTRIBUTE(tcpm_debug);
 
 static struct dentry *rootdir;
 
-static int tcpm_debugfs_init(struct tcpm_port *port)
+static void tcpm_debugfs_init(struct tcpm_port *port)
 {
 	mutex_init(&port->logbuffer_lock);
 	/* /sys/kernel/debug/tcpm/usbcX */
-	if (!rootdir) {
+	if (!rootdir)
 		rootdir = debugfs_create_dir("tcpm", NULL);
-		if (!rootdir)
-			return -ENOMEM;
-	}
 
 	port->dentry = debugfs_create_file(dev_name(port->dev),
 					   S_IFREG | 0444, rootdir,
 					   port, &tcpm_debug_fops);
-
-	return 0;
 }
 
 static void tcpm_debugfs_exit(struct tcpm_port *port)
@@ -594,7 +590,7 @@ static void tcpm_log(const struct tcpm_port *port, const char *fmt, ...) { }
 __printf(2, 3)
 static void tcpm_log_force(struct tcpm_port *port, const char *fmt, ...) { }
 static void tcpm_log_source_caps(struct tcpm_port *port) { }
-static int tcpm_debugfs_init(const struct tcpm_port *port) { return 0; }
+static void tcpm_debugfs_init(const struct tcpm_port *port) { }
 static void tcpm_debugfs_exit(const struct tcpm_port *port) { }
 
 #endif
@@ -1772,7 +1768,7 @@ static void tcpm_pd_ext_msg_request(struct tcpm_port *port,
 	enum pd_ext_msg_type type = pd_header_type_le(msg->header);
 	unsigned int data_size = pd_ext_header_data_size_le(msg->ext_msg.header);
 
-	if (!(msg->ext_msg.header && PD_EXT_HDR_CHUNKED)) {
+	if (!(msg->ext_msg.header & PD_EXT_HDR_CHUNKED)) {
 		tcpm_log(port, "Unchunked extended messages unsupported");
 		return;
 	}
@@ -4500,6 +4496,7 @@ static int devm_tcpm_psy_register(struct tcpm_port *port)
 	char *psy_name;
 
 	psy_cfg.drv_data = port;
+	psy_cfg.fwnode = dev_fwnode(port->dev);
 	psy_name = devm_kzalloc(port->dev, psy_name_len, GFP_KERNEL);
 	if (!psy_name)
 		return -ENOMEM;
