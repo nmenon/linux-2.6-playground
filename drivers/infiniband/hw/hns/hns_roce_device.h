@@ -100,6 +100,9 @@
 #define SERV_TYPE_UC				2
 #define SERV_TYPE_UD				3
 
+/* Configure to HW for PAGE_SIZE larger than 4KB */
+#define PG_SHIFT_OFFSET				(PAGE_SHIFT - 12)
+
 #define PAGES_SHIFT_8				8
 #define PAGES_SHIFT_16				16
 #define PAGES_SHIFT_24				24
@@ -211,6 +214,7 @@ enum {
 struct hns_roce_uar {
 	u64		pfn;
 	unsigned long	index;
+	unsigned long	logic_idx;
 };
 
 struct hns_roce_ucontext {

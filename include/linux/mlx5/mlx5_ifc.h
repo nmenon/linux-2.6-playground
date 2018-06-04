@@ -298,9 +298,15 @@ struct mlx5_ifc_flow_table_fields_supported_bits {
 	u8         inner_tcp_dport[0x1];
 	u8         inner_tcp_flags[0x1];
 	u8         reserved_at_37[0x9];
-	u8         reserved_at_40[0x17];
+
+	u8         reserved_at_40[0x5];
+	u8         outer_first_mpls_over_udp[0x4];
+	u8         outer_first_mpls_over_gre[0x4];
+	u8         inner_first_mpls[0x4];
+	u8         outer_first_mpls[0x4];
+	u8         reserved_at_55[0x2];
 	u8	   outer_esp_spi[0x1];
-	u8	   reserved_at_58[0x2];
+	u8         reserved_at_58[0x2];
 	u8         bth_dst_qp[0x1];
 
 	u8         reserved_at_5b[0x25];
@@ -412,7 +418,7 @@ struct mlx5_ifc_fte_match_set_misc_bits {
 	u8         reserved_at_0[0x8];
 	u8         source_sqn[0x18];
 
-	u8         reserved_at_20[0x10];
+	u8         source_eswitch_owner_vhca_id[0x10];
 	u8         source_port[0x10];
 
 	u8         outer_second_prio[0x3];
@@ -447,6 +453,29 @@ struct mlx5_ifc_fte_match_set_misc_bits {
 	u8         bth_dst_qp[0x18];
 	u8	   reserved_at_160[0x20];
 	u8	   outer_esp_spi[0x20];
+	u8         reserved_at_1a0[0x60];
+};
+
+struct mlx5_ifc_fte_match_mpls_bits {
+	u8         mpls_label[0x14];
+	u8         mpls_exp[0x3];
+	u8         mpls_s_bos[0x1];
+	u8         mpls_ttl[0x8];
+};
+
+struct mlx5_ifc_fte_match_set_misc2_bits {
+	struct mlx5_ifc_fte_match_mpls_bits outer_first_mpls;
+
+	struct mlx5_ifc_fte_match_mpls_bits inner_first_mpls;
+
+	struct mlx5_ifc_fte_match_mpls_bits outer_first_mpls_over_gre;
+
+	struct mlx5_ifc_fte_match_mpls_bits outer_first_mpls_over_udp;
+
+	u8         reserved_at_80[0x100];
+
+	u8         metadata_reg_a[0x20];
+
 	u8         reserved_at_1a0[0x60];
 };
 
@@ -557,7 +586,8 @@ struct mlx5_ifc_e_switch_cap_bits {
 	u8         vport_svlan_insert[0x1];
 	u8         vport_cvlan_insert_if_not_exist[0x1];
 	u8         vport_cvlan_insert_overwrite[0x1];
-	u8         reserved_at_5[0x19];
+	u8         reserved_at_5[0x18];
+	u8         merged_eswitch[0x1];
 	u8         nic_vport_node_guid_modify[0x1];
 	u8         nic_vport_port_guid_modify[0x1];
 
@@ -1109,9 +1139,12 @@ struct mlx5_ifc_cmd_hca_cap_bits {
 
 	u8         reserved_at_500[0x20];
 	u8	   num_of_uars_per_page[0x20];
-	u8         reserved_at_540[0x40];
 
-	u8         reserved_at_580[0x3d];
+	u8         flex_parser_protocols[0x20];
+	u8         reserved_at_560[0x20];
+
+	u8         reserved_at_580[0x3c];
+	u8         mini_cqe_resp_stride_index[0x1];
 	u8         cqe_128_always[0x1];
 	u8         cqe_compression_128[0x1];
 	u8         cqe_compression[0x1];
@@ -1147,8 +1180,9 @@ enum mlx5_flow_destination_type {
 struct mlx5_ifc_dest_format_struct_bits {
 	u8         destination_type[0x8];
 	u8         destination_id[0x18];
-
-	u8         reserved_at_20[0x20];
+	u8         destination_eswitch_owner_vhca_id_valid[0x1];
+	u8         reserved_at_21[0xf];
+	u8         destination_eswitch_owner_vhca_id[0x10];
 };
 
 struct mlx5_ifc_flow_counter_list_bits {
@@ -1170,7 +1204,9 @@ struct mlx5_ifc_fte_match_param_bits {
 
 	struct mlx5_ifc_fte_match_set_lyr_2_4_bits inner_headers;
 
-	u8         reserved_at_600[0xa00];
+	struct mlx5_ifc_fte_match_set_misc2_bits misc_parameters_2;
+
+	u8         reserved_at_800[0x800];
 };
 
 enum {
@@ -4579,6 +4615,7 @@ enum {
 	MLX5_QUERY_FLOW_GROUP_OUT_MATCH_CRITERIA_ENABLE_OUTER_HEADERS    = 0x0,
 	MLX5_QUERY_FLOW_GROUP_OUT_MATCH_CRITERIA_ENABLE_MISC_PARAMETERS  = 0x1,
 	MLX5_QUERY_FLOW_GROUP_OUT_MATCH_CRITERIA_ENABLE_INNER_HEADERS    = 0x2,
+	MLX5_QUERY_FLOW_GROUP_IN_MATCH_CRITERIA_ENABLE_MISC_PARAMETERS_2 = 0X3,
 };
 
 struct mlx5_ifc_query_flow_group_out_bits {
@@ -6969,9 +7006,10 @@ struct mlx5_ifc_create_flow_group_out_bits {
 };
 
 enum {
-	MLX5_CREATE_FLOW_GROUP_IN_MATCH_CRITERIA_ENABLE_OUTER_HEADERS    = 0x0,
-	MLX5_CREATE_FLOW_GROUP_IN_MATCH_CRITERIA_ENABLE_MISC_PARAMETERS  = 0x1,
-	MLX5_CREATE_FLOW_GROUP_IN_MATCH_CRITERIA_ENABLE_INNER_HEADERS    = 0x2,
+	MLX5_CREATE_FLOW_GROUP_IN_MATCH_CRITERIA_ENABLE_OUTER_HEADERS     = 0x0,
+	MLX5_CREATE_FLOW_GROUP_IN_MATCH_CRITERIA_ENABLE_MISC_PARAMETERS   = 0x1,
+	MLX5_CREATE_FLOW_GROUP_IN_MATCH_CRITERIA_ENABLE_INNER_HEADERS     = 0x2,
+	MLX5_CREATE_FLOW_GROUP_IN_MATCH_CRITERIA_ENABLE_MISC_PARAMETERS_2 = 0x3,
 };
 
 struct mlx5_ifc_create_flow_group_in_bits {
@@ -6993,7 +7031,9 @@ struct mlx5_ifc_create_flow_group_in_bits {
 	u8         reserved_at_a0[0x8];
 	u8         table_id[0x18];
 
-	u8         reserved_at_c0[0x20];
+	u8         source_eswitch_owner_vhca_id_valid[0x1];
+
+	u8         reserved_at_c1[0x1f];
 
 	u8         start_flow_index[0x20];
 
