@@ -2069,7 +2069,6 @@ int vfs_dedupe_file_range(struct file *file, struct file_dedupe_range *same)
 
 next_loop:
 		fdput(dst_fd);
-
 		if (fatal_signal_pending(current))
 			goto out;
 	}
