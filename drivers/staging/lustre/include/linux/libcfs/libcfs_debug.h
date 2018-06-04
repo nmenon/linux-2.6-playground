@@ -39,6 +39,7 @@
 #ifndef __LIBCFS_DEBUG_H__
 #define __LIBCFS_DEBUG_H__
 
+#include <linux/limits.h>
 #include <uapi/linux/lnet/libcfs_debug.h>
 
 /*
@@ -61,6 +62,38 @@ int libcfs_debug_str2mask(int *mask, const char *str, int is_subsys);
 /* Has there been an LBUG? */
 extern unsigned int libcfs_catastrophe;
 extern unsigned int libcfs_panic_on_lbug;
+
+/* Enable debug-checks on stack size - except on x86_64 */
+#if !defined(__x86_64__)
+# ifdef __ia64__
+#  define CDEBUG_STACK() (THREAD_SIZE -				 \
+			  ((unsigned long)__builtin_dwarf_cfa() &       \
+			   (THREAD_SIZE - 1)))
+# else
+#  define CDEBUG_STACK() (THREAD_SIZE -				 \
+			  ((unsigned long)__builtin_frame_address(0) &  \
+			   (THREAD_SIZE - 1)))
+# endif /* __ia64__ */
+
+#define __CHECK_STACK(msgdata, mask, cdls)			      \
+do {								    \
+	if (unlikely(CDEBUG_STACK() > libcfs_stack)) {		  \
+		LIBCFS_DEBUG_MSG_DATA_INIT(msgdata, D_WARNING, NULL);   \
+		libcfs_stack = CDEBUG_STACK();			  \
+		libcfs_debug_msg(msgdata,			       \
+				 "maximum lustre stack %lu\n",	  \
+				 CDEBUG_STACK());		       \
+		(msgdata)->msg_mask = mask;			     \
+		(msgdata)->msg_cdls = cdls;			     \
+		dump_stack();					   \
+	      /*panic("LBUG");*/					\
+	}							       \
+} while (0)
+#define CFS_CHECK_STACK(msgdata, mask, cdls)  __CHECK_STACK(msgdata, mask, cdls)
+#else /* __x86_64__ */
+#define CFS_CHECK_STACK(msgdata, mask, cdls) do {} while (0)
+#define CDEBUG_STACK() (0L)
+#endif /* __x86_64__ */
 
 #ifndef DEBUG_SUBSYSTEM
 # define DEBUG_SUBSYSTEM S_UNDEFINED
@@ -132,6 +165,13 @@ do {									\
 									\
 	__CDEBUG(&cdls, mask, format, ## __VA_ARGS__);			\
 } while (0)
+
+/*
+ * Lustre Error Checksum: calculates checksum
+ * of Hex number by XORing the nybbles.
+ */
+#define LERRCHKSUM(hexnum) (((hexnum) & 0xf) ^ ((hexnum) >> 4 & 0xf) ^ \
+			   ((hexnum) >> 8 & 0xf))
 
 #define CWARN(format, ...)	CDEBUG_LIMIT(D_WARNING, format, ## __VA_ARGS__)
 #define CERROR(format, ...)	CDEBUG_LIMIT(D_ERROR, format, ## __VA_ARGS__)

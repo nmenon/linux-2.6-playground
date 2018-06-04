@@ -47,7 +47,6 @@
 #include <net/sock.h>
 #include <net/tcp.h>
 
-#include <linux/libcfs/libcfs.h>
 #include <linux/lnet/lib-lnet.h>
 #include <linux/lnet/socklnd.h>
 
@@ -58,7 +57,7 @@
 #define SOCKNAL_PEER_HASH_SIZE  101   /* # peer lists */
 #define SOCKNAL_RESCHED         100   /* # scheduler loops before reschedule */
 #define SOCKNAL_INSANITY_RECONN 5000  /* connd is trying on reconn infinitely */
-#define SOCKNAL_ENOMEM_RETRY    CFS_TICK /* jiffies between retries */
+#define SOCKNAL_ENOMEM_RETRY    1     /* jiffies between retries */
 
 #define SOCKNAL_SINGLE_FRAG_TX  0     /* disable multi-fragment sends */
 #define SOCKNAL_SINGLE_FRAG_RX  0     /* disable multi-fragment receives */

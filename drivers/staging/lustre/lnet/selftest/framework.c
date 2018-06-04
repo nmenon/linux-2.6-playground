@@ -272,7 +272,7 @@ sfw_init_session(struct sfw_session *sn, struct lst_sid sid,
 	sn->sn_id = sid;
 	sn->sn_features = features;
 	sn->sn_timeout = session_timeout;
-	sn->sn_started = cfs_time_current();
+	sn->sn_started = jiffies;
 
 	timer->stt_data = sn;
 	timer->stt_func = sfw_session_expired;
@@ -588,7 +588,7 @@ sfw_load_test(struct sfw_test_instance *tsi)
 
 	CDEBUG(D_NET, "Reserved %d buffers for test %s\n",
 	       nbuf * (srpc_serv_is_framework(svc) ?
-		       2 : cfs_cpt_number(cfs_cpt_table)), svc->sv_name);
+		       2 : cfs_cpt_number(cfs_cpt_tab)), svc->sv_name);
 	return 0;
 }
 

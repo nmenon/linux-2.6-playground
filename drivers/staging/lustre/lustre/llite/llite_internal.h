@@ -754,7 +754,14 @@ int ll_release_openhandle(struct inode *inode, struct lookup_intent *it);
 int ll_md_real_close(struct inode *inode, fmode_t fmode);
 int ll_getattr(const struct path *path, struct kstat *stat,
 	       u32 request_mask, unsigned int flags);
+#ifdef CONFIG_FS_POSIX_ACL
 struct posix_acl *ll_get_acl(struct inode *inode, int type);
+int ll_set_acl(struct inode *inode, struct posix_acl *acl, int type);
+#else
+#define ll_get_acl NULL
+#define ll_set_acl NULL
+#endif /* CONFIG_FS_POSIX_ACL */
+
 int ll_migrate(struct inode *parent, struct file *file, int mdtidx,
 	       const char *name, int namelen);
 int ll_get_fid_by_name(struct inode *parent, const char *name,
@@ -1110,7 +1117,7 @@ static inline int ll_glimpse_size(struct inode *inode)
 
 	down_read(&lli->lli_glimpse_sem);
 	rc = cl_glimpse_size(inode);
-	lli->lli_glimpse_time = cfs_time_current();
+	lli->lli_glimpse_time = jiffies;
 	up_read(&lli->lli_glimpse_sem);
 	return rc;
 }
@@ -1140,7 +1147,7 @@ dentry_may_statahead(struct inode *dir, struct dentry *dentry)
 		return false;
 
 	/* not the same process, don't statahead */
-	if (lli->lli_opendir_pid != current_pid())
+	if (lli->lli_opendir_pid != current->pid)
 		return false;
 
 	/*

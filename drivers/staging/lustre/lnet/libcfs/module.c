@@ -30,6 +30,7 @@
  * This file is part of Lustre, http://www.lustre.org/
  * Lustre is a trademark of Sun Microsystems, Inc.
  */
+#include <linux/miscdevice.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
@@ -51,7 +52,6 @@
 
 # define DEBUG_SUBSYSTEM S_LNET
 
-#include <linux/libcfs/libcfs.h>
 #include <asm/div64.h>
 
 #include <linux/libcfs/libcfs_crypto.h>
@@ -59,42 +59,148 @@
 #include <uapi/linux/lnet/lnet-dlc.h>
 #include "tracefile.h"
 
+struct lnet_debugfs_symlink_def {
+	char *name;
+	char *target;
+};
+
 static struct dentry *lnet_debugfs_root;
 
-static DECLARE_RWSEM(ioctl_list_sem);
-static LIST_HEAD(ioctl_list);
+BLOCKING_NOTIFIER_HEAD(libcfs_ioctl_list);
+EXPORT_SYMBOL(libcfs_ioctl_list);
 
-int libcfs_register_ioctl(struct libcfs_ioctl_handler *hand)
+static inline size_t libcfs_ioctl_packlen(struct libcfs_ioctl_data *data)
 {
-	int rc = 0;
+	size_t len = sizeof(*data);
 
-	down_write(&ioctl_list_sem);
-	if (!list_empty(&hand->item))
-		rc = -EBUSY;
-	else
-		list_add_tail(&hand->item, &ioctl_list);
-	up_write(&ioctl_list_sem);
-
-	return rc;
+	len += cfs_size_round(data->ioc_inllen1);
+	len += cfs_size_round(data->ioc_inllen2);
+	return len;
 }
-EXPORT_SYMBOL(libcfs_register_ioctl);
 
-int libcfs_deregister_ioctl(struct libcfs_ioctl_handler *hand)
+static inline bool libcfs_ioctl_is_invalid(struct libcfs_ioctl_data *data)
 {
-	int rc = 0;
-
-	down_write(&ioctl_list_sem);
-	if (list_empty(&hand->item))
-		rc = -ENOENT;
-	else
-		list_del_init(&hand->item);
-	up_write(&ioctl_list_sem);
-
-	return rc;
+	if (data->ioc_hdr.ioc_len > BIT(30)) {
+		CERROR("LIBCFS ioctl: ioc_len larger than 1<<30\n");
+		return true;
+	}
+	if (data->ioc_inllen1 > BIT(30)) {
+		CERROR("LIBCFS ioctl: ioc_inllen1 larger than 1<<30\n");
+		return true;
+	}
+	if (data->ioc_inllen2 > BIT(30)) {
+		CERROR("LIBCFS ioctl: ioc_inllen2 larger than 1<<30\n");
+		return true;
+	}
+	if (data->ioc_inlbuf1 && !data->ioc_inllen1) {
+		CERROR("LIBCFS ioctl: inlbuf1 pointer but 0 length\n");
+		return true;
+	}
+	if (data->ioc_inlbuf2 && !data->ioc_inllen2) {
+		CERROR("LIBCFS ioctl: inlbuf2 pointer but 0 length\n");
+		return true;
+	}
+	if (data->ioc_pbuf1 && !data->ioc_plen1) {
+		CERROR("LIBCFS ioctl: pbuf1 pointer but 0 length\n");
+		return true;
+	}
+	if (data->ioc_pbuf2 && !data->ioc_plen2) {
+		CERROR("LIBCFS ioctl: pbuf2 pointer but 0 length\n");
+		return true;
+	}
+	if (data->ioc_plen1 && !data->ioc_pbuf1) {
+		CERROR("LIBCFS ioctl: plen1 nonzero but no pbuf1 pointer\n");
+		return true;
+	}
+	if (data->ioc_plen2 && !data->ioc_pbuf2) {
+		CERROR("LIBCFS ioctl: plen2 nonzero but no pbuf2 pointer\n");
+		return true;
+	}
+	if ((u32)libcfs_ioctl_packlen(data) != data->ioc_hdr.ioc_len) {
+		CERROR("LIBCFS ioctl: packlen != ioc_len\n");
+		return true;
+	}
+	if (data->ioc_inllen1 &&
+	    data->ioc_bulk[data->ioc_inllen1 - 1] != '\0') {
+		CERROR("LIBCFS ioctl: inlbuf1 not 0 terminated\n");
+		return true;
+	}
+	if (data->ioc_inllen2 &&
+	    data->ioc_bulk[cfs_size_round(data->ioc_inllen1) +
+			   data->ioc_inllen2 - 1] != '\0') {
+		CERROR("LIBCFS ioctl: inlbuf2 not 0 terminated\n");
+		return true;
+	}
+	return false;
 }
-EXPORT_SYMBOL(libcfs_deregister_ioctl);
 
-int libcfs_ioctl(unsigned long cmd, void __user *uparam)
+static int libcfs_ioctl_data_adjust(struct libcfs_ioctl_data *data)
+{
+	if (libcfs_ioctl_is_invalid(data)) {
+		CERROR("libcfs ioctl: parameter not correctly formatted\n");
+		return -EINVAL;
+	}
+
+	if (data->ioc_inllen1)
+		data->ioc_inlbuf1 = &data->ioc_bulk[0];
+
+	if (data->ioc_inllen2)
+		data->ioc_inlbuf2 = &data->ioc_bulk[0] +
+			cfs_size_round(data->ioc_inllen1);
+
+	return 0;
+}
+
+static int libcfs_ioctl_getdata(struct libcfs_ioctl_hdr **hdr_pp,
+				const struct libcfs_ioctl_hdr __user *uhdr)
+{
+	struct libcfs_ioctl_hdr hdr;
+	int err;
+
+	if (copy_from_user(&hdr, uhdr, sizeof(hdr)))
+		return -EFAULT;
+
+	if (hdr.ioc_version != LIBCFS_IOCTL_VERSION &&
+	    hdr.ioc_version != LIBCFS_IOCTL_VERSION2) {
+		CERROR("libcfs ioctl: version mismatch expected %#x, got %#x\n",
+		       LIBCFS_IOCTL_VERSION, hdr.ioc_version);
+		return -EINVAL;
+	}
+
+	if (hdr.ioc_len < sizeof(hdr)) {
+		CERROR("libcfs ioctl: user buffer too small for ioctl\n");
+		return -EINVAL;
+	}
+
+	if (hdr.ioc_len > LIBCFS_IOC_DATA_MAX) {
+		CERROR("libcfs ioctl: user buffer is too large %d/%d\n",
+		       hdr.ioc_len, LIBCFS_IOC_DATA_MAX);
+		return -EINVAL;
+	}
+
+	*hdr_pp = kvmalloc(hdr.ioc_len, GFP_KERNEL);
+	if (!*hdr_pp)
+		return -ENOMEM;
+
+	if (copy_from_user(*hdr_pp, uhdr, hdr.ioc_len)) {
+		err = -EFAULT;
+		goto free;
+	}
+
+	if ((*hdr_pp)->ioc_version != hdr.ioc_version ||
+	    (*hdr_pp)->ioc_len != hdr.ioc_len) {
+		err = -EINVAL;
+		goto free;
+	}
+
+	return 0;
+
+free:
+	kvfree(*hdr_pp);
+	return err;
+}
+
+static int libcfs_ioctl(unsigned long cmd, void __user *uparam)
 {
 	struct libcfs_ioctl_data *data = NULL;
 	struct libcfs_ioctl_hdr *hdr;
@@ -136,29 +242,53 @@ int libcfs_ioctl(unsigned long cmd, void __user *uparam)
 		libcfs_debug_mark_buffer(data->ioc_inlbuf1);
 		break;
 
-	default: {
-		struct libcfs_ioctl_handler *hand;
-
-		err = -EINVAL;
-		down_read(&ioctl_list_sem);
-		list_for_each_entry(hand, &ioctl_list, item) {
-			err = hand->handle_ioctl(cmd, hdr);
-			if (err == -EINVAL)
-				continue;
-
-			if (!err) {
-				if (copy_to_user(uparam, hdr, hdr->ioc_len))
-					err = -EFAULT;
-			}
-			break;
-		}
-		up_read(&ioctl_list_sem);
-		break; }
+	default:
+		err = blocking_notifier_call_chain(&libcfs_ioctl_list,
+						   cmd, hdr);
+		if (!(err & NOTIFY_STOP_MASK))
+			/* No-one claimed the ioctl */
+			err = -EINVAL;
+		else
+			err = notifier_to_errno(err);
+		if (!err)
+			if (copy_to_user(uparam, hdr, hdr->ioc_len))
+				err = -EFAULT;
+		break;
 	}
 out:
 	kvfree(hdr);
 	return err;
 }
+
+static long
+libcfs_psdev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	if (!capable(CAP_SYS_ADMIN))
+		return -EACCES;
+
+	if (_IOC_TYPE(cmd) != IOC_LIBCFS_TYPE ||
+	    _IOC_NR(cmd) < IOC_LIBCFS_MIN_NR  ||
+	    _IOC_NR(cmd) > IOC_LIBCFS_MAX_NR) {
+		CDEBUG(D_IOCTL, "invalid ioctl ( type %d, nr %d, size %d )\n",
+		       _IOC_TYPE(cmd), _IOC_NR(cmd), _IOC_SIZE(cmd));
+		return -EINVAL;
+	}
+
+	return libcfs_ioctl(cmd, (void __user *)arg);
+}
+
+static const struct file_operations libcfs_fops = {
+	.owner		= THIS_MODULE,
+	.unlocked_ioctl	= libcfs_psdev_ioctl,
+};
+
+static struct miscdevice libcfs_dev = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "lnet",
+	.fops = &libcfs_fops,
+};
+
+static int libcfs_dev_registered;
 
 int lprocfs_call_handler(void *data, int write, loff_t *ppos,
 			 void __user *buffer, size_t *lenp,
@@ -299,14 +429,12 @@ static int __proc_cpt_table(void *data, int write,
 	if (write)
 		return -EPERM;
 
-	LASSERT(cfs_cpt_table);
-
 	while (1) {
 		buf = kzalloc(len, GFP_KERNEL);
 		if (!buf)
 			return -ENOMEM;
 
-		rc = cfs_cpt_table_print(cfs_cpt_table, buf, len);
+		rc = cfs_cpt_table_print(cfs_cpt_tab, buf, len);
 		if (rc >= 0)
 			break;
 
@@ -496,8 +624,7 @@ static const struct file_operations *lnet_debugfs_fops_select(umode_t mode)
 	return &lnet_debugfs_file_operations_rw;
 }
 
-void lustre_insert_debugfs(struct ctl_table *table,
-			   const struct lnet_debugfs_symlink_def *symlinks)
+void lustre_insert_debugfs(struct ctl_table *table)
 {
 	if (!lnet_debugfs_root)
 		lnet_debugfs_root = debugfs_create_dir("lnet", NULL);
@@ -506,19 +633,24 @@ void lustre_insert_debugfs(struct ctl_table *table,
 	if (IS_ERR_OR_NULL(lnet_debugfs_root))
 		return;
 
-	/* We don't save the dentry returned in next two calls, because
-	 * we don't call debugfs_remove() but rather remove_recursive()
+	/*
+	 * We don't save the dentry returned because we don't call
+	 * debugfs_remove() but rather remove_recursive()
 	 */
 	for (; table->procname; table++)
 		debugfs_create_file(table->procname, table->mode,
 				    lnet_debugfs_root, table,
 				    lnet_debugfs_fops_select(table->mode));
+}
+EXPORT_SYMBOL_GPL(lustre_insert_debugfs);
 
+static void lustre_insert_debugfs_links(
+	const struct lnet_debugfs_symlink_def *symlinks)
+{
 	for (; symlinks && symlinks->name; symlinks++)
 		debugfs_create_symlink(symlinks->name, lnet_debugfs_root,
 				       symlinks->target);
 }
-EXPORT_SYMBOL_GPL(lustre_insert_debugfs);
 
 static void lustre_remove_debugfs(void)
 {
@@ -527,49 +659,72 @@ static void lustre_remove_debugfs(void)
 	lnet_debugfs_root = NULL;
 }
 
-static int libcfs_init(void)
+static DEFINE_MUTEX(libcfs_startup);
+static int libcfs_active;
+
+int libcfs_setup(void)
 {
-	int rc;
+	int rc = -EINVAL;
+
+	mutex_lock(&libcfs_startup);
+	if (libcfs_active)
+		goto out;
+
+	if (!libcfs_dev_registered)
+		goto err;
 
 	rc = libcfs_debug_init(5 * 1024 * 1024);
 	if (rc < 0) {
 		pr_err("LustreError: libcfs_debug_init: %d\n", rc);
-		return rc;
+		goto err;
 	}
 
 	rc = cfs_cpu_init();
 	if (rc)
-		goto cleanup_debug;
-
-	rc = misc_register(&libcfs_dev);
-	if (rc) {
-		CERROR("misc_register: error %d\n", rc);
-		goto cleanup_cpu;
-	}
+		goto err;
 
 	cfs_rehash_wq = alloc_workqueue("cfs_rh", WQ_SYSFS, 4);
 	if (!cfs_rehash_wq) {
 		CERROR("Failed to start rehash workqueue.\n");
 		rc = -ENOMEM;
-		goto cleanup_deregister;
+		goto err;
 	}
 
 	rc = cfs_crypto_register();
 	if (rc) {
 		CERROR("cfs_crypto_register: error %d\n", rc);
-		goto cleanup_deregister;
+		goto err;
 	}
 
-	lustre_insert_debugfs(lnet_table, lnet_debugfs_symlinks);
+	lustre_insert_debugfs(lnet_table);
+	if (!IS_ERR_OR_NULL(lnet_debugfs_root))
+		lustre_insert_debugfs_links(lnet_debugfs_symlinks);
 
 	CDEBUG(D_OTHER, "portals setup OK\n");
+out:
+	libcfs_active = 1;
+	mutex_unlock(&libcfs_startup);
 	return 0;
- cleanup_deregister:
-	misc_deregister(&libcfs_dev);
-cleanup_cpu:
+err:
+	cfs_crypto_unregister();
+	if (cfs_rehash_wq)
+		destroy_workqueue(cfs_rehash_wq);
 	cfs_cpu_fini();
- cleanup_debug:
 	libcfs_debug_cleanup();
+	mutex_unlock(&libcfs_startup);
+	return rc;
+}
+EXPORT_SYMBOL(libcfs_setup);
+
+static int libcfs_init(void)
+{
+	int rc;
+
+	rc = misc_register(&libcfs_dev);
+	if (rc)
+		CERROR("misc_register: error %d\n", rc);
+	else
+		libcfs_dev_registered = 1;
 	return rc;
 }
 
@@ -579,14 +734,13 @@ static void libcfs_exit(void)
 
 	lustre_remove_debugfs();
 
-	if (cfs_rehash_wq) {
+	if (cfs_rehash_wq)
 		destroy_workqueue(cfs_rehash_wq);
-		cfs_rehash_wq = NULL;
-	}
 
 	cfs_crypto_unregister();
 
-	misc_deregister(&libcfs_dev);
+	if (libcfs_dev_registered)
+		misc_deregister(&libcfs_dev);
 
 	cfs_cpu_fini();
 

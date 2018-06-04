@@ -46,6 +46,8 @@
 #include <lustre_intent.h>
 #include <cl_object.h>
 
+#include <linux/rhashtable.h>
+
 #define MAX_OBD_DEVICES 8192
 
 struct osc_async_rc {
@@ -331,7 +333,7 @@ struct client_obd {
 	void		    *cl_writeback_work;
 	void			*cl_lru_work;
 	/* hash tables for osc_quota_info */
-	struct cfs_hash	      *cl_quota_hash[MAXQUOTAS];
+	struct rhashtable	cl_quota_hash[MAXQUOTAS];
 };
 
 #define obd2cli_tgt(obd) ((char *)(obd)->u.cli.cl_target_uuid.uuid)
@@ -383,7 +385,7 @@ struct lov_obd {
 	__u32		   lov_tgt_size;   /* size of tgts array */
 	int		     lov_connects;
 	int		     lov_pool_count;
-	struct cfs_hash	     *lov_pools_hash_body; /* used for key access */
+	struct rhashtable	lov_pools_hash_body; /* used for key access */
 	struct list_head	lov_pool_list; /* used for sequential access */
 	struct dentry		*lov_pool_debugfs_entry;
 	enum lustre_sec_part    lov_sp_me;
@@ -556,7 +558,7 @@ struct obd_device {
 	 */
 	unsigned long obd_recovery_expired:1;
 	/* uuid-export hash body */
-	struct cfs_hash	     *obd_uuid_hash;
+	struct rhashtable	obd_uuid_hash;
 	wait_queue_head_t	     obd_refcount_waitq;
 	struct list_head	      obd_exports;
 	struct list_head	      obd_unlinked_exports;
@@ -619,6 +621,9 @@ struct obd_device {
 	struct kobject		obd_kobj; /* sysfs object */
 	struct completion	obd_kobj_unregister;
 };
+
+int obd_uuid_add(struct obd_device *obd, struct obd_export *export);
+void obd_uuid_del(struct obd_device *obd, struct obd_export *export);
 
 /* get/set_info keys */
 #define KEY_ASYNC	       "async"
@@ -686,6 +691,16 @@ enum md_cli_flags {
 	CLI_MIGRATE	= BIT(4),
 };
 
+/**
+ * GETXATTR is not included as only a couple of fields in the reply body
+ * is filled, but not FID which is needed for common intent handling in
+ * mdc_finish_intent_lock()
+ */
+static inline bool it_has_reply_body(const struct lookup_intent *it)
+{
+	return it->it_op & (IT_OPEN | IT_UNLINK | IT_LOOKUP | IT_GETATTR);
+}
+
 struct md_op_data {
 	struct lu_fid	   op_fid1; /* operation fid1 (usually parent) */
 	struct lu_fid	   op_fid2; /* operation fid2 (usually child) */
@@ -702,7 +717,7 @@ struct md_op_data {
 	__u32		   op_suppgids[2];
 	__u32		   op_fsuid;
 	__u32		   op_fsgid;
-	cfs_cap_t	       op_cap;
+	kernel_cap_t	       op_cap;
 	void		   *op_data;
 	size_t			op_data_size;
 
@@ -897,10 +912,9 @@ struct md_ops {
 		     struct md_open_data *, struct ptlrpc_request **);
 	int (*create)(struct obd_export *, struct md_op_data *,
 		      const void *, size_t, umode_t, uid_t, gid_t,
-		      cfs_cap_t, __u64, struct ptlrpc_request **);
+		      kernel_cap_t, __u64, struct ptlrpc_request **);
 	int (*enqueue)(struct obd_export *, struct ldlm_enqueue_info *,
-		       const union ldlm_policy_data *,
-		       struct lookup_intent *, struct md_op_data *,
+		       const union ldlm_policy_data *, struct md_op_data *,
 		       struct lustre_handle *, __u64);
 	int (*getattr)(struct obd_export *, struct md_op_data *,
 		       struct ptlrpc_request **);
@@ -926,12 +940,11 @@ struct md_ops {
 		      struct ptlrpc_request **);
 
 	int (*setxattr)(struct obd_export *, const struct lu_fid *,
-			u64, const char *, const char *, int, int, int, __u32,
-			struct ptlrpc_request **);
+			u64, const char *, const void *, size_t, unsigned int,
+			u32, struct ptlrpc_request **);
 
 	int (*getxattr)(struct obd_export *, const struct lu_fid *,
-			u64, const char *, const char *, int, int, int,
-			struct ptlrpc_request **);
+			u64, const char *, size_t, struct ptlrpc_request **);
 
 	int (*init_ea_size)(struct obd_export *, u32, u32);
 

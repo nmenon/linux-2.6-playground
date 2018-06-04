@@ -33,12 +33,15 @@
 
 #define DEBUG_SUBSYSTEM S_RPC
 
+#include <linux/kthread.h>
 #include <obd_support.h>
 #include <obd_class.h>
 #include <lustre_net.h>
 #include <lu_object.h>
 #include <uapi/linux/lnet/lnet-types.h>
 #include "ptlrpc_internal.h"
+#include <linux/libcfs/libcfs_cpu.h>
+#include <linux/libcfs/libcfs_string.h>
 
 /* The following are visible and mutable through /sys/module/ptlrpc */
 int test_req_buffer_pressure;
@@ -205,7 +208,7 @@ struct ptlrpc_hr_partition {
 #define HRT_STOPPING 1
 
 struct ptlrpc_hr_service {
-	/* CPU partition table, it's just cfs_cpt_table for now */
+	/* CPU partition table, it's just cfs_cpt_tab for now */
 	struct cfs_cpt_table		*hr_cpt_table;
 	/** controller sleep waitq */
 	wait_queue_head_t			hr_waitq;
@@ -336,7 +339,7 @@ static void ptlrpc_at_timer(struct timer_list *t)
 	svcpt = from_timer(svcpt, t, scp_at_timer);
 
 	svcpt->scp_at_check = 1;
-	svcpt->scp_at_checktime = cfs_time_current();
+	svcpt->scp_at_checktime = jiffies;
 	wake_up(&svcpt->scp_waitq);
 }
 
@@ -562,7 +565,7 @@ ptlrpc_register_service(struct ptlrpc_service_conf *conf,
 
 	cptable = cconf->cc_cptable;
 	if (!cptable)
-		cptable = cfs_cpt_table;
+		cptable = cfs_cpt_tab;
 
 	if (!conf->psc_thr.tc_cpu_affinity) {
 		ncpts = 1;
@@ -922,7 +925,7 @@ static void ptlrpc_at_set_timer(struct ptlrpc_service_part *svcpt)
 	if (next <= 0) {
 		ptlrpc_at_timer(&svcpt->scp_at_timer);
 	} else {
-		mod_timer(&svcpt->scp_at_timer, cfs_time_shift(next));
+		mod_timer(&svcpt->scp_at_timer, jiffies + next * HZ);
 		CDEBUG(D_INFO, "armed %s at %+ds\n",
 		       svcpt->scp_service->srv_name, next);
 	}
@@ -1153,7 +1156,7 @@ static void ptlrpc_at_check_timed(struct ptlrpc_service_part *svcpt)
 		spin_unlock(&svcpt->scp_at_lock);
 		return;
 	}
-	delay = cfs_time_sub(cfs_time_current(), svcpt->scp_at_checktime);
+	delay = jiffies - svcpt->scp_at_checktime;
 	svcpt->scp_at_check = 0;
 
 	if (array->paa_count == 0) {
@@ -1679,7 +1682,7 @@ ptlrpc_server_handle_request(struct ptlrpc_service_part *svcpt,
 	}
 
 	CDEBUG(D_RPCTRACE, "Handling RPC pname:cluuid+ref:pid:xid:nid:opc %s:%s+%d:%d:x%llu:%s:%d\n",
-	       current_comm(),
+	       current->comm,
 	       (request->rq_export ?
 		(char *)request->rq_export->exp_client_uuid.uuid : "0"),
 	       (request->rq_export ?
@@ -1723,7 +1726,7 @@ put_conn:
 	arrived_usecs = arrived.tv_sec * USEC_PER_SEC +
 			 arrived.tv_nsec / NSEC_PER_USEC;
 	CDEBUG(D_RPCTRACE, "Handled RPC pname:cluuid+ref:pid:xid:nid:opc %s:%s+%d:%d:x%llu:%s:%d Request processed in %ldus (%ldus total) trans %llu rc %d/%d\n",
-	       current_comm(),
+	       current->comm,
 	       (request->rq_export ?
 		(char *)request->rq_export->exp_client_uuid.uuid : "0"),
 	       (request->rq_export ?
@@ -2018,7 +2021,7 @@ static int ptlrpc_main(void *arg)
 	struct lu_env *env;
 	int counter = 0, rc = 0;
 
-	thread->t_pid = current_pid();
+	thread->t_pid = current->pid;
 	unshare_fs_struct();
 
 	/* NB: we will call cfs_cpt_bind() for all threads, because we
@@ -2516,7 +2519,7 @@ int ptlrpc_hr_init(void)
 	int weight;
 
 	memset(&ptlrpc_hr, 0, sizeof(ptlrpc_hr));
-	ptlrpc_hr.hr_cpt_table = cfs_cpt_table;
+	ptlrpc_hr.hr_cpt_table = cfs_cpt_tab;
 
 	ptlrpc_hr.hr_partitions = cfs_percpt_alloc(ptlrpc_hr.hr_cpt_table,
 						   sizeof(*hrp));

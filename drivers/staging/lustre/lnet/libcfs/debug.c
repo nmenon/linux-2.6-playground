@@ -38,7 +38,10 @@
 
 # define DEBUG_SUBSYSTEM S_LNET
 
-#include <linux/libcfs/libcfs.h>
+#include <linux/module.h>
+#include <linux/ctype.h>
+#include <linux/libcfs/libcfs_string.h>
+#include <linux/kthread.h>
 #include "tracefile.h"
 
 static char debug_file_name[1024];
@@ -126,7 +129,7 @@ static int param_get_delay(char *buffer, const struct kernel_param *kp)
 {
 	unsigned int d = *(unsigned int *)kp->arg;
 
-	return sprintf(buffer, "%u", (unsigned int)cfs_duration_sec(d * 100));
+	return sprintf(buffer, "%u", (unsigned int)(d * 100) / HZ);
 }
 
 unsigned int libcfs_console_max_delay;
@@ -373,7 +376,7 @@ void libcfs_debug_dumplog(void)
 	add_wait_queue(&debug_ctlwq, &wait);
 
 	dumper = kthread_run(libcfs_debug_dumplog_thread,
-			     (void *)(long)current_pid(),
+			     (void *)(long)current->pid,
 			     "libcfs_debug_dumper");
 	set_current_state(TASK_INTERRUPTIBLE);
 	if (IS_ERR(dumper))

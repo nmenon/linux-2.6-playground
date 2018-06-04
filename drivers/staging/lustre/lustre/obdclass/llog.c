@@ -44,6 +44,7 @@
 
 #define DEBUG_SUBSYSTEM S_LOG
 
+#include <linux/kthread.h>
 #include <llog_swab.h>
 #include <lustre_log.h>
 #include <obd_class.h>
@@ -385,7 +386,7 @@ out:
 	if (cd)
 		cd->lpcd_last_idx = last_called_index;
 
-	kfree(buf);
+	kvfree(buf);
 	lpi->lpi_rc = rc;
 	return 0;
 }

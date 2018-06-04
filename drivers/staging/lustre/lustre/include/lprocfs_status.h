@@ -43,8 +43,8 @@
 #include <linux/seq_file.h>
 #include <linux/spinlock.h>
 #include <linux/types.h>
+#include <linux/device.h>
 
-#include <linux/libcfs/libcfs.h>
 #include <uapi/linux/lustre/lustre_cfg.h>
 #include <uapi/linux/lustre/lustre_idl.h>
 
@@ -447,41 +447,15 @@ void lprocfs_counter_init(struct lprocfs_stats *stats, int index,
 			  const char *units);
 struct obd_export;
 int lprocfs_exp_cleanup(struct obd_export *exp);
-struct dentry *ldebugfs_add_simple(struct dentry *root,
-				   char *name,
-				   void *data,
-				   const struct file_operations *fops);
-
-int ldebugfs_register_stats(struct dentry *parent,
-			    const char *name,
-			    struct lprocfs_stats *stats);
+extern const struct file_operations lprocfs_stats_seq_fops;
 
 /* lprocfs_status.c */
-int ldebugfs_add_vars(struct dentry *parent,
-		      struct lprocfs_vars *var,
-		      void *data);
-
-struct dentry *ldebugfs_register(const char *name,
-				 struct dentry *parent,
-				 struct lprocfs_vars *list,
-				 void *data);
-
-void ldebugfs_remove(struct dentry **entryp);
+void ldebugfs_add_vars(struct dentry *parent, struct lprocfs_vars *var,
+		       void *data);
 
 int lprocfs_obd_setup(struct obd_device *obd, struct lprocfs_vars *list,
 		      const struct attribute_group *attrs);
 int lprocfs_obd_cleanup(struct obd_device *obd);
-
-int ldebugfs_seq_create(struct dentry *parent,
-			const char *name,
-			umode_t mode,
-			const struct file_operations *seq_fops,
-			void *data);
-int ldebugfs_obd_seq_create(struct obd_device *dev,
-			    const char *name,
-			    umode_t mode,
-			    const struct file_operations *seq_fops,
-			    void *data);
 
 /* Generic callbacks */
 

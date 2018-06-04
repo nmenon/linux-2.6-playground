@@ -37,6 +37,10 @@
 #define __LNET_LIB_LNET_H__
 
 #include <linux/libcfs/libcfs.h>
+#include <linux/libcfs/libcfs_cpu.h>
+#include <linux/libcfs/libcfs_string.h>
+#include <net/sock.h>
+
 #include <linux/lnet/api.h>
 #include <linux/lnet/lib-types.h>
 #include <uapi/linux/lnet/lnet-dlc.h>
@@ -67,6 +71,10 @@ extern struct lnet the_lnet;	/* THE network */
 
 /** exclusive lock */
 #define LNET_LOCK_EX		CFS_PERCPT_LOCK_EX
+
+/* need both kernel and user-land acceptor */
+#define LNET_ACCEPTOR_MIN_RESERVED_PORT    512
+#define LNET_ACCEPTOR_MAX_RESERVED_PORT    1023
 
 static inline int lnet_is_route_alive(struct lnet_route *route)
 {

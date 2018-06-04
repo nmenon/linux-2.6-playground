@@ -38,7 +38,8 @@
 
 #define DEBUG_SUBSYSTEM S_LDLM
 
-#include <linux/libcfs/libcfs.h>
+#include <linux/kthread.h>
+#include <linux/sched/mm.h>
 #include <lustre_dlm.h>
 #include <obd_class.h>
 #include <linux/list.h>
@@ -325,9 +326,8 @@ static void ldlm_handle_gl_callback(struct ptlrpc_request *req,
 	lock_res_and_lock(lock);
 	if (lock->l_granted_mode == LCK_PW &&
 	    !lock->l_readers && !lock->l_writers &&
-	    cfs_time_after(cfs_time_current(),
-			   cfs_time_add(lock->l_last_used,
-					10 * HZ))) {
+	    time_after(jiffies,
+		       lock->l_last_used + 10 * HZ)) {
 		unlock_res_and_lock(lock);
 		if (ldlm_bl_to_thread_lock(ns, NULL, lock))
 			ldlm_handle_bl_callback(ns, NULL, lock);
@@ -388,7 +388,7 @@ static inline void init_blwi(struct ldlm_bl_work_item *blwi,
 	init_completion(&blwi->blwi_comp);
 	INIT_LIST_HEAD(&blwi->blwi_head);
 
-	if (memory_pressure_get())
+	if (current->flags & PF_MEMALLOC)
 		blwi->blwi_mem_pressure = 1;
 
 	blwi->blwi_ns = ns;
@@ -777,12 +777,14 @@ static int ldlm_bl_thread_need_create(struct ldlm_bl_pool *blp,
 static int ldlm_bl_thread_blwi(struct ldlm_bl_pool *blp,
 			       struct ldlm_bl_work_item *blwi)
 {
+	unsigned int flags = 0;
+
 	if (!blwi->blwi_ns)
 		/* added by ldlm_cleanup() */
 		return LDLM_ITER_STOP;
 
 	if (blwi->blwi_mem_pressure)
-		memory_pressure_set();
+		flags = memalloc_noreclaim_save();
 
 	OBD_FAIL_TIMEOUT(OBD_FAIL_LDLM_PAUSE_CANCEL2, 4);
 
@@ -805,7 +807,7 @@ static int ldlm_bl_thread_blwi(struct ldlm_bl_pool *blp,
 					blwi->blwi_lock);
 	}
 	if (blwi->blwi_mem_pressure)
-		memory_pressure_clr();
+		memalloc_noreclaim_restore(flags);
 
 	if (blwi->blwi_flags & LCF_ASYNC)
 		kfree(blwi);
@@ -977,9 +979,7 @@ static int ldlm_setup(void)
 		goto out;
 	}
 
-	rc = ldlm_debugfs_setup();
-	if (rc != 0)
-		goto out;
+	ldlm_debugfs_setup();
 
 	memset(&conf, 0, sizeof(conf));
 	conf = (typeof(conf)) {

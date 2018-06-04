@@ -38,7 +38,6 @@
 #define DEBUG_SUBSYSTEM S_LOV
 
 #include <asm/div64.h>
-#include <linux/libcfs/libcfs.h>
 
 #include <obd_class.h>
 #include <uapi/linux/lustre/lustre_idl.h>

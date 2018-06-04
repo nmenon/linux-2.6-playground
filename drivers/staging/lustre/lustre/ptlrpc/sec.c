@@ -2236,7 +2236,7 @@ int sptlrpc_pack_user_desc(struct lustre_msg *msg, int offset)
 	pud->pud_gid = from_kgid(&init_user_ns, current_gid());
 	pud->pud_fsuid = from_kuid(&init_user_ns, current_fsuid());
 	pud->pud_fsgid = from_kgid(&init_user_ns, current_fsgid());
-	pud->pud_cap = cfs_curproc_cap_pack();
+	pud->pud_cap = current_cap().cap[0];
 	pud->pud_ngroups = (msg->lm_buflens[offset] - sizeof(*pud)) / 4;
 
 	task_lock(current);
@@ -2352,14 +2352,10 @@ int sptlrpc_init(void)
 	if (rc)
 		goto out_null;
 
-	rc = sptlrpc_lproc_init();
-	if (rc)
-		goto out_plain;
+	sptlrpc_lproc_init();
 
 	return 0;
 
-out_plain:
-	sptlrpc_plain_fini();
 out_null:
 	sptlrpc_null_fini();
 out_pool:

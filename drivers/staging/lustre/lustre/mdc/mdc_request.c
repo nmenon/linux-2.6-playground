@@ -38,6 +38,9 @@
 # include <linux/miscdevice.h>
 # include <linux/init.h>
 # include <linux/utsname.h>
+# include <linux/file.h>
+# include <linux/kthread.h>
+#include <linux/prefetch.h>
 
 #include <lustre_errno.h>
 #include <cl_object.h>
@@ -181,6 +184,8 @@ static int mdc_getattr(struct obd_export *exp, struct md_op_data *op_data,
 	mdc_pack_body(req, &op_data->op_fid1, op_data->op_valid,
 		      op_data->op_mode, -1, 0);
 
+	req_capsule_set_size(&req->rq_pill, &RMF_ACL, RCL_SERVER,
+			     req->rq_import->imp_connect_data.ocd_max_easize);
 	req_capsule_set_size(&req->rq_pill, &RMF_MDT_MD, RCL_SERVER,
 			     op_data->op_mode);
 	ptlrpc_request_set_replen(req);
@@ -227,6 +232,8 @@ static int mdc_getattr_name(struct obd_export *exp, struct md_op_data *op_data,
 
 	req_capsule_set_size(&req->rq_pill, &RMF_MDT_MD, RCL_SERVER,
 			     op_data->op_mode);
+	req_capsule_set_size(&req->rq_pill, &RMF_ACL, RCL_SERVER,
+			     req->rq_import->imp_connect_data.ocd_max_easize);
 	ptlrpc_request_set_replen(req);
 
 	rc = mdc_getattr_common(exp, req);
@@ -303,7 +310,7 @@ static int mdc_xattr_common(struct obd_export *exp,
 		rec->sx_opcode = REINT_SETXATTR;
 		rec->sx_fsuid  = from_kuid(&init_user_ns, current_fsuid());
 		rec->sx_fsgid  = from_kgid(&init_user_ns, current_fsgid());
-		rec->sx_cap    = cfs_curproc_cap_pack();
+		rec->sx_cap    = current_cap().cap[0];
 		rec->sx_suppgid1 = suppgid;
 		rec->sx_suppgid2 = -1;
 		rec->sx_fid    = *fid;
@@ -347,26 +354,30 @@ static int mdc_xattr_common(struct obd_export *exp,
 }
 
 static int mdc_setxattr(struct obd_export *exp, const struct lu_fid *fid,
-			u64 valid, const char *xattr_name,
-			const char *input, int input_size, int output_size,
-			int flags, __u32 suppgid,
-			struct ptlrpc_request **request)
+			u64 obd_md_valid, const char *name,
+			const void *value, size_t value_size,
+			unsigned int xattr_flags, u32 suppgid,
+			struct ptlrpc_request **req)
 {
+	LASSERT(obd_md_valid == OBD_MD_FLXATTR ||
+		obd_md_valid == OBD_MD_FLXATTRRM);
+
 	return mdc_xattr_common(exp, &RQF_MDS_REINT_SETXATTR,
-				fid, MDS_REINT, valid, xattr_name,
-				input, input_size, output_size, flags,
-				suppgid, request);
+				fid, MDS_REINT, obd_md_valid, name,
+				value, value_size, 0, xattr_flags, suppgid,
+				req);
 }
 
 static int mdc_getxattr(struct obd_export *exp, const struct lu_fid *fid,
-			u64 valid, const char *xattr_name,
-			const char *input, int input_size, int output_size,
-			int flags, struct ptlrpc_request **request)
+			u64 obd_md_valid, const char *name, size_t buf_size,
+			struct ptlrpc_request **req)
 {
-	return mdc_xattr_common(exp, &RQF_MDS_GETXATTR,
-				fid, MDS_GETXATTR, valid, xattr_name,
-				input, input_size, output_size, flags,
-				-1, request);
+	LASSERT(obd_md_valid == OBD_MD_FLXATTR ||
+		obd_md_valid == OBD_MD_FLXATTRLS);
+
+	return mdc_xattr_common(exp, &RQF_MDS_GETXATTR, fid, MDS_GETXATTR,
+				obd_md_valid, name, NULL, 0, buf_size, 0, -1,
+				req);
 }
 
 #ifdef CONFIG_FS_POSIX_ACL
@@ -2104,7 +2115,7 @@ static int mdc_iocontrol(unsigned int cmd, struct obd_export *exp, int len,
 		}
 
 		rc = mdc_statfs(NULL, obd->obd_self_export, &stat_buf,
-				cfs_time_shift_64(-OBD_STATFS_CACHE_SECONDS),
+				get_jiffies_64() - OBD_STATFS_CACHE_SECONDS * HZ,
 				0);
 		if (rc != 0)
 			goto out;
@@ -2733,6 +2744,11 @@ static struct md_ops mdc_md_ops = {
 static int __init mdc_init(void)
 {
 	struct lprocfs_static_vars lvars = { NULL };
+	int rc;
+
+	rc = libcfs_setup();
+	if (rc)
+		return rc;
 
 	lprocfs_mdc_init_vars(&lvars);
 

@@ -1290,7 +1290,7 @@ static int osc_make_ready(const struct lu_env *env, struct osc_async_page *oap,
 
 	result = cl_page_make_ready(env, page, CRT_WRITE);
 	if (result == 0)
-		opg->ops_submit_time = cfs_time_current();
+		opg->ops_submit_time = jiffies;
 	return result;
 }
 
@@ -2622,7 +2622,7 @@ int osc_flush_async_page(const struct lu_env *env, struct cl_io *io,
 	oap->oap_async_flags |= ASYNC_READY | ASYNC_URGENT;
 	spin_unlock(&oap->oap_lock);
 
-	if (memory_pressure_get())
+	if (current->flags & PF_MEMALLOC)
 		ext->oe_memalloc = 1;
 
 	ext->oe_urgent = 1;

@@ -185,7 +185,7 @@ ptlrpc_ldebugfs_register(struct dentry *root, char *dir,
 {
 	struct dentry *svc_debugfs_entry;
 	struct lprocfs_stats *svc_stats;
-	int i, rc;
+	int i;
 	unsigned int svc_counter_config = LPROCFS_CNTR_AVGMINMAX |
 					  LPROCFS_CNTR_STDDEV;
 
@@ -197,15 +197,10 @@ ptlrpc_ldebugfs_register(struct dentry *root, char *dir,
 	if (!svc_stats)
 		return;
 
-	if (dir) {
-		svc_debugfs_entry = ldebugfs_register(dir, root, NULL, NULL);
-		if (IS_ERR(svc_debugfs_entry)) {
-			lprocfs_free_stats(&svc_stats);
-			return;
-		}
-	} else {
+	if (dir)
+		svc_debugfs_entry = debugfs_create_dir(dir, root);
+	else
 		svc_debugfs_entry = root;
-	}
 
 	lprocfs_counter_init(svc_stats, PTLRPC_REQWAIT_CNTR,
 			     svc_counter_config, "req_waittime", "usec");
@@ -241,16 +236,11 @@ ptlrpc_ldebugfs_register(struct dentry *root, char *dir,
 				     ll_opcode2str(opcode), "usec");
 	}
 
-	rc = ldebugfs_register_stats(svc_debugfs_entry, name, svc_stats);
-	if (rc < 0) {
-		if (dir)
-			ldebugfs_remove(&svc_debugfs_entry);
-		lprocfs_free_stats(&svc_stats);
-	} else {
-		if (dir)
-			*debugfs_root_ret = svc_debugfs_entry;
-		*stats_ret = svc_stats;
-	}
+	debugfs_create_file("stats", 0644, svc_debugfs_entry, svc_stats,
+			    &lprocfs_stats_seq_fops);
+	if (dir)
+		*debugfs_root_ret = svc_debugfs_entry;
+	*stats_ret = svc_stats;
 }
 
 static int
@@ -1104,8 +1094,6 @@ void ptlrpc_ldebugfs_register_service(struct dentry *entry,
 		.release     = lprocfs_seq_release,
 	};
 
-	int rc;
-
 	ptlrpc_ldebugfs_register(entry, svc->srv_name,
 				 "stats", &svc->srv_debugfs_entry,
 				 &svc->srv_stats);
@@ -1115,10 +1103,8 @@ void ptlrpc_ldebugfs_register_service(struct dentry *entry,
 
 	ldebugfs_add_vars(svc->srv_debugfs_entry, lproc_vars, NULL);
 
-	rc = ldebugfs_seq_create(svc->srv_debugfs_entry, "req_history",
-				 0400, &req_history_fops, svc);
-	if (rc)
-		CWARN("Error adding the req_history file\n");
+	debugfs_create_file("req_history", 0400, svc->srv_debugfs_entry, svc,
+			    &req_history_fops);
 }
 
 void ptlrpc_lprocfs_register_obd(struct obd_device *obddev)
@@ -1172,8 +1158,7 @@ EXPORT_SYMBOL(ptlrpc_lprocfs_brw);
 
 void ptlrpc_lprocfs_unregister_service(struct ptlrpc_service *svc)
 {
-	if (!IS_ERR_OR_NULL(svc->srv_debugfs_entry))
-		ldebugfs_remove(&svc->srv_debugfs_entry);
+	debugfs_remove_recursive(svc->srv_debugfs_entry);
 
 	if (svc->srv_stats)
 		lprocfs_free_stats(&svc->srv_stats);
@@ -1181,8 +1166,7 @@ void ptlrpc_lprocfs_unregister_service(struct ptlrpc_service *svc)
 
 void ptlrpc_lprocfs_unregister_obd(struct obd_device *obd)
 {
-	if (!IS_ERR_OR_NULL(obd->obd_svc_debugfs_entry))
-		ldebugfs_remove(&obd->obd_svc_debugfs_entry);
+	debugfs_remove_recursive(obd->obd_svc_debugfs_entry);
 
 	if (obd->obd_svc_stats)
 		lprocfs_free_stats(&obd->obd_svc_stats);

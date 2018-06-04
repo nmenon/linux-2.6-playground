@@ -33,8 +33,6 @@
 
 #define DEBUG_SUBSYSTEM S_LOV
 
-#include <linux/libcfs/libcfs.h>
-
 #include <obd_class.h>
 #include <uapi/linux/lustre/lustre_idl.h>
 #include "lov_internal.h"
@@ -160,7 +158,7 @@ static int lov_fini_statfs(struct obd_device *obd, struct obd_statfs *osfs,
 
 		spin_lock(&obd->obd_osfs_lock);
 		memcpy(&obd->obd_osfs, osfs, sizeof(*osfs));
-		obd->obd_osfs_age = cfs_time_current_64();
+		obd->obd_osfs_age = get_jiffies_64();
 		spin_unlock(&obd->obd_osfs_lock);
 		return 0;
 	}
@@ -277,7 +275,7 @@ static int cb_statfs_update(void *cookie, int rc)
 	spin_lock(&tgtobd->obd_osfs_lock);
 	memcpy(&tgtobd->obd_osfs, lov_sfs, sizeof(*lov_sfs));
 	if ((oinfo->oi_flags & OBD_STATFS_FROM_CACHE) == 0)
-		tgtobd->obd_osfs_age = cfs_time_current_64();
+		tgtobd->obd_osfs_age = get_jiffies_64();
 	spin_unlock(&tgtobd->obd_osfs_lock);
 
 out_update:

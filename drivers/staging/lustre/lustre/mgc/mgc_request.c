@@ -39,6 +39,7 @@
 #define D_MGC D_CONFIG /*|D_WARNING*/
 
 #include <linux/module.h>
+#include <linux/random.h>
 
 #include <lprocfs_status.h>
 #include <lustre_dlm.h>
@@ -1826,6 +1827,12 @@ static struct obd_ops mgc_obd_ops = {
 
 static int __init mgc_init(void)
 {
+	int rc;
+
+	rc = libcfs_setup();
+	if (rc)
+		return rc;
+
 	return class_register_type(&mgc_obd_ops, NULL,
 				   LUSTRE_MGC_NAME, NULL);
 }

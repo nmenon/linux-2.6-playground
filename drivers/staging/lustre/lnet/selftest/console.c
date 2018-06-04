@@ -37,7 +37,6 @@
  * Author: Liang Zhen <liangzhen@clusterfs.com>
  */
 
-#include <linux/libcfs/libcfs.h>
 #include <linux/lnet/lib-lnet.h>
 #include "console.h"
 #include "conrpc.h"
@@ -98,7 +97,7 @@ lstcon_node_find(struct lnet_process_id id, struct lstcon_node **ndpp,
 
 	ndl->ndl_node->nd_ref = 1;
 	ndl->ndl_node->nd_id = id;
-	ndl->ndl_node->nd_stamp = cfs_time_current();
+	ndl->ndl_node->nd_stamp = jiffies;
 	ndl->ndl_node->nd_state = LST_NODE_UNKNOWN;
 	ndl->ndl_node->nd_timeout = 0;
 	memset(&ndl->ndl_node->nd_ping, 0, sizeof(struct lstcon_rpc));
@@ -1701,7 +1700,7 @@ lstcon_new_session_id(struct lst_sid *sid)
 
 	LNetGetId(1, &id);
 	sid->ses_nid = id.nid;
-	sid->ses_stamp = cfs_time_current();
+	sid->ses_stamp = jiffies;
 }
 
 int
@@ -1996,7 +1995,9 @@ static void lstcon_init_acceptor_service(void)
 	lstcon_acceptor_service.sv_wi_total = SFW_FRWK_WI_MAX;
 }
 
-static DECLARE_IOCTL_HANDLER(lstcon_ioctl_handler, lstcon_ioctl_entry);
+static struct notifier_block lstcon_ioctl_handler = {
+	.notifier_call = lstcon_ioctl_entry,
+};
 
 /* initialize console */
 int
@@ -2048,7 +2049,8 @@ lstcon_console_init(void)
 		goto out;
 	}
 
-	rc = libcfs_register_ioctl(&lstcon_ioctl_handler);
+	rc = blocking_notifier_chain_register(&libcfs_ioctl_list,
+					      &lstcon_ioctl_handler);
 
 	if (!rc) {
 		lstcon_rpc_module_init();
@@ -2071,7 +2073,8 @@ lstcon_console_fini(void)
 {
 	int i;
 
-	libcfs_deregister_ioctl(&lstcon_ioctl_handler);
+	blocking_notifier_chain_unregister(&libcfs_ioctl_list,
+					   &lstcon_ioctl_handler);
 
 	mutex_lock(&console_session.ses_mutex);
 

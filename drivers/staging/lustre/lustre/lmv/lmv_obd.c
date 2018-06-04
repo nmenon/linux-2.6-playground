@@ -37,11 +37,13 @@
 #include <linux/init.h>
 #include <linux/pagemap.h>
 #include <linux/mm.h>
+#include <linux/file.h>
 #include <asm/div64.h>
 #include <linux/seq_file.h>
 #include <linux/namei.h>
 #include <linux/uaccess.h>
 
+#include <linux/libcfs/libcfs.h>
 #include <obd_support.h>
 #include <lustre_net.h>
 #include <obd_class.h>
@@ -876,7 +878,7 @@ static int lmv_iocontrol(unsigned int cmd, struct obd_export *exp,
 			return -EFAULT;
 
 		rc = obd_statfs(NULL, tgt->ltd_exp, &stat_buf,
-				cfs_time_shift_64(-OBD_STATFS_CACHE_SECONDS),
+				get_jiffies_64() - OBD_STATFS_CACHE_SECONDS * HZ,
 				0);
 		if (rc)
 			return rc;
@@ -1262,11 +1264,8 @@ static int lmv_setup(struct obd_device *obd, struct lustre_cfg *lcfg)
 	lprocfs_lmv_init_vars(&lvars);
 
 	lprocfs_obd_setup(obd, lvars.obd_vars, lvars.sysfs_vars);
-	rc = ldebugfs_seq_create(obd->obd_debugfs_entry, "target_obd",
-				 0444, &lmv_proc_target_fops, obd);
-	if (rc)
-		CWARN("%s: error adding LMV target_obd file: rc = %d\n",
-		      obd->obd_name, rc);
+	debugfs_create_file("target_obd", 0444, obd->obd_debugfs_entry, obd,
+			    &lmv_proc_target_fops);
 	rc = fld_client_init(&lmv->lmv_fld, obd->obd_name,
 			     LUSTRE_CLI_FLD_HASH_DHT);
 	if (rc) {
@@ -1398,9 +1397,8 @@ static int lmv_getstatus(struct obd_export *exp,
 }
 
 static int lmv_getxattr(struct obd_export *exp, const struct lu_fid *fid,
-			u64 valid, const char *name,
-			const char *input, int input_size, int output_size,
-			int flags, struct ptlrpc_request **request)
+			u64 obd_md_valid, const char *name, size_t buf_size,
+			struct ptlrpc_request **req)
 {
 	struct obd_device      *obd = exp->exp_obd;
 	struct lmv_obd	 *lmv = &obd->u.lmv;
@@ -1410,15 +1408,15 @@ static int lmv_getxattr(struct obd_export *exp, const struct lu_fid *fid,
 	if (IS_ERR(tgt))
 		return PTR_ERR(tgt);
 
-	return md_getxattr(tgt->ltd_exp, fid, valid, name, input,
-			 input_size, output_size, flags, request);
+	return md_getxattr(tgt->ltd_exp, fid, obd_md_valid, name, buf_size,
+			   req);
 }
 
 static int lmv_setxattr(struct obd_export *exp, const struct lu_fid *fid,
-			u64 valid, const char *name,
-			const char *input, int input_size, int output_size,
-			int flags, __u32 suppgid,
-			struct ptlrpc_request **request)
+			u64 obd_md_valid, const char *name,
+			const void *value, size_t value_size,
+			unsigned int xattr_flags, u32 suppgid,
+			struct ptlrpc_request **req)
 {
 	struct obd_device      *obd = exp->exp_obd;
 	struct lmv_obd	 *lmv = &obd->u.lmv;
@@ -1428,9 +1426,8 @@ static int lmv_setxattr(struct obd_export *exp, const struct lu_fid *fid,
 	if (IS_ERR(tgt))
 		return PTR_ERR(tgt);
 
-	return md_setxattr(tgt->ltd_exp, fid, valid, name, input,
-			 input_size, output_size, flags, suppgid,
-			 request);
+	return md_setxattr(tgt->ltd_exp, fid, obd_md_valid, name,
+			   value, value_size, xattr_flags, suppgid, req);
 }
 
 static int lmv_getattr(struct obd_export *exp, struct md_op_data *op_data,
@@ -1598,7 +1595,7 @@ lmv_locate_mds(struct lmv_obd *lmv, struct md_op_data *op_data,
 
 static int lmv_create(struct obd_export *exp, struct md_op_data *op_data,
 		      const void *data, size_t datalen, umode_t mode,
-		      uid_t uid, gid_t gid, cfs_cap_t cap_effective,
+		      uid_t uid, gid_t gid, kernel_cap_t cap_effective,
 		      __u64 rdev, struct ptlrpc_request **request)
 {
 	struct obd_device       *obd = exp->exp_obd;
@@ -1652,26 +1649,24 @@ static int lmv_create(struct obd_export *exp, struct md_op_data *op_data,
 
 static int
 lmv_enqueue(struct obd_export *exp, struct ldlm_enqueue_info *einfo,
-	    const union ldlm_policy_data *policy,
-	    struct lookup_intent *it, struct md_op_data *op_data,
+	    const union ldlm_policy_data *policy, struct md_op_data *op_data,
 	    struct lustre_handle *lockh, __u64 extra_lock_flags)
 {
 	struct obd_device	*obd = exp->exp_obd;
 	struct lmv_obd	   *lmv = &obd->u.lmv;
 	struct lmv_tgt_desc      *tgt;
 
-	CDEBUG(D_INODE, "ENQUEUE '%s' on " DFID "\n",
-	       LL_IT2STR(it), PFID(&op_data->op_fid1));
+	CDEBUG(D_INODE, "ENQUEUE on " DFID "\n", PFID(&op_data->op_fid1));
 
 	tgt = lmv_locate_mds(lmv, op_data, &op_data->op_fid1);
 	if (IS_ERR(tgt))
 		return PTR_ERR(tgt);
 
-	CDEBUG(D_INODE, "ENQUEUE '%s' on " DFID " -> mds #%u\n",
-	       LL_IT2STR(it), PFID(&op_data->op_fid1), tgt->ltd_idx);
+	CDEBUG(D_INODE, "ENQUEUE on " DFID " -> mds #%u\n",
+	       PFID(&op_data->op_fid1), tgt->ltd_idx);
 
-	return md_enqueue(tgt->ltd_exp, einfo, policy, it, op_data, lockh,
-			extra_lock_flags);
+	return md_enqueue(tgt->ltd_exp, einfo, policy, op_data, lockh,
+			  extra_lock_flags);
 }
 
 static int
@@ -1785,7 +1780,7 @@ static int lmv_link(struct obd_export *exp, struct md_op_data *op_data,
 
 	op_data->op_fsuid = from_kuid(&init_user_ns, current_fsuid());
 	op_data->op_fsgid = from_kgid(&init_user_ns, current_fsgid());
-	op_data->op_cap = cfs_curproc_cap_pack();
+	op_data->op_cap = current_cap();
 	if (op_data->op_mea2) {
 		struct lmv_stripe_md *lsm = op_data->op_mea2;
 		const struct lmv_oinfo *oinfo;
@@ -1837,7 +1832,7 @@ static int lmv_rename(struct obd_export *exp, struct md_op_data *op_data,
 
 	op_data->op_fsuid = from_kuid(&init_user_ns, current_fsuid());
 	op_data->op_fsgid = from_kgid(&init_user_ns, current_fsgid());
-	op_data->op_cap = cfs_curproc_cap_pack();
+	op_data->op_cap = current_cap();
 
 	if (op_data->op_cli_flags & CLI_MIGRATE) {
 		LASSERTF(fid_is_sane(&op_data->op_fid3), "invalid FID " DFID "\n",
@@ -2415,7 +2410,7 @@ try_next_stripe:
 
 	op_data->op_fsuid = from_kuid(&init_user_ns, current_fsuid());
 	op_data->op_fsgid = from_kgid(&init_user_ns, current_fsgid());
-	op_data->op_cap = cfs_curproc_cap_pack();
+	op_data->op_cap = current_cap();
 
 	/*
 	 * If child's fid is given, cancel unused locks for it if it is from
@@ -3110,8 +3105,13 @@ static struct md_ops lmv_md_ops = {
 static int __init lmv_init(void)
 {
 	struct lprocfs_static_vars lvars;
+	int rc;
 
 	lprocfs_lmv_init_vars(&lvars);
+
+	rc = libcfs_setup();
+	if (rc)
+		return rc;
 
 	return class_register_type(&lmv_obd_ops, &lmv_md_ops,
 				 LUSTRE_LMV_NAME, NULL);

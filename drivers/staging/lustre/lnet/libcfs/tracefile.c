@@ -39,9 +39,15 @@
 #define DEBUG_SUBSYSTEM S_LNET
 #define LUSTRE_TRACEFILE_PRIVATE
 #define pr_fmt(fmt) "Lustre: " fmt
-#include "tracefile.h"
 
-#include <linux/libcfs/libcfs.h>
+#include <linux/ratelimit.h>
+#include <linux/highmem.h>
+#include <linux/ctype.h>
+#include <linux/kthread.h>
+#include <linux/mm.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
+#include "tracefile.h"
 
 /* XXX move things up to the top, comment */
 union cfs_trace_data_union (*cfs_trace_data[TCD_MAX_TYPES])[NR_CPUS] __cacheline_aligned;
@@ -114,7 +120,7 @@ static struct cfs_trace_page *cfs_tage_alloc(gfp_t gfp)
 	struct cfs_trace_page *tage;
 
 	/* My caller is trying to free memory */
-	if (!in_interrupt() && memory_pressure_get())
+	if (!in_interrupt() && (current->flags & PF_MEMALLOC))
 		return NULL;
 
 	/*
@@ -192,7 +198,8 @@ cfs_trace_get_tage_try(struct cfs_trace_cpu_data *tcd, unsigned long len)
 		} else {
 			tage = cfs_tage_alloc(GFP_ATOMIC);
 			if (unlikely(!tage)) {
-				if (!memory_pressure_get() || in_interrupt())
+				if (!(current->flags & PF_MEMALLOC) ||
+				    in_interrupt())
 					pr_warn_ratelimited("cannot allocate a tage (%ld)\n",
 							    tcd->tcd_cur_pages);
 				return NULL;
@@ -328,7 +335,7 @@ int libcfs_debug_vmsg2(struct libcfs_debug_msg_data *msgdata,
 		goto console;
 	}
 
-	depth = __current_nesting_level();
+	depth = 0;
 	known_size = strlen(file) + 1 + depth;
 	if (msgdata->msg_fn)
 		known_size += strlen(msgdata->msg_fn) + 1;
@@ -431,7 +438,7 @@ console:
 	if (cdls) {
 		if (libcfs_console_ratelimit &&
 		    cdls->cdls_next &&		/* not first time ever */
-		    !cfs_time_after(cfs_time_current(), cdls->cdls_next)) {
+		    !time_after(jiffies, cdls->cdls_next)) {
 			/* skipping a console message */
 			cdls->cdls_count++;
 			if (tcd)
@@ -439,9 +446,9 @@ console:
 			return 1;
 		}
 
-		if (cfs_time_after(cfs_time_current(),
-				   cdls->cdls_next + libcfs_console_max_delay +
-				   10 * HZ)) {
+		if (time_after(jiffies,
+			       cdls->cdls_next + libcfs_console_max_delay +
+			       10 * HZ)) {
 			/* last timeout was a long time ago */
 			cdls->cdls_delay /= libcfs_console_backoff * 4;
 		} else {
@@ -454,7 +461,7 @@ console:
 			cdls->cdls_delay = libcfs_console_max_delay;
 
 		/* ensure cdls_next is never zero after it's been seen */
-		cdls->cdls_next = (cfs_time_current() + cdls->cdls_delay) | 1;
+		cdls->cdls_next = (jiffies + cdls->cdls_delay) | 1;
 	}
 
 	if (tcd) {

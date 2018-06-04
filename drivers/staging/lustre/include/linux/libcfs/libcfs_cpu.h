@@ -59,9 +59,9 @@
  *   . NUMA allocators, CPU affinity threads are built over CPU partitions,
  *     instead of HW CPUs or HW nodes.
  *
- *   . By default, Lustre modules should refer to the global cfs_cpt_table,
+ *   . By default, Lustre modules should refer to the global cfs_cpt_tab,
  *     instead of accessing HW CPUs directly, so concurrency of Lustre can be
- *     configured by cpu_npartitions of the global cfs_cpt_table
+ *     configured by cpu_npartitions of the global cfs_cpt_tab
  *
  *   . If cpu_npartitions=1(all CPUs in one pool), lustre should work the
  *     same way as 2.2 or earlier versions
@@ -72,10 +72,45 @@
 #ifndef __LIBCFS_CPU_H__
 #define __LIBCFS_CPU_H__
 
+#include <linux/cpu.h>
+#include <linux/cpuset.h>
+#include <linux/topology.h>
+
 /* any CPU partition */
 #define CFS_CPT_ANY		(-1)
 
 #ifdef CONFIG_SMP
+/** virtual processing unit */
+struct cfs_cpu_partition {
+	/* CPUs mask for this partition */
+	cpumask_var_t			cpt_cpumask;
+	/* nodes mask for this partition */
+	nodemask_t			*cpt_nodemask;
+	/* spread rotor for NUMA allocator */
+	unsigned int			cpt_spread_rotor;
+};
+
+
+/** descriptor for CPU partitions */
+struct cfs_cpt_table {
+	/* version, reserved for hotplug */
+	unsigned int			ctb_version;
+	/* spread rotor for NUMA allocator */
+	unsigned int			ctb_spread_rotor;
+	/* # of CPU partitions */
+	unsigned int			ctb_nparts;
+	/* partitions tables */
+	struct cfs_cpu_partition	*ctb_parts;
+	/* shadow HW CPU to CPU partition ID */
+	int				*ctb_cpu2cpt;
+	/* all cpus in this partition table */
+	cpumask_var_t			ctb_cpumask;
+	/* all nodes in this partition table */
+	nodemask_t			*ctb_nodemask;
+};
+
+extern struct cfs_cpt_table	*cfs_cpt_tab;
+
 /**
  * return cpumask of CPU partition \a cpt
  */
@@ -84,41 +119,6 @@ cpumask_var_t *cfs_cpt_cpumask(struct cfs_cpt_table *cptab, int cpt);
  * print string information of cpt-table
  */
 int cfs_cpt_table_print(struct cfs_cpt_table *cptab, char *buf, int len);
-#else /* !CONFIG_SMP */
-struct cfs_cpt_table {
-	/* # of CPU partitions */
-	int			ctb_nparts;
-	/* cpu mask */
-	cpumask_t		ctb_mask;
-	/* node mask */
-	nodemask_t		ctb_nodemask;
-	/* version */
-	u64			ctb_version;
-};
-
-static inline cpumask_var_t *
-cfs_cpt_cpumask(struct cfs_cpt_table *cptab, int cpt)
-{
-	return NULL;
-}
-
-static inline int
-cfs_cpt_table_print(struct cfs_cpt_table *cptab, char *buf, int len)
-{
-	return 0;
-}
-#endif /* CONFIG_SMP */
-
-extern struct cfs_cpt_table	*cfs_cpt_table;
-
-/**
- * destroy a CPU partition table
- */
-void cfs_cpt_table_free(struct cfs_cpt_table *cptab);
-/**
- * create a cfs_cpt_table with \a ncpt number of partitions
- */
-struct cfs_cpt_table *cfs_cpt_table_alloc(unsigned int ncpt);
 /**
  * return total number of CPU partitions in \a cptab
  */
@@ -204,6 +204,148 @@ int cfs_cpt_spread_node(struct cfs_cpt_table *cptab, int cpt);
  */
 int cfs_cpu_ht_nsiblings(int cpu);
 
+int  cfs_cpu_init(void);
+void cfs_cpu_fini(void);
+
+#else /* !CONFIG_SMP */
+struct cfs_cpt_table;
+#define cfs_cpt_tab ((struct cfs_cpt_table *)NULL)
+
+static inline cpumask_var_t *
+cfs_cpt_cpumask(struct cfs_cpt_table *cptab, int cpt)
+{
+	return NULL;
+}
+
+static inline int
+cfs_cpt_table_print(struct cfs_cpt_table *cptab, char *buf, int len)
+{
+	return 0;
+}
+static inline int
+cfs_cpt_number(struct cfs_cpt_table *cptab)
+{
+	return 1;
+}
+
+static inline int
+cfs_cpt_weight(struct cfs_cpt_table *cptab, int cpt)
+{
+	return 1;
+}
+
+static inline int
+cfs_cpt_online(struct cfs_cpt_table *cptab, int cpt)
+{
+	return 1;
+}
+
+static inline nodemask_t *
+cfs_cpt_nodemask(struct cfs_cpt_table *cptab, int cpt)
+{
+	return NULL;
+}
+
+static inline int
+cfs_cpt_set_cpu(struct cfs_cpt_table *cptab, int cpt, int cpu)
+{
+	return 1;
+}
+
+static inline void
+cfs_cpt_unset_cpu(struct cfs_cpt_table *cptab, int cpt, int cpu)
+{
+}
+
+static inline int
+cfs_cpt_set_cpumask(struct cfs_cpt_table *cptab, int cpt, cpumask_t *mask)
+{
+	return 1;
+}
+
+static inline void
+cfs_cpt_unset_cpumask(struct cfs_cpt_table *cptab, int cpt, cpumask_t *mask)
+{
+}
+
+static inline int
+cfs_cpt_set_node(struct cfs_cpt_table *cptab, int cpt, int node)
+{
+	return 1;
+}
+
+static inline void
+cfs_cpt_unset_node(struct cfs_cpt_table *cptab, int cpt, int node)
+{
+}
+
+static inline int
+cfs_cpt_set_nodemask(struct cfs_cpt_table *cptab, int cpt, nodemask_t *mask)
+{
+	return 1;
+}
+
+static inline void
+cfs_cpt_unset_nodemask(struct cfs_cpt_table *cptab, int cpt, nodemask_t *mask)
+{
+}
+
+static inline void
+cfs_cpt_clear(struct cfs_cpt_table *cptab, int cpt)
+{
+}
+
+static inline int
+cfs_cpt_spread_node(struct cfs_cpt_table *cptab, int cpt)
+{
+	return 0;
+}
+
+static inline int
+cfs_cpu_ht_nsiblings(int cpu)
+{
+	return 1;
+}
+
+static inline int
+cfs_cpt_current(struct cfs_cpt_table *cptab, int remap)
+{
+	return 0;
+}
+
+static inline int
+cfs_cpt_of_cpu(struct cfs_cpt_table *cptab, int cpu)
+{
+	return 0;
+}
+
+static inline int
+cfs_cpt_bind(struct cfs_cpt_table *cptab, int cpt)
+{
+	return 0;
+}
+
+static inline int
+cfs_cpu_init(void)
+{
+	return 0;
+}
+
+static inline void cfs_cpu_fini(void)
+{
+}
+
+#endif /* CONFIG_SMP */
+
+/**
+ * destroy a CPU partition table
+ */
+void cfs_cpt_table_free(struct cfs_cpt_table *cptab);
+/**
+ * create a cfs_cpt_table with \a ncpt number of partitions
+ */
+struct cfs_cpt_table *cfs_cpt_table_alloc(unsigned int ncpt);
+
 /*
  * allocate per-cpu-partition data, returned value is an array of pointers,
  * variable can be indexed by CPU ID.
@@ -288,8 +430,5 @@ void cfs_percpt_unlock(struct cfs_percpt_lock *pcl, int index);
  */
 #define cfs_cpt_for_each(i, cptab)	\
 	for (i = 0; i < cfs_cpt_number(cptab); i++)
-
-int  cfs_cpu_init(void);
-void cfs_cpu_fini(void);
 
 #endif /* __LIBCFS_CPU_H__ */

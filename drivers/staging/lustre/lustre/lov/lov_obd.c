@@ -39,7 +39,6 @@
  */
 
 #define DEBUG_SUBSYSTEM S_LOV
-#include <linux/libcfs/libcfs.h>
 
 #include <uapi/linux/lustre/lustre_idl.h>
 #include <uapi/linux/lustre/lustre_ioctl.h>
@@ -795,15 +794,11 @@ int lov_setup(struct obd_device *obd, struct lustre_cfg *lcfg)
 
 	init_rwsem(&lov->lov_notify_lock);
 
-	lov->lov_pools_hash_body = cfs_hash_create("POOLS", HASH_POOLS_CUR_BITS,
-						   HASH_POOLS_MAX_BITS,
-						   HASH_POOLS_BKT_BITS, 0,
-						   CFS_HASH_MIN_THETA,
-						   CFS_HASH_MAX_THETA,
-						   &pool_hash_operations,
-						   CFS_HASH_DEFAULT);
 	INIT_LIST_HEAD(&lov->lov_pool_list);
 	lov->lov_pool_count = 0;
+	rc = lov_pool_hash_init(&lov->lov_pools_hash_body);
+	if (rc)
+		goto out;
 	rc = lov_ost_pool_init(&lov->lov_packed, 0);
 	if (rc)
 		goto out;
@@ -811,14 +806,11 @@ int lov_setup(struct obd_device *obd, struct lustre_cfg *lcfg)
 	lprocfs_lov_init_vars(&lvars);
 	lprocfs_obd_setup(obd, lvars.obd_vars, lvars.sysfs_vars);
 
-	rc = ldebugfs_seq_create(obd->obd_debugfs_entry, "target_obd",
-				 0444, &lov_proc_target_fops, obd);
-	if (rc)
-		CWARN("Error adding the target_obd file\n");
+	debugfs_create_file("target_obd", 0444, obd->obd_debugfs_entry, obd,
+			    &lov_proc_target_fops);
 
-	lov->lov_pool_debugfs_entry = ldebugfs_register("pools",
-						     obd->obd_debugfs_entry,
-						     NULL, NULL);
+	lov->lov_pool_debugfs_entry = debugfs_create_dir("pools",
+							 obd->obd_debugfs_entry);
 	return 0;
 
 out:
@@ -839,7 +831,7 @@ static int lov_cleanup(struct obd_device *obd)
 		/* coverity[overrun-buffer-val] */
 		lov_pool_del(obd, pool->pool_name);
 	}
-	cfs_hash_putref(lov->lov_pools_hash_body);
+	lov_pool_hash_destroy(&lov->lov_pools_hash_body);
 	lov_ost_pool_free(&lov->lov_packed);
 
 	lprocfs_obd_cleanup(obd);
@@ -1063,7 +1055,7 @@ static int lov_iocontrol(unsigned int cmd, struct obd_export *exp, int len,
 
 		/* got statfs data */
 		rc = obd_statfs(NULL, lov->lov_tgts[index]->ltd_exp, &stat_buf,
-				cfs_time_shift_64(-OBD_STATFS_CACHE_SECONDS),
+				get_jiffies_64() - OBD_STATFS_CACHE_SECONDS * HZ,
 				flags);
 		if (rc)
 			return rc;
@@ -1301,16 +1293,16 @@ static int lov_set_info_async(const struct lu_env *env, struct obd_export *exp,
 void lov_stripe_lock(struct lov_stripe_md *md)
 		__acquires(&md->lsm_lock)
 {
-	LASSERT(md->lsm_lock_owner != current_pid());
+	LASSERT(md->lsm_lock_owner != current->pid);
 	spin_lock(&md->lsm_lock);
 	LASSERT(md->lsm_lock_owner == 0);
-	md->lsm_lock_owner = current_pid();
+	md->lsm_lock_owner = current->pid;
 }
 
 void lov_stripe_unlock(struct lov_stripe_md *md)
 		__releases(&md->lsm_lock)
 {
-	LASSERT(md->lsm_lock_owner == current_pid());
+	LASSERT(md->lsm_lock_owner == current->pid);
 	md->lsm_lock_owner = 0;
 	spin_unlock(&md->lsm_lock);
 }
@@ -1406,6 +1398,10 @@ static int __init lov_init(void)
 	 * symbols from modules.
 	 */
 	CDEBUG(D_INFO, "Lustre LOV module (%p).\n", &lov_caches);
+
+	rc = libcfs_setup();
+	if (rc)
+		return rc;
 
 	rc = lu_kmem_init(lov_caches);
 	if (rc)

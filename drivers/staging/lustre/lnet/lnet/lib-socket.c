@@ -41,7 +41,6 @@
 #include <linux/syscalls.h>
 #include <net/sock.h>
 
-#include <linux/libcfs/libcfs.h>
 #include <linux/lnet/lib-lnet.h>
 
 static int

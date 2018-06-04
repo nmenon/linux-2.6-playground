@@ -32,7 +32,10 @@
  */
 
 #define DEBUG_SUBSYSTEM S_CLASS
-# include <linux/atomic.h>
+
+#include <linux/atomic.h>
+#include <linux/miscdevice.h>
+#include <linux/libcfs/libcfs.h>
 
 #include <obd_support.h>
 #include <obd_class.h>
@@ -42,6 +45,7 @@
 #include <linux/list.h>
 #include <cl_object.h>
 #include <uapi/linux/lustre/lustre_ioctl.h>
+#include <uapi/linux/lnet/libcfs_ioctl.h>
 #include "llog_internal.h"
 
 struct obd_device *obd_devs[MAX_OBD_DEVICES];
@@ -98,7 +102,7 @@ int lustre_get_jobid(char *jobid)
 	/* Use process name + fsuid as jobid */
 	if (strcmp(obd_jobid_var, JOBSTATS_PROCNAME_UID) == 0) {
 		snprintf(jobid, LUSTRE_JOBID_SIZE, "%s.%u",
-			 current_comm(),
+			 current->comm,
 			 from_kuid(&init_user_ns, current_fsuid()));
 		return 0;
 	}
@@ -447,6 +451,11 @@ static int __init obdclass_init(void)
 	LCONSOLE_INFO("Lustre: Build Version: " LUSTRE_VERSION_STRING "\n");
 
 	spin_lock_init(&obd_types_lock);
+
+	err = libcfs_setup();
+	if (err)
+		return err;
+
 	obd_zombie_impexp_init();
 
 	err = obd_init_checks();
@@ -462,7 +471,7 @@ static int __init obdclass_init(void)
 
 	err = misc_register(&obd_psdev);
 	if (err) {
-		CERROR("cannot register %d err %d\n", OBD_DEV_MINOR, err);
+		CERROR("cannot register OBD miscdevices: err %d\n", err);
 		return err;
 	}
 

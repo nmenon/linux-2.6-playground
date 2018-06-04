@@ -53,7 +53,7 @@ static ssize_t blocksize_show(struct kobject *kobj, struct attribute *attr,
 	int rc;
 
 	rc = ll_statfs_internal(sbi->ll_sb, &osfs,
-				cfs_time_shift_64(-OBD_STATFS_CACHE_SECONDS),
+				get_jiffies_64() - OBD_STATFS_CACHE_SECONDS * HZ,
 				OBD_STATFS_NODELAY);
 	if (!rc)
 		return sprintf(buf, "%u\n", osfs.os_bsize);
@@ -71,7 +71,7 @@ static ssize_t kbytestotal_show(struct kobject *kobj, struct attribute *attr,
 	int rc;
 
 	rc = ll_statfs_internal(sbi->ll_sb, &osfs,
-				cfs_time_shift_64(-OBD_STATFS_CACHE_SECONDS),
+				get_jiffies_64() - OBD_STATFS_CACHE_SECONDS * HZ,
 				OBD_STATFS_NODELAY);
 	if (!rc) {
 		__u32 blk_size = osfs.os_bsize >> 10;
@@ -96,7 +96,7 @@ static ssize_t kbytesfree_show(struct kobject *kobj, struct attribute *attr,
 	int rc;
 
 	rc = ll_statfs_internal(sbi->ll_sb, &osfs,
-				cfs_time_shift_64(-OBD_STATFS_CACHE_SECONDS),
+				get_jiffies_64() - OBD_STATFS_CACHE_SECONDS * HZ,
 				OBD_STATFS_NODELAY);
 	if (!rc) {
 		__u32 blk_size = osfs.os_bsize >> 10;
@@ -121,7 +121,7 @@ static ssize_t kbytesavail_show(struct kobject *kobj, struct attribute *attr,
 	int rc;
 
 	rc = ll_statfs_internal(sbi->ll_sb, &osfs,
-				cfs_time_shift_64(-OBD_STATFS_CACHE_SECONDS),
+				get_jiffies_64() - OBD_STATFS_CACHE_SECONDS * HZ,
 				OBD_STATFS_NODELAY);
 	if (!rc) {
 		__u32 blk_size = osfs.os_bsize >> 10;
@@ -146,7 +146,7 @@ static ssize_t filestotal_show(struct kobject *kobj, struct attribute *attr,
 	int rc;
 
 	rc = ll_statfs_internal(sbi->ll_sb, &osfs,
-				cfs_time_shift_64(-OBD_STATFS_CACHE_SECONDS),
+				get_jiffies_64() - OBD_STATFS_CACHE_SECONDS * HZ,
 				OBD_STATFS_NODELAY);
 	if (!rc)
 		return sprintf(buf, "%llu\n", osfs.os_files);
@@ -164,7 +164,7 @@ static ssize_t filesfree_show(struct kobject *kobj, struct attribute *attr,
 	int rc;
 
 	rc = ll_statfs_internal(sbi->ll_sb, &osfs,
-				cfs_time_shift_64(-OBD_STATFS_CACHE_SECONDS),
+				get_jiffies_64() - OBD_STATFS_CACHE_SECONDS * HZ,
 				OBD_STATFS_NODELAY);
 	if (!rc)
 		return sprintf(buf, "%llu\n", osfs.os_ffree);
@@ -1139,7 +1139,7 @@ int ldebugfs_register_mountpoint(struct dentry *parent,
 	struct obd_device *obd;
 	struct dentry *dir;
 	char name[MAX_STRING_SIZE + 1], *ptr;
-	int err, id, len, rc;
+	int err, id, len;
 
 	name[MAX_STRING_SIZE] = '\0';
 
@@ -1157,34 +1157,17 @@ int ldebugfs_register_mountpoint(struct dentry *parent,
 	snprintf(name, MAX_STRING_SIZE, "%.*s-%p", len,
 		 lsi->lsi_lmd->lmd_profile, sb);
 
-	dir = ldebugfs_register(name, parent, NULL, NULL);
-	if (IS_ERR_OR_NULL(dir)) {
-		err = dir ? PTR_ERR(dir) : -ENOMEM;
-		sbi->ll_debugfs_entry = NULL;
-		return err;
-	}
+	dir = debugfs_create_dir(name, parent);
 	sbi->ll_debugfs_entry = dir;
 
-	rc = ldebugfs_seq_create(sbi->ll_debugfs_entry, "dump_page_cache", 0444,
-				 &vvp_dump_pgcache_file_ops, sbi);
-	if (rc)
-		CWARN("Error adding the dump_page_cache file\n");
-
-	rc = ldebugfs_seq_create(sbi->ll_debugfs_entry, "extents_stats", 0644,
-				 &ll_rw_extents_stats_fops, sbi);
-	if (rc)
-		CWARN("Error adding the extent_stats file\n");
-
-	rc = ldebugfs_seq_create(sbi->ll_debugfs_entry,
-				 "extents_stats_per_process",
-				 0644, &ll_rw_extents_stats_pp_fops, sbi);
-	if (rc)
-		CWARN("Error adding the extents_stats_per_process file\n");
-
-	rc = ldebugfs_seq_create(sbi->ll_debugfs_entry, "offset_stats", 0644,
-				 &ll_rw_offset_stats_fops, sbi);
-	if (rc)
-		CWARN("Error adding the offset_stats file\n");
+	debugfs_create_file("dump_page_cache", 0444, dir, sbi,
+			    &vvp_dump_pgcache_file_ops);
+	debugfs_create_file("extents_stats", 0644, dir, sbi,
+			    &ll_rw_extents_stats_fops);
+	debugfs_create_file("extents_stats_per_process", 0644,
+			    dir, sbi, &ll_rw_extents_stats_pp_fops);
+	debugfs_create_file("offset_stats", 0644, dir, sbi,
+			    &ll_rw_offset_stats_fops);
 
 	/* File operations stats */
 	sbi->ll_stats = lprocfs_alloc_stats(LPROC_LL_FILE_OPCODES,
@@ -1209,10 +1192,9 @@ int ldebugfs_register_mountpoint(struct dentry *parent,
 				     (type & LPROCFS_CNTR_AVGMINMAX),
 				     llite_opcode_table[id].opname, ptr);
 	}
-	err = ldebugfs_register_stats(sbi->ll_debugfs_entry, "stats",
-				      sbi->ll_stats);
-	if (err)
-		goto out;
+
+	debugfs_create_file("stats", 0644, sbi->ll_debugfs_entry, sbi->ll_stats,
+			    &lprocfs_stats_seq_fops);
 
 	sbi->ll_ra_stats = lprocfs_alloc_stats(ARRAY_SIZE(ra_stat_string),
 					       LPROCFS_STATS_FLAG_NONE);
@@ -1225,15 +1207,10 @@ int ldebugfs_register_mountpoint(struct dentry *parent,
 		lprocfs_counter_init(sbi->ll_ra_stats, id, 0,
 				     ra_stat_string[id], "pages");
 
-	err = ldebugfs_register_stats(sbi->ll_debugfs_entry, "read_ahead_stats",
-				      sbi->ll_ra_stats);
-	if (err)
-		goto out;
+	debugfs_create_file("stats", 0644, sbi->ll_debugfs_entry,
+			    sbi->ll_ra_stats, &lprocfs_stats_seq_fops);
 
-	err = ldebugfs_add_vars(sbi->ll_debugfs_entry,
-				lprocfs_llite_obd_vars, sb);
-	if (err)
-		goto out;
+	ldebugfs_add_vars(sbi->ll_debugfs_entry, lprocfs_llite_obd_vars, sb);
 
 	sbi->ll_kobj.kset = llite_kset;
 	init_completion(&sbi->ll_kobj_unregister);
@@ -1257,7 +1234,7 @@ int ldebugfs_register_mountpoint(struct dentry *parent,
 				obd->obd_type->typ_name);
 out:
 	if (err) {
-		ldebugfs_remove(&sbi->ll_debugfs_entry);
+		debugfs_remove_recursive(sbi->ll_debugfs_entry);
 		lprocfs_free_stats(&sbi->ll_ra_stats);
 		lprocfs_free_stats(&sbi->ll_stats);
 	}
@@ -1266,13 +1243,11 @@ out:
 
 void ldebugfs_unregister_mountpoint(struct ll_sb_info *sbi)
 {
-	if (sbi->ll_debugfs_entry) {
-		ldebugfs_remove(&sbi->ll_debugfs_entry);
-		kobject_put(&sbi->ll_kobj);
-		wait_for_completion(&sbi->ll_kobj_unregister);
-		lprocfs_free_stats(&sbi->ll_ra_stats);
-		lprocfs_free_stats(&sbi->ll_stats);
-	}
+	debugfs_remove_recursive(sbi->ll_debugfs_entry);
+	kobject_put(&sbi->ll_kobj);
+	wait_for_completion(&sbi->ll_kobj_unregister);
+	lprocfs_free_stats(&sbi->ll_ra_stats);
+	lprocfs_free_stats(&sbi->ll_stats);
 }
 
 #undef MAX_STRING_SIZE

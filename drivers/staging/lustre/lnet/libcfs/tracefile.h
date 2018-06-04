@@ -34,6 +34,12 @@
 #ifndef __LIBCFS_TRACEFILE_H__
 #define __LIBCFS_TRACEFILE_H__
 
+#include <linux/spinlock.h>
+#include <linux/list.h>
+#include <linux/cache.h>
+#include <linux/threads.h>
+#include <linux/limits.h>
+#include <linux/smp.h>
 #include <linux/libcfs/libcfs.h>
 
 enum cfs_trace_buf_type {
@@ -48,6 +54,11 @@ enum cfs_trace_buf_type {
 #define TRACEFILE_NAME_SIZE 1024
 extern char cfs_tracefile[TRACEFILE_NAME_SIZE];
 extern long long cfs_tracefile_size;
+
+/**
+ * The path of debug log dump upcall script.
+ */
+extern char lnet_debug_log_upcall[1024];
 
 void libcfs_run_debug_log_upcall(char *file);
 

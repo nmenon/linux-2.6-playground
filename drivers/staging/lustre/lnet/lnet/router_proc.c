@@ -20,7 +20,6 @@
 
 #define DEBUG_SUBSYSTEM S_LNET
 
-#include <linux/libcfs/libcfs.h>
 #include <linux/lnet/lib-lnet.h>
 
 /*
@@ -324,15 +323,14 @@ static int proc_lnet_routers(struct ctl_table *table, int write,
 
 		if (peer) {
 			lnet_nid_t nid = peer->lp_nid;
-			unsigned long now = cfs_time_current();
+			unsigned long now = jiffies;
 			unsigned long deadline = peer->lp_ping_deadline;
 			int nrefs = peer->lp_refcount;
 			int nrtrrefs = peer->lp_rtr_refcount;
 			int alive_cnt = peer->lp_alive_count;
 			int alive = peer->lp_alive;
 			int pingsent = !peer->lp_ping_notsent;
-			int last_ping = cfs_duration_sec(cfs_time_sub(now,
-						     peer->lp_ping_timestamp));
+			int last_ping = (now - peer->lp_ping_timestamp) / HZ;
 			int down_ni = 0;
 			struct lnet_route *rtr;
 
@@ -364,7 +362,7 @@ static int proc_lnet_routers(struct ctl_table *table, int write,
 					      nrefs, nrtrrefs, alive_cnt,
 					      alive ? "up" : "down", last_ping,
 					      pingsent,
-					      cfs_duration_sec(cfs_time_sub(deadline, now)),
+					      (deadline - now) / HZ,
 					      down_ni, libcfs_nid2str(nid));
 			LASSERT(tmpstr + tmpsiz - s > 0);
 		}
@@ -509,11 +507,11 @@ static int proc_lnet_peers(struct ctl_table *table, int write,
 				aliveness = peer->lp_alive ? "up" : "down";
 
 			if (lnet_peer_aliveness_enabled(peer)) {
-				unsigned long now = cfs_time_current();
+				unsigned long now = jiffies;
 				long delta;
 
-				delta = cfs_time_sub(now, peer->lp_last_alive);
-				lastalive = cfs_duration_sec(delta);
+				delta = now - peer->lp_last_alive;
+				lastalive = (delta) / HZ;
 
 				/* No need to mess up peers contents with
 				 * arbitrarily long integers - it suffices to
@@ -901,7 +899,7 @@ static struct ctl_table lnet_table[] = {
 
 void lnet_router_debugfs_init(void)
 {
-	lustre_insert_debugfs(lnet_table, NULL);
+	lustre_insert_debugfs(lnet_table);
 }
 
 void lnet_router_debugfs_fini(void)

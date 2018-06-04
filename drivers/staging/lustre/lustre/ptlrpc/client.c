@@ -35,6 +35,8 @@
 
 #define DEBUG_SUBSYSTEM S_RPC
 
+#include <linux/libcfs/libcfs_cpu.h>
+#include <linux/random.h>
 #include <obd_support.h>
 #include <obd_class.h>
 #include <lustre_lib.h>
@@ -938,9 +940,9 @@ struct ptlrpc_request_set *ptlrpc_prep_set(void)
 	struct ptlrpc_request_set *set;
 	int cpt;
 
-	cpt = cfs_cpt_current(cfs_cpt_table, 0);
+	cpt = cfs_cpt_current(cfs_cpt_tab, 0);
 	set = kzalloc_node(sizeof(*set), GFP_NOFS,
-			   cfs_cpt_spread_node(cfs_cpt_table, cpt));
+			   cfs_cpt_spread_node(cfs_cpt_tab, cpt));
 	if (!set)
 		return NULL;
 	atomic_set(&set->set_refcount, 1);
@@ -1050,7 +1052,7 @@ void ptlrpc_set_add_req(struct ptlrpc_request_set *set,
 	list_add_tail(&req->rq_set_chain, &set->set_requests);
 	req->rq_set = set;
 	atomic_inc(&set->set_remaining);
-	req->rq_queued_time = cfs_time_current();
+	req->rq_queued_time = jiffies;
 
 	if (req->rq_reqmsg)
 		lustre_msg_set_jobid(req->rq_reqmsg, NULL);
@@ -1081,7 +1083,7 @@ void ptlrpc_set_add_new_req(struct ptlrpcd_ctl *pc,
 	spin_lock(&set->set_new_req_lock);
 	/* The set takes over the caller's request reference.  */
 	req->rq_set = set;
-	req->rq_queued_time = cfs_time_current();
+	req->rq_queued_time = jiffies;
 	list_add_tail(&req->rq_set_chain, &set->set_new_requests);
 	count = atomic_inc_return(&set->set_new_count);
 	spin_unlock(&set->set_new_req_lock);
@@ -1552,7 +1554,7 @@ static int ptlrpc_send_new_req(struct ptlrpc_request *req)
 
 	lustre_msg_set_last_xid(req->rq_reqmsg, min_xid);
 
-	lustre_msg_set_status(req->rq_reqmsg, current_pid());
+	lustre_msg_set_status(req->rq_reqmsg, current->pid);
 
 	rc = sptlrpc_req_refresh_ctx(req, -1);
 	if (rc) {
@@ -1567,7 +1569,7 @@ static int ptlrpc_send_new_req(struct ptlrpc_request *req)
 	}
 
 	CDEBUG(D_RPCTRACE, "Sending RPC pname:cluuid:pid:xid:nid:opc %s:%s:%d:%llu:%s:%d\n",
-	       current_comm(),
+	       current->comm,
 	       imp->imp_obd->obd_uuid.uuid,
 	       lustre_msg_get_status(req->rq_reqmsg), req->rq_xid,
 	       libcfs_nid2str(imp->imp_connection->c_peer.nid),
@@ -1978,7 +1980,7 @@ interpret:
 
 		CDEBUG(req->rq_reqmsg ? D_RPCTRACE : 0,
 		       "Completed RPC pname:cluuid:pid:xid:nid:opc %s:%s:%d:%llu:%s:%d\n",
-		       current_comm(), imp->imp_obd->obd_uuid.uuid,
+		       current->comm, imp->imp_obd->obd_uuid.uuid,
 		       lustre_msg_get_status(req->rq_reqmsg), req->rq_xid,
 		       libcfs_nid2str(imp->imp_connection->c_peer.nid),
 		       lustre_msg_get_opc(req->rq_reqmsg));
@@ -2514,7 +2516,7 @@ static int ptlrpc_unregister_reply(struct ptlrpc_request *request, int async)
 		}
 
 		DEBUG_REQ(D_WARNING, request,
-			  "Unexpectedly long timeout receiving_reply=%d req_ulinked=%d reply_unlinked=%d",
+			  "Unexpectedly long timeout receiving_reply=%d req_unlinked=%d reply_unlinked=%d",
 			  request->rq_receiving_reply,
 			  request->rq_req_unlinked,
 			  request->rq_reply_unlinked);
@@ -2760,7 +2762,7 @@ int ptlrpc_queue_wait(struct ptlrpc_request *req)
 	}
 
 	/* for distributed debugging */
-	lustre_msg_set_status(req->rq_reqmsg, current_pid());
+	lustre_msg_set_status(req->rq_reqmsg, current->pid);
 
 	/* add a ref for the set (see comment in ptlrpc_set_add_req) */
 	ptlrpc_request_addref(req);

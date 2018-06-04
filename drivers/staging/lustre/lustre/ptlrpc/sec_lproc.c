@@ -133,8 +133,6 @@ LPROC_SEQ_FOPS_RO(sptlrpc_ctxs_lprocfs);
 
 int sptlrpc_lprocfs_cliobd_attach(struct obd_device *dev)
 {
-	int rc;
-
 	if (strcmp(dev->obd_type->typ_name, LUSTRE_OSC_NAME) != 0 &&
 	    strcmp(dev->obd_type->typ_name, LUSTRE_MDC_NAME) != 0 &&
 	    strcmp(dev->obd_type->typ_name, LUSTRE_MGC_NAME) != 0) {
@@ -143,21 +141,10 @@ int sptlrpc_lprocfs_cliobd_attach(struct obd_device *dev)
 		return -EINVAL;
 	}
 
-	rc = ldebugfs_obd_seq_create(dev, "srpc_info", 0444,
-				     &sptlrpc_info_lprocfs_fops, dev);
-	if (rc) {
-		CERROR("create proc entry srpc_info for %s: %d\n",
-		       dev->obd_name, rc);
-		return rc;
-	}
-
-	rc = ldebugfs_obd_seq_create(dev, "srpc_contexts", 0444,
-				     &sptlrpc_ctxs_lprocfs_fops, dev);
-	if (rc) {
-		CERROR("create proc entry srpc_contexts for %s: %d\n",
-		       dev->obd_name, rc);
-		return rc;
-	}
+	debugfs_create_file("srpc_info", 0444, dev->obd_debugfs_entry, dev,
+			    &sptlrpc_info_lprocfs_fops);
+	debugfs_create_file("srpc_contexts", 0444, dev->obd_debugfs_entry, dev,
+			    &sptlrpc_ctxs_lprocfs_fops);
 
 	return 0;
 }
@@ -171,25 +158,13 @@ static struct lprocfs_vars sptlrpc_lprocfs_vars[] = {
 
 static struct dentry *sptlrpc_debugfs_dir;
 
-int sptlrpc_lproc_init(void)
+void sptlrpc_lproc_init(void)
 {
-	int rc;
-
-	LASSERT(!sptlrpc_debugfs_dir);
-
-	sptlrpc_debugfs_dir = ldebugfs_register("sptlrpc", debugfs_lustre_root,
-						sptlrpc_lprocfs_vars, NULL);
-	if (IS_ERR_OR_NULL(sptlrpc_debugfs_dir)) {
-		rc = sptlrpc_debugfs_dir ? PTR_ERR(sptlrpc_debugfs_dir)
-					 : -ENOMEM;
-		sptlrpc_debugfs_dir = NULL;
-		return rc;
-	}
-	return 0;
+	sptlrpc_debugfs_dir = debugfs_create_dir("sptlrpc", debugfs_lustre_root);
+	ldebugfs_add_vars(sptlrpc_debugfs_dir, sptlrpc_lprocfs_vars, NULL);
 }
 
 void sptlrpc_lproc_fini(void)
 {
-	if (!IS_ERR_OR_NULL(sptlrpc_debugfs_dir))
-		ldebugfs_remove(&sptlrpc_debugfs_dir);
+	debugfs_remove_recursive(sptlrpc_debugfs_dir);
 }

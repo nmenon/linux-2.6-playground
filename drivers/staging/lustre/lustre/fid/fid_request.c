@@ -39,7 +39,6 @@
 
 #define DEBUG_SUBSYSTEM S_FID
 
-#include <linux/libcfs/libcfs.h>
 #include <linux/module.h>
 
 #include <obd.h>
@@ -292,39 +291,15 @@ EXPORT_SYMBOL(seq_client_flush);
 
 static void seq_client_debugfs_fini(struct lu_client_seq *seq)
 {
-	if (!IS_ERR_OR_NULL(seq->lcs_debugfs_entry))
-		ldebugfs_remove(&seq->lcs_debugfs_entry);
+	debugfs_remove_recursive(seq->lcs_debugfs_entry);
 }
 
-static int seq_client_debugfs_init(struct lu_client_seq *seq)
+static void seq_client_debugfs_init(struct lu_client_seq *seq)
 {
-	int rc;
+	seq->lcs_debugfs_entry = debugfs_create_dir(seq->lcs_name,
+						    seq_debugfs_dir);
 
-	seq->lcs_debugfs_entry = ldebugfs_register(seq->lcs_name,
-						   seq_debugfs_dir,
-						   NULL, NULL);
-
-	if (IS_ERR_OR_NULL(seq->lcs_debugfs_entry)) {
-		CERROR("%s: LdebugFS failed in seq-init\n", seq->lcs_name);
-		rc = seq->lcs_debugfs_entry ? PTR_ERR(seq->lcs_debugfs_entry)
-					    : -ENOMEM;
-		seq->lcs_debugfs_entry = NULL;
-		return rc;
-	}
-
-	rc = ldebugfs_add_vars(seq->lcs_debugfs_entry,
-			       seq_client_debugfs_list, seq);
-	if (rc) {
-		CERROR("%s: Can't init sequence manager debugfs, rc %d\n",
-		       seq->lcs_name, rc);
-		goto out_cleanup;
-	}
-
-	return 0;
-
-out_cleanup:
-	seq_client_debugfs_fini(seq);
-	return rc;
+	ldebugfs_add_vars(seq->lcs_debugfs_entry, seq_client_debugfs_list, seq);
 }
 
 static void seq_client_fini(struct lu_client_seq *seq)
@@ -337,13 +312,9 @@ static void seq_client_fini(struct lu_client_seq *seq)
 	}
 }
 
-static int seq_client_init(struct lu_client_seq *seq,
-			   struct obd_export *exp,
-			   enum lu_cli_type type,
-			   const char *prefix)
+static void seq_client_init(struct lu_client_seq *seq, struct obd_export *exp,
+			    enum lu_cli_type type, const char *prefix)
 {
-	int rc;
-
 	LASSERT(seq);
 	LASSERT(prefix);
 
@@ -364,10 +335,7 @@ static int seq_client_init(struct lu_client_seq *seq,
 	snprintf(seq->lcs_name, sizeof(seq->lcs_name),
 		 "cli-%s", prefix);
 
-	rc = seq_client_debugfs_init(seq);
-	if (rc)
-		seq_client_fini(seq);
-	return rc;
+	seq_client_debugfs_init(seq);
 }
 
 int client_fid_init(struct obd_device *obd,
@@ -390,12 +358,10 @@ int client_fid_init(struct obd_device *obd,
 	snprintf(prefix, MAX_OBD_NAME + 5, "cli-%s", obd->obd_name);
 
 	/* Init client side sequence-manager */
-	rc = seq_client_init(cli->cl_seq, exp, type, prefix);
+	seq_client_init(cli->cl_seq, exp, type, prefix);
 	kfree(prefix);
-	if (rc)
-		goto out_free_seq;
 
-	return rc;
+	return 0;
 out_free_seq:
 	kfree(cli->cl_seq);
 	cli->cl_seq = NULL;
@@ -419,16 +385,20 @@ EXPORT_SYMBOL(client_fid_fini);
 
 static int __init fid_init(void)
 {
-	seq_debugfs_dir = ldebugfs_register(LUSTRE_SEQ_NAME,
-					    debugfs_lustre_root,
-					    NULL, NULL);
-	return PTR_ERR_OR_ZERO(seq_debugfs_dir);
+	int rc;
+
+	rc = libcfs_setup();
+	if (rc)
+		return rc;
+
+	seq_debugfs_dir = debugfs_create_dir(LUSTRE_SEQ_NAME,
+					     debugfs_lustre_root);
+	return 0;
 }
 
 static void __exit fid_exit(void)
 {
-	if (!IS_ERR_OR_NULL(seq_debugfs_dir))
-		ldebugfs_remove(&seq_debugfs_dir);
+	debugfs_remove_recursive(seq_debugfs_dir);
 }
 
 MODULE_AUTHOR("OpenSFS, Inc. <http://www.lustre.org/>");

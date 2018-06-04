@@ -32,7 +32,6 @@
  */
 
 #define DEBUG_SUBSYSTEM S_ECHO
-#include <linux/libcfs/libcfs.h>
 
 #include <obd.h>
 #include <obd_support.h>
@@ -99,7 +98,7 @@ static int echo_client_cleanup(struct obd_device *obddev);
  */
 static inline struct echo_device *cl2echo_dev(const struct cl_device *dev)
 {
-	return container_of0(dev, struct echo_device, ed_cl);
+	return container_of_safe(dev, struct echo_device, ed_cl);
 }
 
 static inline struct cl_device *echo_dev2cl(struct echo_device *d)
@@ -1701,9 +1700,15 @@ static void echo_client_exit(void)
 
 static int __init obdecho_init(void)
 {
+	int rc;
+
 	LCONSOLE_INFO("Echo OBD driver; http://www.lustre.org/\n");
 
 	LASSERT(PAGE_SIZE % OBD_ECHO_BLOCK_SIZE == 0);
+
+	rc = libcfs_setup();
+	if (rc)
+		return rc;
 
 	return echo_client_init();
 }

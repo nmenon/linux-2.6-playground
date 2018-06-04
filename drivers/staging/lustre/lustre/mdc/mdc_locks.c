@@ -308,10 +308,16 @@ mdc_intent_open_pack(struct obd_export *exp, struct lookup_intent *it,
 
 	req_capsule_set_size(&req->rq_pill, &RMF_MDT_MD, RCL_SERVER,
 			     obddev->u.cli.cl_max_mds_easize);
+	req_capsule_set_size(&req->rq_pill, &RMF_ACL, RCL_SERVER,
+			     req->rq_import->imp_connect_data.ocd_max_easize);
 
 	ptlrpc_request_set_replen(req);
 	return req;
 }
+
+#define GA_DEFAULT_EA_NAME_LEN	20
+#define GA_DEFAULT_EA_VAL_LEN	250
+#define GA_DEFAULT_EA_NUM	10
 
 static struct ptlrpc_request *
 mdc_intent_getxattr_pack(struct obd_export *exp,
@@ -321,7 +327,6 @@ mdc_intent_getxattr_pack(struct obd_export *exp,
 	struct ptlrpc_request	*req;
 	struct ldlm_intent	*lit;
 	int rc, count = 0;
-	u32 maxdata;
 	LIST_HEAD(cancels);
 
 	req = ptlrpc_request_alloc(class_exp2cliimp(exp),
@@ -339,18 +344,20 @@ mdc_intent_getxattr_pack(struct obd_export *exp,
 	lit = req_capsule_client_get(&req->rq_pill, &RMF_LDLM_INTENT);
 	lit->opc = IT_GETXATTR;
 
-	maxdata = class_exp2cliimp(exp)->imp_connect_data.ocd_max_easize;
-
 	/* pack the intended request */
-	mdc_pack_body(req, &op_data->op_fid1, op_data->op_valid, maxdata, -1,
-		      0);
+	mdc_pack_body(req, &op_data->op_fid1, op_data->op_valid,
+		      GA_DEFAULT_EA_NAME_LEN * GA_DEFAULT_EA_NUM, -1, 0);
 
-	req_capsule_set_size(&req->rq_pill, &RMF_EADATA, RCL_SERVER, maxdata);
+	req_capsule_set_size(&req->rq_pill, &RMF_EADATA, RCL_SERVER,
+			     GA_DEFAULT_EA_NAME_LEN * GA_DEFAULT_EA_NUM);
 
-	req_capsule_set_size(&req->rq_pill, &RMF_EAVALS, RCL_SERVER, maxdata);
+	req_capsule_set_size(&req->rq_pill, &RMF_EAVALS, RCL_SERVER,
+			     GA_DEFAULT_EA_NAME_LEN * GA_DEFAULT_EA_NUM);
 
-	req_capsule_set_size(&req->rq_pill, &RMF_EAVALS_LENS,
-			     RCL_SERVER, maxdata);
+	req_capsule_set_size(&req->rq_pill, &RMF_EAVALS_LENS, RCL_SERVER,
+			     sizeof(u32) * GA_DEFAULT_EA_NUM);
+
+	req_capsule_set_size(&req->rq_pill, &RMF_ACL, RCL_SERVER, 0);
 
 	ptlrpc_request_set_replen(req);
 
@@ -433,6 +440,8 @@ static struct ptlrpc_request *mdc_intent_getattr_pack(struct obd_export *exp,
 	mdc_getattr_pack(req, valid, it->it_flags, op_data, easize);
 
 	req_capsule_set_size(&req->rq_pill, &RMF_MDT_MD, RCL_SERVER, easize);
+	req_capsule_set_size(&req->rq_pill, &RMF_ACL, RCL_SERVER,
+			     req->rq_import->imp_connect_data.ocd_max_easize);
 	ptlrpc_request_set_replen(req);
 	return req;
 }
@@ -568,7 +577,7 @@ static int mdc_finish_enqueue(struct obd_export *exp,
 		  it->it_op, it->it_disposition, it->it_status);
 
 	/* We know what to expect, so we do any byte flipping required here */
-	if (it->it_op & (IT_OPEN | IT_UNLINK | IT_LOOKUP | IT_GETATTR)) {
+	if (it_has_reply_body(it)) {
 		struct mdt_body *body;
 
 		body = req_capsule_server_get(pill, &RMF_MDT_BODY);
@@ -688,10 +697,10 @@ static int mdc_finish_enqueue(struct obd_export *exp,
 /* We always reserve enough space in the reply packet for a stripe MD, because
  * we don't know in advance the file type.
  */
-int mdc_enqueue(struct obd_export *exp, struct ldlm_enqueue_info *einfo,
-		const union ldlm_policy_data *policy,
-		struct lookup_intent *it, struct md_op_data *op_data,
-		struct lustre_handle *lockh, u64 extra_lock_flags)
+int mdc_enqueue_base(struct obd_export *exp, struct ldlm_enqueue_info *einfo,
+		     const union ldlm_policy_data *policy,
+		     struct lookup_intent *it, struct md_op_data *op_data,
+		     struct lustre_handle *lockh, u64 extra_lock_flags)
 {
 	static const union ldlm_policy_data lookup_policy = {
 		.l_inodebits = { MDS_INODELOCK_LOOKUP }
@@ -859,6 +868,15 @@ resend:
 	return rc;
 }
 
+int mdc_enqueue(struct obd_export *exp, struct ldlm_enqueue_info *einfo,
+		const union ldlm_policy_data *policy,
+		struct md_op_data *op_data,
+		struct lustre_handle *lockh, u64 extra_lock_flags)
+{
+	return mdc_enqueue_base(exp, einfo, policy, NULL,
+				op_data, lockh, extra_lock_flags);
+}
+
 static int mdc_finish_intent_lock(struct obd_export *exp,
 				  struct ptlrpc_request *request,
 				  struct md_op_data *op_data,
@@ -866,9 +884,8 @@ static int mdc_finish_intent_lock(struct obd_export *exp,
 				  struct lustre_handle *lockh)
 {
 	struct lustre_handle old_lock;
-	struct mdt_body *mdt_body;
 	struct ldlm_lock *lock;
-	int rc;
+	int rc = 0;
 
 	LASSERT(request != LP_POISON);
 	LASSERT(request->rq_repmsg != LP_POISON);
@@ -876,23 +893,30 @@ static int mdc_finish_intent_lock(struct obd_export *exp,
 	if (it->it_op & IT_READDIR)
 		return 0;
 
+	if (it->it_op & (IT_GETXATTR | IT_LAYOUT)) {
+		if (it->it_status != 0) {
+			rc = it->it_status;
+			goto out;
+		}
+		goto matching_lock;
+	}
+
 	if (!it_disposition(it, DISP_IT_EXECD)) {
 		/* The server failed before it even started executing the
 		 * intent, i.e. because it couldn't unpack the request.
 		 */
 		LASSERT(it->it_status != 0);
-		return it->it_status;
+		rc = it->it_status;
+		goto out;
 	}
+
 	rc = it_open_error(DISP_IT_EXECD, it);
 	if (rc)
-		return rc;
-
-	mdt_body = req_capsule_server_get(&request->rq_pill, &RMF_MDT_BODY);
-	LASSERT(mdt_body);      /* mdc_enqueue checked */
+		goto out;
 
 	rc = it_open_error(DISP_LOOKUP_EXECD, it);
 	if (rc)
-		return rc;
+		goto out;
 
 	/* keep requests around for the multiple phases of the call
 	 * this shows the DISP_XX must guarantee we make it into the call
@@ -918,8 +942,9 @@ static int mdc_finish_intent_lock(struct obd_export *exp,
 	else if (it->it_op == IT_OPEN)
 		LASSERT(!it_disposition(it, DISP_OPEN_CREATE));
 	else
-		LASSERT(it->it_op & (IT_GETATTR | IT_LOOKUP | IT_LAYOUT));
+		LASSERT(it->it_op & (IT_GETATTR | IT_LOOKUP));
 
+matching_lock:
 	/* If we already have a matching lock, then cancel the new
 	 * one.  We have to set the data here instead of in
 	 * mdc_enqueue, because we need to use the child's inode as
@@ -932,10 +957,20 @@ static int mdc_finish_intent_lock(struct obd_export *exp,
 
 		LDLM_DEBUG(lock, "matching against this");
 
-		LASSERTF(fid_res_name_eq(&mdt_body->mbo_fid1,
-					 &lock->l_resource->lr_name),
-			 "Lock res_id: " DLDLMRES ", fid: " DFID "\n",
-			 PLDLMRES(lock->l_resource), PFID(&mdt_body->mbo_fid1));
+		if (it_has_reply_body(it)) {
+			struct mdt_body *body;
+
+			body = req_capsule_server_get(&request->rq_pill,
+						      &RMF_MDT_BODY);
+
+			/* mdc_enqueue checked */
+			LASSERT(body);
+			LASSERTF(fid_res_name_eq(&body->mbo_fid1,
+						 &lock->l_resource->lr_name),
+				 "Lock res_id: " DLDLMRES ", fid: " DFID "\n",
+				 PLDLMRES(lock->l_resource),
+				 PFID(&body->mbo_fid1));
+		}
 		LDLM_LOCK_PUT(lock);
 
 		memcpy(&old_lock, lockh, sizeof(*lockh));
@@ -948,6 +983,7 @@ static int mdc_finish_intent_lock(struct obd_export *exp,
 			it->it_lock_handle = lockh->cookie;
 		}
 	}
+out:
 	CDEBUG(D_DENTRY,
 	       "D_IT dentry %.*s intent: %s status %d disp %x rc %d\n",
 	       (int)op_data->op_namelen, op_data->op_name,
@@ -1094,8 +1130,9 @@ int mdc_intent_lock(struct obd_export *exp, struct md_op_data *op_data,
 			return rc;
 		}
 	}
-	rc = mdc_enqueue(exp, &einfo, NULL, it, op_data, &lockh,
-			 extra_lock_flags);
+
+	rc = mdc_enqueue_base(exp, &einfo, NULL, it, op_data, &lockh,
+			      extra_lock_flags);
 	if (rc < 0)
 		return rc;
 

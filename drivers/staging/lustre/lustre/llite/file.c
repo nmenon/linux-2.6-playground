@@ -2514,7 +2514,7 @@ ll_file_flock(struct file *file, int cmd, struct file_lock *file_lock)
 	       PFID(ll_inode2fid(inode)), flock.l_flock.pid, flags,
 	       einfo.ei_mode, flock.l_flock.start, flock.l_flock.end);
 
-	rc = md_enqueue(sbi->ll_md_exp, &einfo, &flock, NULL, op_data, &lockh,
+	rc = md_enqueue(sbi->ll_md_exp, &einfo, &flock, op_data, &lockh,
 			flags);
 
 	/* Restore the file lock type if not TEST lock. */
@@ -2527,7 +2527,7 @@ ll_file_flock(struct file *file, int cmd, struct file_lock *file_lock)
 
 	if (rc2 && file_lock->fl_type != F_UNLCK) {
 		einfo.ei_mode = LCK_NL;
-		md_enqueue(sbi->ll_md_exp, &einfo, &flock, NULL, op_data,
+		md_enqueue(sbi->ll_md_exp, &einfo, &flock, op_data,
 			   &lockh, flags);
 		rc = rc2;
 	}
@@ -3030,19 +3030,6 @@ out:
 	return rc;
 }
 
-struct posix_acl *ll_get_acl(struct inode *inode, int type)
-{
-	struct ll_inode_info *lli = ll_i2info(inode);
-	struct posix_acl *acl = NULL;
-
-	spin_lock(&lli->lli_lock);
-	/* VFS' acl_permission_check->check_acl will release the refcount */
-	acl = posix_acl_dup(lli->lli_posix_acl);
-	spin_unlock(&lli->lli_lock);
-
-	return acl;
-}
-
 int ll_inode_permission(struct inode *inode, int mask)
 {
 	struct ll_sb_info *sbi;
@@ -3050,7 +3037,6 @@ int ll_inode_permission(struct inode *inode, int mask)
 	const struct cred *old_cred = NULL;
 	struct cred *cred = NULL;
 	bool squash_id = false;
-	cfs_cap_t cap;
 	int rc = 0;
 
 	if (mask & MAY_NOT_BLOCK)
@@ -3094,10 +3080,9 @@ int ll_inode_permission(struct inode *inode, int mask)
 
 		cred->fsuid = make_kuid(&init_user_ns, squash->rsi_uid);
 		cred->fsgid = make_kgid(&init_user_ns, squash->rsi_gid);
-		for (cap = 0; cap < sizeof(cfs_cap_t) * 8; cap++) {
-			if ((1 << cap) & CFS_CAP_FS_MASK)
-				cap_lower(cred->cap_effective, cap);
-		}
+		cred->cap_effective = cap_drop_nfsd_set(cred->cap_effective);
+		cred->cap_effective = cap_drop_fs_set(cred->cap_effective);
+
 		old_cred = override_creds(cred);
 	}
 
@@ -3338,8 +3323,7 @@ static int ll_layout_fetch(struct inode *inode, struct ldlm_lock *lock)
 	rc = ll_get_default_mdsize(sbi, &lmmsize);
 	if (rc == 0)
 		rc = md_getxattr(sbi->ll_md_exp, ll_inode2fid(inode),
-				 OBD_MD_FLXATTR, XATTR_NAME_LOV, NULL, 0,
-				 lmmsize, 0, &req);
+				 OBD_MD_FLXATTR, XATTR_NAME_LOV, lmmsize, &req);
 	if (rc < 0)
 		return rc;
 
@@ -3474,12 +3458,7 @@ static int ll_layout_refresh_locked(struct inode *inode)
 	struct lookup_intent   it;
 	struct lustre_handle   lockh;
 	enum ldlm_mode	       mode;
-	struct ldlm_enqueue_info einfo = {
-		.ei_type = LDLM_IBITS,
-		.ei_mode = LCK_CR,
-		.ei_cb_bl = &ll_md_blocking_ast,
-		.ei_cb_cp = &ldlm_completion_ast,
-	};
+	struct ptlrpc_request *req;
 	int rc;
 
 again:
@@ -3503,13 +3482,13 @@ again:
 	/* have to enqueue one */
 	memset(&it, 0, sizeof(it));
 	it.it_op = IT_LAYOUT;
-	lockh.cookie = 0ULL;
 
 	LDLM_DEBUG_NOLOCK("%s: requeue layout lock for file " DFID "(%p)",
 			  ll_get_fsname(inode->i_sb, NULL, 0),
 			  PFID(&lli->lli_fid), inode);
 
-	rc = md_enqueue(sbi->ll_md_exp, &einfo, NULL, &it, op_data, &lockh, 0);
+	rc = md_intent_lock(sbi->ll_md_exp, op_data, &it, &req,
+			    &ll_md_blocking_ast, 0);
 	ptlrpc_req_finished(it.it_request);
 	it.it_request = NULL;
 
@@ -3522,6 +3501,7 @@ again:
 	if (rc == 0) {
 		/* set lock data in case this is a new lock */
 		ll_set_lock_data(sbi->ll_md_exp, inode, &it, NULL);
+		lockh.cookie = it.it_lock_handle;
 		rc = ll_layout_lock_set(&lockh, mode, inode);
 		if (rc == -EAGAIN)
 			goto again;

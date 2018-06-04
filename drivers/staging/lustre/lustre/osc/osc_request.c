@@ -33,7 +33,8 @@
 
 #define DEBUG_SUBSYSTEM S_OSC
 
-#include <linux/libcfs/libcfs.h>
+#include <linux/libcfs/libcfs_hash.h>
+#include <linux/sched/mm.h>
 
 #include <lustre_dlm.h>
 #include <lustre_net.h>
@@ -617,7 +618,7 @@ static void osc_announce_cached(struct client_obd *cli, struct obdo *oa,
 void osc_update_next_shrink(struct client_obd *cli)
 {
 	cli->cl_next_shrink_grant =
-		cfs_time_shift(cli->cl_grant_shrink_interval);
+		jiffies + cli->cl_grant_shrink_interval * HZ;
 	CDEBUG(D_CACHE, "next time %ld to shrink grant\n",
 	       cli->cl_next_shrink_grant);
 }
@@ -741,14 +742,14 @@ int osc_shrink_grant_to_target(struct client_obd *cli, __u64 target_bytes)
 
 static int osc_should_shrink_grant(struct client_obd *client)
 {
-	unsigned long time = cfs_time_current();
+	unsigned long time = jiffies;
 	unsigned long next_shrink = client->cl_next_shrink_grant;
 
 	if ((client->cl_import->imp_connect_data.ocd_connect_flags &
 	     OBD_CONNECT_GRANT_SHRINK) == 0)
 		return 0;
 
-	if (cfs_time_aftereq(time, next_shrink - 5 * CFS_TICK)) {
+	if (time_after_eq(time, next_shrink - 5)) {
 		/* Get the current RPC size directly, instead of going via:
 		 * cli_brw_size(obd->u.cli.cl_import->imp_obd->obd_self_export)
 		 * Keep comment here so that it can be found by searching.
@@ -1654,7 +1655,7 @@ int osc_build_rpc(const struct lu_env *env, struct client_obd *cli,
 	struct cl_req_attr *crattr = NULL;
 	u64 starting_offset = OBD_OBJECT_EOF;
 	u64 ending_offset = 0;
-	int mpflag = 0;
+	unsigned int mpflag = 0;
 	int mem_tight = 0;
 	int page_count = 0;
 	bool soft_sync = false;
@@ -1677,7 +1678,7 @@ int osc_build_rpc(const struct lu_env *env, struct client_obd *cli,
 
 	soft_sync = osc_over_unstable_soft_limit(cli);
 	if (mem_tight)
-		mpflag = cfs_memory_pressure_get_and_set();
+		mpflag = memalloc_noreclaim_save();
 
 	pga = kcalloc(page_count, sizeof(*pga), GFP_NOFS);
 	if (!pga) {
@@ -1791,7 +1792,7 @@ int osc_build_rpc(const struct lu_env *env, struct client_obd *cli,
 
 out:
 	if (mem_tight != 0)
-		cfs_memory_pressure_restore(mpflag);
+		memalloc_noreclaim_restore(mpflag);
 
 	if (rc != 0) {
 		LASSERT(!req);
@@ -2296,7 +2297,7 @@ static int osc_iocontrol(unsigned int cmd, struct obd_export *exp, int len,
 		goto out;
 	default:
 		CDEBUG(D_INODE, "unrecognised ioctl %#x by %s\n",
-		       cmd, current_comm());
+		       cmd, current->comm);
 		err = -ENOTTY;
 		goto out;
 	}
@@ -2831,25 +2832,24 @@ static int __init osc_init(void)
 	 */
 	CDEBUG(D_INFO, "Lustre OSC module (%p).\n", &osc_caches);
 
+	rc = libcfs_setup();
+	if (rc)
+		return rc;
+
 	rc = lu_kmem_init(osc_caches);
 	if (rc)
 		return rc;
 
 	lprocfs_osc_init_vars(&lvars);
 
-	rc = class_register_type(&osc_obd_ops, NULL,
-				 LUSTRE_OSC_NAME, &osc_device_type);
-	if (rc)
-		goto out_kmem;
-
 	rc = register_shrinker(&osc_cache_shrinker);
 	if (rc)
-		goto out_type;
+		goto err;
 
 	/* This is obviously too much memory, only prevent overflow here */
 	if (osc_reqpool_mem_max >= 1 << 12 || osc_reqpool_mem_max == 0) {
 		rc = -EINVAL;
-		goto out_type;
+		goto err;
 	}
 
 	reqpool_size = osc_reqpool_mem_max << 20;
@@ -2870,14 +2870,22 @@ static int __init osc_init(void)
 	osc_rq_pool = ptlrpc_init_rq_pool(0, OST_MAXREQSIZE,
 					  ptlrpc_add_rqs_to_pool);
 
-	if (osc_rq_pool)
-		return 0;
-
 	rc = -ENOMEM;
 
-out_type:
-	class_unregister_type(LUSTRE_OSC_NAME);
-out_kmem:
+	if (!osc_rq_pool)
+		goto err;
+
+	rc = class_register_type(&osc_obd_ops, NULL,
+				 LUSTRE_OSC_NAME, &osc_device_type);
+	if (rc)
+		goto err;
+
+	return rc;
+
+err:
+	if (osc_rq_pool)
+		ptlrpc_free_rq_pool(osc_rq_pool);
+	unregister_shrinker(&osc_cache_shrinker);
 	lu_kmem_fini(osc_caches);
 	return rc;
 }
