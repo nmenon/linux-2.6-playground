@@ -1591,7 +1591,7 @@ struct nfs_rpc_ops {
 	int	(*create)  (struct inode *, struct dentry *,
 			    struct iattr *, int);
 	int	(*remove)  (struct inode *, struct dentry *);
-	void	(*unlink_setup)  (struct rpc_message *, struct dentry *);
+	void	(*unlink_setup)  (struct rpc_message *, struct dentry *, struct inode *);
 	void	(*unlink_rpc_prepare) (struct rpc_task *, struct nfs_unlinkdata *);
 	int	(*unlink_done) (struct rpc_task *, struct inode *);
 	void	(*rename_setup)  (struct rpc_message *msg,
@@ -1620,9 +1620,11 @@ struct nfs_rpc_ops {
 				    struct nfs_pgio_header *);
 	void	(*read_setup)(struct nfs_pgio_header *, struct rpc_message *);
 	int	(*read_done)(struct rpc_task *, struct nfs_pgio_header *);
-	void	(*write_setup)(struct nfs_pgio_header *, struct rpc_message *);
+	void	(*write_setup)(struct nfs_pgio_header *, struct rpc_message *,
+				struct rpc_clnt **);
 	int	(*write_done)(struct rpc_task *, struct nfs_pgio_header *);
-	void	(*commit_setup) (struct nfs_commit_data *, struct rpc_message *);
+	void	(*commit_setup) (struct nfs_commit_data *, struct rpc_message *,
+				struct rpc_clnt **);
 	void	(*commit_rpc_prepare)(struct rpc_task *, struct nfs_commit_data *);
 	int	(*commit_done) (struct rpc_task *, struct nfs_commit_data *);
 	int	(*lock)(struct file *, int, struct file_lock *);
