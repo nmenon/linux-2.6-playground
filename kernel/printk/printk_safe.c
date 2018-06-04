@@ -82,6 +82,7 @@ static __printf(2, 0) int printk_safe_log_store(struct printk_safe_seq_buf *s,
 {
 	int add;
 	size_t len;
+	va_list ap;
 
 again:
 	len = atomic_read(&s->len);
@@ -100,7 +101,9 @@ again:
 	if (!len)
 		smp_rmb();
 
-	add = vscnprintf(s->buffer + len, sizeof(s->buffer) - len, fmt, args);
+	va_copy(ap, args);
+	add = vscnprintf(s->buffer + len, sizeof(s->buffer) - len, fmt, ap);
+	va_end(ap);
 	if (!add)
 		return 0;
 
@@ -278,7 +281,7 @@ void printk_safe_flush_on_panic(void)
 	 * Make sure that we could access the main ring buffer.
 	 * Do not risk a double release when more CPUs are up.
 	 */
-	if (in_nmi() && raw_spin_is_locked(&logbuf_lock)) {
+	if (raw_spin_is_locked(&logbuf_lock)) {
 		if (num_online_cpus() > 1)
 			return;
 
@@ -307,15 +310,12 @@ void printk_nmi_enter(void)
 {
 	/*
 	 * The size of the extra per-CPU buffer is limited. Use it only when
-	 * the main one is locked. If this CPU is not in the safe context,
-	 * the lock must be taken on another CPU and we could wait for it.
+	 * the main one is locked.
 	 */
-	if ((this_cpu_read(printk_context) & PRINTK_SAFE_CONTEXT_MASK) &&
-	    raw_spin_is_locked(&logbuf_lock)) {
+	if (raw_spin_is_locked(&logbuf_lock))
 		this_cpu_or(printk_context, PRINTK_NMI_CONTEXT_MASK);
-	} else {
+	else
 		this_cpu_or(printk_context, PRINTK_NMI_DEFERRED_CONTEXT_MASK);
-	}
 }
 
 void printk_nmi_exit(void)
