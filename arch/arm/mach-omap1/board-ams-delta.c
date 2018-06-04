@@ -203,7 +203,7 @@ static struct resource latch2_resources[] = {
 	},
 };
 
-#define LATCH2_LABEL	"latch2"
+#define LATCH2_LABEL	"ams-delta-latch2"
 
 static struct bgpio_pdata latch2_pdata = {
 	.label	= LATCH2_LABEL,
@@ -288,7 +288,6 @@ static struct regulator_init_data modem_nreset_data = {
 static struct fixed_voltage_config modem_nreset_config = {
 	.supply_name		= "modem_nreset",
 	.microvolts		= 3300000,
-	.gpio			= AMS_DELTA_GPIO_PIN_MODEM_NRESET,
 	.startup_delay		= 25000,
 	.enable_high		= 1,
 	.enabled_at_boot	= 1,
@@ -300,6 +299,15 @@ static struct platform_device modem_nreset_device = {
 	.id	= -1,
 	.dev	= {
 		.platform_data	= &modem_nreset_config,
+	},
+};
+
+static struct gpiod_lookup_table modem_nreset_gpiod_table = {
+	.dev_id = "reg-fixed-voltage",
+	.table = {
+		GPIO_LOOKUP(LATCH2_LABEL, LATCH2_PIN_MODEM_NRESET,
+			    "enable", GPIO_ACTIVE_HIGH),
+		{ },
 	},
 };
 
@@ -666,7 +674,7 @@ static int __init late_init(void)
 	ams_delta_nand_gpio_table.dev_id = dev_name(&ams_delta_nand_device.dev);
 
 	gpiod_add_lookup_tables(late_gpio_tables, ARRAY_SIZE(late_gpio_tables));
-
+	gpiod_add_lookup_table(&modem_nreset_gpiod_table);
 	err = platform_device_register(&modem_nreset_device);
 	if (err) {
 		pr_err("Couldn't register the modem regulator device\n");
