@@ -32,8 +32,6 @@
 
 #include "ima.h"
 
-int ima_initialized;
-
 #ifdef CONFIG_IMA_APPRAISE
 int ima_appraise = IMA_APPRAISE_ENFORCE;
 #else
@@ -449,6 +447,7 @@ int ima_read_file(struct file *file, enum kernel_read_file_id read_id)
 
 static int read_idmap[READING_MAX_ID] = {
 	[READING_FIRMWARE] = FIRMWARE_CHECK,
+	[READING_FIRMWARE_PREALLOC_BUFFER] = FIRMWARE_CHECK,
 	[READING_MODULE] = MODULE_CHECK,
 	[READING_KEXEC_IMAGE] = KEXEC_KERNEL_CHECK,
 	[READING_KEXEC_INITRAMFS] = KEXEC_INITRAMFS_CHECK,
@@ -517,10 +516,9 @@ static int __init init_ima(void)
 		error = ima_init();
 	}
 
-	if (!error) {
-		ima_initialized = 1;
+	if (!error)
 		ima_update_policy_flag();
-	}
+
 	return error;
 }
 
