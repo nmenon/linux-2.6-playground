@@ -518,6 +518,120 @@ cleanup:
 	return ret;
 }
 
+static int alloc_pagecache_500M(const char *cgroup, void *arg)
+{
+	int fd = (long)arg;
+
+	return alloc_pagecache(fd, MB(500));
+}
+
+/*
+ * The test creates 10 nested memory cgroups with memory.min set to 50M,
+ * with 50M of pagecache charget to the leaf cgroup.
+ * Then it sets memory.max and memory.swap.max to 200M on the 3rd level,
+ * and creates memory pressure on 5th level.
+ * First it checks that memory.low actually works:
+ * expected usage on 9th level is 50M.
+ * Then it set memory.low on 2nd level to 0 and checks
+ * that memory.low stopped working:
+ * expected usage on 9th level is < 20M.
+ */
+static int test_memcg_low_nested(const char *root)
+{
+	int ret = KSFT_FAIL;
+	char *cgroup[10] = {NULL};
+	char *cgroup2;
+	long usage;
+	int i, fd;
+
+	fd = get_temp_fd();
+	if (fd < 0)
+		goto cleanup;
+
+	for (i = 0; i < ARRAY_SIZE(cgroup); i++) {
+		cgroup[i] = cg_name_indexed(i ? cgroup[i - 1] : root, "cg", i);
+		if (!cgroup[i])
+			goto cleanup;
+
+		if (cg_create(cgroup[i]))
+			goto cleanup;
+
+		if (i < ARRAY_SIZE(cgroup) - 1)
+			if (cg_write(cgroup[i], "cgroup.subtree_control",
+				     "+memory"))
+				goto cleanup;
+
+		if (i == 3) {
+			if (cg_write(cgroup[i], "memory.max", "200M"))
+				goto cleanup;
+
+			if (cg_write(cgroup[i], "memory.swap.max", "0"))
+				goto cleanup;
+		}
+
+		if (cg_write(cgroup[i], "memory.low", "50M"))
+			goto cleanup;
+	}
+
+	cgroup2 = cg_name(cgroup[5], "memcg_pressure");
+	if (!cgroup2)
+		goto cleanup;
+
+	if (cg_create(cgroup2))
+		goto cleanup;
+
+	/* Part 1 */
+	if (cg_run(cgroup[ARRAY_SIZE(cgroup) - 1], alloc_pagecache_50M,
+		   (void *)(long)fd))
+		goto cleanup;
+
+	if (cg_run(cgroup2, alloc_pagecache_500M, (void *)(long)fd))
+		goto cleanup;
+
+	if (!values_close(cg_read_long(cgroup[ARRAY_SIZE(cgroup) - 1],
+				       "memory.current"), MB(50), 3))
+		goto cleanup;
+
+	close(fd);
+	fd = get_temp_fd();
+	if (fd < 0)
+		goto cleanup;
+
+	/* Part 2 */
+	if (cg_write(cgroup[2], "memory.low", "0"))
+		goto cleanup;
+
+	if (cg_run(cgroup[ARRAY_SIZE(cgroup) - 1], alloc_pagecache_50M,
+		   (void *)(long)fd))
+		goto cleanup;
+
+	if (cg_run(cgroup2, alloc_pagecache_500M, (void *)(long)fd))
+		goto cleanup;
+
+	usage = cg_read_long(cgroup[ARRAY_SIZE(cgroup) - 1], "memory.current");
+	if (usage > MB(20))
+		goto cleanup;
+
+	ret = KSFT_PASS;
+
+cleanup:
+	if (cgroup2) {
+		cg_destroy(cgroup2);
+		free(cgroup2);
+	}
+
+	for (i = ARRAY_SIZE(cgroup) - 1; i >= 0; i--) {
+		if (!cgroup[i])
+			continue;
+
+		cg_destroy(cgroup[i]);
+		free(cgroup[i]);
+	}
+
+	close(fd);
+	return ret;
+}
+
 static int alloc_pagecache_max_30M(const char *cgroup, void *arg)
 {
 	size_t size = MB(50);
@@ -973,6 +1087,7 @@ struct memcg_test {
 	T(test_memcg_current),
 	T(test_memcg_min),
 	T(test_memcg_low),
+	T(test_memcg_low_nested),
 	T(test_memcg_high),
 	T(test_memcg_max),
 	T(test_memcg_oom_events),
