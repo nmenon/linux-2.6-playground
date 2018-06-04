@@ -143,6 +143,38 @@
 			#size-cells = <1>;
 			ranges = <0x42040000 0x00 0x42040000 0x03AC2400>; /* Basic peripherals */
 
+			dmsc: dmsc {
+				compatible = "ti,k2g-sci";
+				ti,host-id = <12>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+				ranges;
+				/*
+				 * In case of rare platforms that does not use am6 as
+				 * system master, use /delete-property/
+				 */
+				ti,system-reboot-controller;
+				mbox-names = "rx", "tx";
+
+				mboxes= <&secure_proxy_main 11>,
+					<&secure_proxy_main 13>;
+
+				k3_pds: power-controller {
+					compatible = "ti,sci-pm-domain";
+					#power-domain-cells = <1>;
+				};
+
+				k3_clks: clocks {
+					compatible = "ti,k2g-sci-clk";
+					#clock-cells = <2>;
+				};
+
+				k3_reset: reset-controller {
+					compatible = "ti,sci-reset";
+					#reset-cells = <2>;
+				};
+			};
+
 			wkup_uart0: serial@42300000 {
 				compatible = "ti,am654-uart", "ti,omap4-uart", "ns16550a";
 				reg = <0x42300000 0x100>;
