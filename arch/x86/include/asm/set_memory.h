@@ -88,4 +88,33 @@ extern int kernel_set_to_readonly;
 void set_kernel_text_rw(void);
 void set_kernel_text_ro(void);
 
+#ifdef CONFIG_X86_64
+/*
+ * Mark the linear address as UC to disable speculative pre-fetches into
+ * potentially poisoned memory.
+ */
+static inline int set_mce_nospec(unsigned long pfn)
+{
+	int rc;
+
+	rc = set_memory_uc((unsigned long) __va(PFN_PHYS(pfn)), 1);
+	if (rc)
+		pr_warn("Could not invalidate pfn=0x%lx from 1:1 map\n", pfn);
+	return rc;
+}
+#define set_mce_nospec set_mce_nospec
+
+/* Restore full speculative operation to the pfn. */
+static inline int clear_mce_nospec(unsigned long pfn)
+{
+	return set_memory_wb((unsigned long) __va(PFN_PHYS(pfn)), 1);
+}
+#define clear_mce_nospec clear_mce_nospec
+#else
+/*
+ * Few people would run a 32-bit kernel on a machine that supports
+ * recoverable errors because they have too much memory to boot 32-bit.
+ */
+#endif
+
 #endif /* _ASM_X86_SET_MEMORY_H */
