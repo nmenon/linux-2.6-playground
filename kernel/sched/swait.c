@@ -75,6 +75,7 @@ void __prepare_to_swait(struct swait_queue_head *q, struct swait_queue *wait)
 	if (list_empty(&wait->task_list))
 		list_add(&wait->task_list, &q->task_list);
 }
+EXPORT_SYMBOL_GPL(__prepare_to_swait);
 
 void prepare_to_swait(struct swait_queue_head *q, struct swait_queue *wait, int state)
 {
@@ -104,6 +105,7 @@ void __finish_swait(struct swait_queue_head *q, struct swait_queue *wait)
 	if (!list_empty(&wait->task_list))
 		list_del_init(&wait->task_list);
 }
+EXPORT_SYMBOL_GPL(__finish_swait);
 
 void finish_swait(struct swait_queue_head *q, struct swait_queue *wait)
 {
