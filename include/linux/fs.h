@@ -154,6 +154,9 @@ typedef int (dio_iodone_t)(struct kiocb *iocb, loff_t offset,
 /* File is capable of returning -EAGAIN if I/O will block */
 #define FMODE_NOWAIT	((__force fmode_t)0x8000000)
 
+/* File does not contribute to nr_files count */
+#define FMODE_NOACCOUNT	((__force fmode_t)0x10000000)
+
 /*
  * Flag for rw_copy_check_uvector and compat_rw_copy_check_uvector
  * that indicates that they should check the contents of the iovec are
@@ -1055,17 +1058,7 @@ struct file_lock_context {
 
 extern void send_sigio(struct fown_struct *fown, int fd, int band);
 
-/*
- * Return the inode to use for locking
- *
- * For overlayfs this should be the overlay inode, not the real inode returned
- * by file_inode().  For any other fs file_inode(filp) and locks_inode(filp) are
- * equal.
- */
-static inline struct inode *locks_inode(const struct file *f)
-{
-	return f->f_path.dentry->d_inode;
-}
+#define locks_inode(f) file_inode(f)
 
 #ifdef CONFIG_FILE_LOCKING
 extern int fcntl_getlk(struct file *, unsigned int, struct flock *);
@@ -1249,7 +1242,7 @@ static inline struct inode *file_inode(const struct file *f)
 
 static inline struct dentry *file_dentry(const struct file *file)
 {
-	return d_real(file->f_path.dentry, file_inode(file), 0, 0);
+	return d_real(file->f_path.dentry, file_inode(file));
 }
 
 static inline int locks_lock_file_wait(struct file *filp, struct file_lock *fl)
@@ -1305,7 +1298,6 @@ extern int send_sigurg(struct fown_struct *fown);
 
 /* These sb flags are internal to the kernel */
 #define SB_SUBMOUNT     (1<<26)
-#define SB_NOREMOTELOCK	(1<<27)
 #define SB_NOSEC	(1<<28)
 #define SB_BORN		(1<<29)
 #define SB_ACTIVE	(1<<30)
@@ -1632,6 +1624,8 @@ int vfs_mkobj(struct dentry *, umode_t,
 		int (*f)(struct dentry *, umode_t, void *),
 		void *);
 
+extern long vfs_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
+
 /*
  * VFS file helper functions.
  */
@@ -1725,6 +1719,7 @@ struct file_operations {
 	__poll_t (*poll) (struct file *, struct poll_table_struct *);
 	long (*unlocked_ioctl) (struct file *, unsigned int, unsigned long);
 	long (*compat_ioctl) (struct file *, unsigned int, unsigned long);
+	int (*pre_mmap) (struct file *, unsigned long, unsigned long);
 	int (*mmap) (struct file *, struct vm_area_struct *);
 	unsigned long mmap_supported_flags;
 	int (*open) (struct inode *, struct file *);
@@ -1750,8 +1745,8 @@ struct file_operations {
 			loff_t, size_t, unsigned int);
 	int (*clone_file_range)(struct file *, loff_t, struct file *, loff_t,
 			u64);
-	ssize_t (*dedupe_file_range)(struct file *, u64, u64, struct file *,
-			u64);
+	loff_t (*dedupe_file_range)(struct file *, loff_t,
+				    struct file *, loff_t, loff_t);
 } __randomize_layout;
 
 struct inode_operations {
@@ -1823,6 +1818,10 @@ extern int vfs_dedupe_file_range_compare(struct inode *src, loff_t srcoff,
 					 loff_t len, bool *is_same);
 extern int vfs_dedupe_file_range(struct file *file,
 				 struct file_dedupe_range *same);
+extern s64 vfs_dedupe_file_range_one(struct file *src_file, loff_t src_pos,
+				     struct file *dst_file, loff_t dst_pos,
+				     u64 len);
+
 
 struct super_operations {
    	struct inode *(*alloc_inode)(struct super_block *sb);
@@ -2070,6 +2069,7 @@ enum file_time_flags {
 	S_VERSION = 8,
 };
 
+extern bool atime_needs_update(const struct path *, struct inode *);
 extern void touch_atime(const struct path *);
 static inline void file_accessed(struct file *file)
 {
@@ -2415,6 +2415,8 @@ extern struct file *filp_open(const char *, int, umode_t);
 extern struct file *file_open_root(struct dentry *, struct vfsmount *,
 				   const char *, int, umode_t);
 extern struct file * dentry_open(const struct path *, int, const struct cred *);
+extern struct file *path_open(const struct path *, int, struct inode *,
+			      const struct cred *, bool);
 extern int filp_close(struct file *, fl_owner_t id);
 
 extern struct filename *getname_flags(const char __user *, int, int *);
@@ -2893,6 +2895,10 @@ extern struct inode *ilookup5(struct super_block *sb, unsigned long hashval,
 		int (*test)(struct inode *, void *), void *data);
 extern struct inode *ilookup(struct super_block *sb, unsigned long ino);
 
+extern struct inode *inode_insert5(struct inode *inode, unsigned long hashval,
+		int (*test)(struct inode *, void *),
+		int (*set)(struct inode *, void *),
+		void *data);
 extern struct inode * iget5_locked(struct super_block *, unsigned long, int (*test)(struct inode *, void *), int (*set)(struct inode *, void *), void *);
 extern struct inode * iget_locked(struct super_block *, unsigned long);
 extern struct inode *find_inode_nowait(struct super_block *,

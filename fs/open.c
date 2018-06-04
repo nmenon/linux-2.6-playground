@@ -68,7 +68,6 @@ int do_truncate(struct dentry *dentry, loff_t length, unsigned int time_attrs,
 long vfs_truncate(const struct path *path, loff_t length)
 {
 	struct inode *inode;
-	struct dentry *upperdentry;
 	long error;
 
 	inode = path->dentry->d_inode;
@@ -91,17 +90,7 @@ long vfs_truncate(const struct path *path, loff_t length)
 	if (IS_APPEND(inode))
 		goto mnt_drop_write_and_out;
 
-	/*
-	 * If this is an overlayfs then do as if opening the file so we get
-	 * write access on the upper inode, not on the overlay inode.  For
-	 * non-overlay filesystems d_real() is an identity function.
-	 */
-	upperdentry = d_real(path->dentry, NULL, O_WRONLY, 0);
-	error = PTR_ERR(upperdentry);
-	if (IS_ERR(upperdentry))
-		goto mnt_drop_write_and_out;
-
-	error = get_write_access(upperdentry->d_inode);
+	error = get_write_access(inode);
 	if (error)
 		goto mnt_drop_write_and_out;
 
@@ -120,7 +109,7 @@ long vfs_truncate(const struct path *path, loff_t length)
 		error = do_truncate(path->dentry, length, 0, NULL);
 
 put_write_and_out:
-	put_write_access(upperdentry->d_inode);
+	put_write_access(inode);
 mnt_drop_write_and_out:
 	mnt_drop_write(path->mnt);
 out:
@@ -707,12 +696,12 @@ int ksys_fchown(unsigned int fd, uid_t user, gid_t group)
 	if (!f.file)
 		goto out;
 
-	error = mnt_want_write_file_path(f.file);
+	error = mnt_want_write_file(f.file);
 	if (error)
 		goto out_fput;
 	audit_file(f.file);
 	error = chown_common(&f.file->f_path, user, group);
-	mnt_drop_write_file_path(f.file);
+	mnt_drop_write_file(f.file);
 out_fput:
 	fdput(f);
 out:
@@ -742,8 +731,8 @@ static int do_dentry_open(struct file *f,
 	static const struct file_operations empty_fops = {};
 	int error;
 
-	f->f_mode = OPEN_FMODE(f->f_flags) | FMODE_LSEEK |
-				FMODE_PREAD | FMODE_PWRITE;
+	f->f_mode = (f->f_mode & FMODE_NOACCOUNT) | OPEN_FMODE(f->f_flags) |
+		FMODE_LSEEK | FMODE_PREAD | FMODE_PWRITE;
 
 	path_get(&f->f_path);
 	f->f_inode = inode;
@@ -753,7 +742,7 @@ static int do_dentry_open(struct file *f,
 	f->f_wb_err = filemap_sample_wb_err(f->f_mapping);
 
 	if (unlikely(f->f_flags & O_PATH)) {
-		f->f_mode = FMODE_PATH;
+		f->f_mode = (f->f_mode & FMODE_NOACCOUNT) | FMODE_PATH;
 		f->f_op = &empty_fops;
 		return 0;
 	}
@@ -899,43 +888,50 @@ EXPORT_SYMBOL(file_path);
 int vfs_open(const struct path *path, struct file *file,
 	     const struct cred *cred)
 {
-	struct dentry *dentry = d_real(path->dentry, NULL, file->f_flags, 0);
-
-	if (IS_ERR(dentry))
-		return PTR_ERR(dentry);
-
 	file->f_path = *path;
-	return do_dentry_open(file, d_backing_inode(dentry), NULL, cred);
+	return do_dentry_open(file, d_backing_inode(path->dentry), NULL, cred);
 }
+
+/**
+ * path_open() - Open an inode by a particular name.
+ * @path: The name of the file.
+ * @flags: The O_ flags used to open this file.
+ * @inode: The inode to open.
+ * @cred: The task's credentials used when opening this file.
+ *
+ * Context: Process context.
+ * Return: A pointer to a struct file or an IS_ERR pointer.  Cannot return NULL.
+ */
+struct file *path_open(const struct path *path, int flags, struct inode *inode,
+		       const struct cred *cred, bool account)
+{
+	struct file *file;
+	int retval;
+
+	file = __get_empty_filp(account);
+	if (IS_ERR(file))
+		return file;
+
+	file->f_flags = flags;
+	file->f_path = *path;
+	retval = do_dentry_open(file, inode, NULL, cred);
+	if (retval) {
+		put_filp(file);
+		return ERR_PTR(retval);
+	}
+	return file;
+}
+EXPORT_SYMBOL(path_open);
 
 struct file *dentry_open(const struct path *path, int flags,
 			 const struct cred *cred)
 {
-	int error;
-	struct file *f;
-
 	validate_creds(cred);
 
 	/* We must always pass in a valid mount pointer. */
 	BUG_ON(!path->mnt);
 
-	f = get_empty_filp();
-	if (!IS_ERR(f)) {
-		f->f_flags = flags;
-		error = vfs_open(path, f, cred);
-		if (!error) {
-			/* from now on we need fput() to dispose of f */
-			error = open_check_o_direct(f);
-			if (error) {
-				fput(f);
-				f = ERR_PTR(error);
-			}
-		} else { 
-			put_filp(f);
-			f = ERR_PTR(error);
-		}
-	}
-	return f;
+	return path_open(path, flags, d_backing_inode(path->dentry), cred, true);
 }
 EXPORT_SYMBOL(dentry_open);
 

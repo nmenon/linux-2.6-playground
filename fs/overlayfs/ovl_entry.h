@@ -18,7 +18,9 @@ struct ovl_config {
 	const char *redirect_mode;
 	bool index;
 	bool nfs_export;
+	bool copy_up_shared;
 	int xino;
+	bool metacopy;
 };
 
 struct ovl_sb {
@@ -88,7 +90,10 @@ static inline struct ovl_entry *OVL_E(struct dentry *dentry)
 }
 
 struct ovl_inode {
-	struct ovl_dir_cache *cache;
+	union {
+		struct ovl_dir_cache *cache;	/* directory */
+		struct inode *lowerdata;	/* regular file */
+	};
 	const char *redirect;
 	u64 version;
 	unsigned long flags;
