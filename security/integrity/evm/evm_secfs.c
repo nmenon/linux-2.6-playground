@@ -147,8 +147,10 @@ static ssize_t evm_read_xattrs(struct file *filp, char __user *buf,
 		size += strlen(xattr->name) + 1;
 
 	temp = kmalloc(size + 1, GFP_KERNEL);
-	if (!temp)
+	if (!temp) {
+		mutex_unlock(&xattr_list_mutex);
 		return -ENOMEM;
+	}
 
 	list_for_each_entry(xattr, &evm_config_xattrnames, list) {
 		sprintf(temp + offset, "%s\n", xattr->name);
@@ -157,6 +159,8 @@ static ssize_t evm_read_xattrs(struct file *filp, char __user *buf,
 
 	mutex_unlock(&xattr_list_mutex);
 	rc = simple_read_from_buffer(buf, count, ppos, temp, strlen(temp));
+
+	kfree(temp);
 
 	return rc;
 }
@@ -207,7 +211,7 @@ static ssize_t evm_write_xattrs(struct file *file, const char __user *buf,
 
 	/* Remove any trailing newline */
 	len = strlen(xattr->name);
-	if (xattr->name[len-1] == '\n')
+	if (len && xattr->name[len-1] == '\n')
 		xattr->name[len-1] = '\0';
 
 	if (strcmp(xattr->name, ".") == 0) {
@@ -251,8 +255,10 @@ static ssize_t evm_write_xattrs(struct file *file, const char __user *buf,
 out:
 	audit_log_format(ab, " res=%d", err);
 	audit_log_end(ab);
-	kfree(xattr->name);
-	kfree(xattr);
+	if (xattr) {
+		kfree(xattr->name);
+		kfree(xattr);
+	}
 	return err;
 }
 
