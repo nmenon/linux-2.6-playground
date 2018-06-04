@@ -115,6 +115,7 @@ struct dev_pagemap {
 	dev_page_free_t page_free;
 	struct vmem_altmap altmap;
 	bool altmap_valid;
+	bool registered;
 	struct resource res;
 	struct percpu_ref *ref;
 	struct device *dev;

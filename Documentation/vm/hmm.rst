@@ -277,7 +277,6 @@ region needing a struct page. This is offered through a very simple API::
  struct hmm_devmem *hmm_devmem_add(const struct hmm_devmem_ops *ops,
                                    struct device *device,
                                    unsigned long size);
- void hmm_devmem_remove(struct hmm_devmem *devmem);
 
 The hmm_devmem_ops is where most of the important things are::
 

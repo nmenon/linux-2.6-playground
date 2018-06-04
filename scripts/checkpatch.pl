@@ -2375,6 +2375,14 @@ sub process {
 
 		my $rawline = $rawlines[$linenr - 1];
 
+# check if it's a mode change, rename or start of a patch
+		if (!$in_commit_log &&
+		    ($line =~ /^ mode change [0-7]+ => [0-7]+ \S+\s*$/ ||
+		    ($line =~ /^rename (?:from|to) \S+\s*$/ ||
+		     $line =~ /^diff --git a\/[\w\/\.\_\-]+ b\/\S+\s*$/))) {
+			$is_patch = 1;
+		}
+
 #extract the line range in the file after the patch is applied
 		if (!$in_commit_log &&
 		    $line =~ /^\@\@ -\d+(?:,\d+)? \+(\d+)(,(\d+))? \@\@(.*)/) {
@@ -6245,6 +6253,13 @@ sub process {
 		if ($sline =~ /^.\s+bool\s*$Ident\s*:\s*\d+\s*;/) {
 			WARN("BOOL_BITFIELD",
 			     "Avoid using bool as bitfield.  Prefer bool bitfields as unsigned int or u<8|16|32>\n" . $herecurr);
+		}
+
+# check for bool use in .h files
+		if ($realfile =~ /\.h$/ &&
+		    $sline =~ /^.\s+bool\s*$Ident\s*(?::\s*d+\s*)?;/) {
+			CHK("BOOL_MEMBER",
+			    "Avoid using bool structure members because of possible alignment issues - see: https://lkml.org/lkml/2017/11/21/384\n" . $herecurr);
 		}
 
 # check for semaphores initialized locked
