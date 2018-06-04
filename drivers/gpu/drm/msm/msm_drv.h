@@ -117,10 +117,6 @@ struct msm_drm_private {
 	struct workqueue_struct *wq;
 	struct workqueue_struct *atomic_wq;
 
-	/* crtcs pending async atomic updates: */
-	uint32_t pending_crtcs;
-	wait_queue_head_t pending_crtcs_event;
-
 	unsigned int num_planes;
 	struct drm_plane *planes[16];
 
@@ -154,14 +150,16 @@ struct msm_drm_private {
 	struct shrinker shrinker;
 
 	struct msm_vblank_ctrl vblank_ctrl;
+	struct drm_atomic_state *pm_state;
 };
 
 struct msm_format {
 	uint32_t pixel_format;
 };
 
-int msm_atomic_commit(struct drm_device *dev,
-		struct drm_atomic_state *state, bool nonblock);
+int msm_atomic_prepare_fb(struct drm_plane *plane,
+			  struct drm_plane_state *new_state);
+void msm_atomic_commit_tail(struct drm_atomic_state *state);
 struct drm_atomic_state *msm_atomic_state_alloc(struct drm_device *dev);
 void msm_atomic_state_clear(struct drm_atomic_state *state);
 void msm_atomic_state_free(struct drm_atomic_state *state);

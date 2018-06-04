@@ -41,10 +41,11 @@ static const struct drm_mode_config_funcs mode_config_funcs = {
 	.fb_create = msm_framebuffer_create,
 	.output_poll_changed = drm_fb_helper_output_poll_changed,
 	.atomic_check = drm_atomic_helper_check,
-	.atomic_commit = msm_atomic_commit,
-	.atomic_state_alloc = msm_atomic_state_alloc,
-	.atomic_state_clear = msm_atomic_state_clear,
-	.atomic_state_free = msm_atomic_state_free,
+	.atomic_commit = drm_atomic_helper_commit,
+};
+
+static const struct drm_mode_config_helper_funcs mode_config_helper_funcs = {
+	.atomic_commit_tail = msm_atomic_commit_tail,
 };
 
 #ifdef CONFIG_DRM_MSM_REGISTER_LOGGING
@@ -384,7 +385,6 @@ static int msm_drm_init(struct device *dev, struct drm_driver *drv)
 
 	priv->wq = alloc_ordered_workqueue("msm", 0);
 	priv->atomic_wq = alloc_ordered_workqueue("msm:atomic", 0);
-	init_waitqueue_head(&priv->pending_crtcs_event);
 
 	INIT_LIST_HEAD(&priv->inactive_list);
 	INIT_LIST_HEAD(&priv->vblank_ctrl.event_list);
@@ -442,6 +442,7 @@ static int msm_drm_init(struct device *dev, struct drm_driver *drv)
 	}
 
 	ddev->mode_config.funcs = &mode_config_funcs;
+	ddev->mode_config.helper_private = &mode_config_helper_funcs;
 
 	ret = drm_vblank_init(ddev, priv->num_crtcs);
 	if (ret < 0) {
@@ -893,8 +894,15 @@ static struct drm_driver msm_driver = {
 static int msm_pm_suspend(struct device *dev)
 {
 	struct drm_device *ddev = dev_get_drvdata(dev);
+	struct msm_drm_private *priv = ddev->dev_private;
 
 	drm_kms_helper_poll_disable(ddev);
+
+	priv->pm_state = drm_atomic_helper_suspend(ddev);
+	if (IS_ERR(priv->pm_state)) {
+		drm_kms_helper_poll_enable(ddev);
+		return PTR_ERR(priv->pm_state);
+	}
 
 	return 0;
 }
@@ -902,7 +910,9 @@ static int msm_pm_suspend(struct device *dev)
 static int msm_pm_resume(struct device *dev)
 {
 	struct drm_device *ddev = dev_get_drvdata(dev);
+	struct msm_drm_private *priv = ddev->dev_private;
 
+	drm_atomic_helper_resume(ddev, priv->pm_state);
 	drm_kms_helper_poll_enable(ddev);
 
 	return 0;

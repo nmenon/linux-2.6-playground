@@ -68,7 +68,9 @@ struct msm_gpu_funcs {
 	/* for generation specific debugfs: */
 	int (*debugfs_init)(struct msm_gpu *gpu, struct drm_minor *minor);
 #endif
-	int (*gpu_busy)(struct msm_gpu *gpu, uint64_t *value);
+	unsigned long (*gpu_busy)(struct msm_gpu *gpu);
+	unsigned long (*gpu_get_freq)(struct msm_gpu *gpu);
+	int (*gpu_set_freq)(struct msm_gpu *gpu, unsigned long freq);
 };
 
 struct msm_gpu {
@@ -226,6 +228,8 @@ static inline void gpu_write64(struct msm_gpu *gpu, u32 lo, u32 hi, u64 val)
 
 int msm_gpu_pm_suspend(struct msm_gpu *gpu);
 int msm_gpu_pm_resume(struct msm_gpu *gpu);
+void msm_gpu_resume_devfreq(struct msm_gpu *gpu);
+void msm_gpu_suspend_devfreq(struct msm_gpu *gpu);
 
 int msm_gpu_hw_init(struct msm_gpu *gpu);
 
