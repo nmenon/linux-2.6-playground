@@ -692,6 +692,16 @@ static int add_jump_destinations(struct objtool_file *file)
 	return 0;
 }
 
+static void remove_insn_ops(struct instruction *insn)
+{
+	struct stack_op *op, *tmp;
+
+	list_for_each_entry_safe(op, tmp, &insn->stack_ops, list) {
+		list_del(&op->list);
+		free(op);
+	}
+}
+
 /*
  * Find the destination instructions for all calls.
  */
@@ -717,10 +727,7 @@ static int add_call_destinations(struct objtool_file *file)
 				continue;
 
 			if (!insn->call_dest) {
-				WARN_FUNC("unsupported intra-function call",
-					  insn->sec, insn->offset);
-				if (retpoline)
-					WARN("If this is a retpoline, please patch it in with alternatives and annotate it with ANNOTATE_NOSPEC_ALTERNATIVE.");
+				WARN_FUNC("unannotated intra-function call", insn->sec, insn->offset);
 				return -1;
 			}
 
@@ -743,6 +750,15 @@ static int add_call_destinations(struct objtool_file *file)
 			}
 		} else
 			insn->call_dest = rela->sym;
+
+		/*
+		 * Whatever stack impact regular CALLs have, should be undone
+		 * by the RETURN of the called function.
+		 *
+		 * Annotated intra-function calls retain the stack_ops but
+		 * are converted to JUMP, see read_intra_function_calls().
+		 */
+		remove_insn_ops(insn);
 	}
 
 	return 0;
@@ -770,7 +786,9 @@ static int handle_group_alt(struct objtool_file *file,
 			    struct instruction *orig_insn,
 			    struct instruction **new_insn)
 {
+	static unsigned int alt_group_next_index = 1;
 	struct instruction *last_orig_insn, *last_new_insn, *insn, *fake_jump = NULL;
+	unsigned int alt_group = alt_group_next_index++;
 	unsigned long dest_off;
 
 	last_orig_insn = NULL;
@@ -779,7 +797,7 @@ static int handle_group_alt(struct objtool_file *file,
 		if (insn->offset >= special_alt->orig_off + special_alt->orig_len)
 			break;
 
-		insn->alt_group = true;
+		insn->alt_group = alt_group;
 		last_orig_insn = insn;
 	}
 
@@ -813,6 +831,7 @@ static int handle_group_alt(struct objtool_file *file,
 	}
 
 	last_new_insn = NULL;
+	alt_group = alt_group_next_index++;
 	insn = *new_insn;
 	sec_for_each_insn_from(file, insn) {
 		if (insn->offset >= special_alt->new_off + special_alt->new_len)
@@ -822,6 +841,7 @@ static int handle_group_alt(struct objtool_file *file,
 
 		insn->ignore = orig_insn->ignore_alts;
 		insn->func = orig_insn->func;
+		insn->alt_group = alt_group;
 
 		/*
 		 * Since alternative replacement code is copy/pasted by the
@@ -1418,6 +1438,57 @@ static int read_instr_hints(struct objtool_file *file)
 	return 0;
 }
 
+static int read_intra_function_calls(struct objtool_file *file)
+{
+	struct instruction *insn;
+	struct section *sec;
+	struct rela *rela;
+
+	sec = find_section_by_name(file->elf, ".rela.discard.intra_function_calls");
+	if (!sec)
+		return 0;
+
+	list_for_each_entry(rela, &sec->rela_list, list) {
+		unsigned long dest_off;
+
+		if (rela->sym->type != STT_SECTION) {
+			WARN("unexpected relocation symbol type in %s",
+			     sec->name);
+			return -1;
+		}
+
+		insn = find_insn(file, rela->sym->sec, rela->addend);
+		if (!insn) {
+			WARN("bad .discard.intra_function_call entry");
+			return -1;
+		}
+
+		if (insn->type != INSN_CALL) {
+			WARN_FUNC("intra_function_call not a direct call",
+				  insn->sec, insn->offset);
+			return -1;
+		}
+
+		/*
+		 * Treat intra-function CALLs as JMPs, but with a stack_op.
+		 * See add_call_destinations(), which strips stack_ops from
+		 * normal CALLs.
+		 */
+		insn->type = INSN_JUMP_UNCONDITIONAL;
+
+		dest_off = insn->offset + insn->len + insn->immediate;
+		insn->jump_dest = find_insn(file, insn->sec, dest_off);
+		if (!insn->jump_dest) {
+			WARN_FUNC("can't find call dest at %s+0x%lx",
+				  insn->sec, insn->offset,
+				  insn->sec->name, dest_off);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
 static void mark_rodata(struct objtool_file *file)
 {
 	struct section *sec;
@@ -1473,6 +1544,10 @@ static int decode_sections(struct objtool_file *file)
 	if (ret)
 		return ret;
 
+	ret = read_intra_function_calls(file);
+	if (ret)
+		return ret;
+
 	ret = add_call_destinations(file);
 	if (ret)
 		return ret;
@@ -1498,7 +1573,7 @@ static int decode_sections(struct objtool_file *file)
 
 static bool is_fentry_call(struct instruction *insn)
 {
-	if (insn->type == INSN_CALL &&
+	if (insn->type == INSN_CALL && insn->call_dest &&
 	    insn->call_dest->type == STT_NOTYPE &&
 	    !strcmp(insn->call_dest->name, "__fentry__"))
 		return true;
@@ -1520,6 +1595,14 @@ static bool has_modified_stack_frame(struct instruction *insn, struct insn_state
 
 	if (cfi->stack_size != initial_func_cfi.cfa.offset + ret_offset)
 		return true;
+
+	/*
+	 * If there is a ret offset hint then don't check registers
+	 * because a callee-saved register might have been pushed on
+	 * the stack.
+	 */
+	if (ret_offset)
+		return false;
 
 	for (i = 0; i < CFI_NUM_REGS; i++) {
 		if (cfi->regs[i].base != initial_func_cfi.regs[i].base ||
@@ -1997,6 +2080,11 @@ static int handle_insn_ops(struct instruction *insn, struct insn_state *state)
 	list_for_each_entry(op, &insn->stack_ops, list) {
 		int res;
 
+		if (insn->alt_group) {
+			WARN_FUNC("alternative modifies stack", insn->sec, insn->offset);
+			return -1;
+		}
+
 		res = update_cfi_state(insn, &state->cfi, op);
 		if (res)
 			return res;
@@ -2164,6 +2252,30 @@ static int validate_return(struct symbol *func, struct instruction *insn, struct
 }
 
 /*
+ * Alternatives should not contain any ORC entries, this in turn means they
+ * should not contain any CFI ops, which implies all instructions should have
+ * the same same CFI state.
+ *
+ * It is possible to constuct alternatives that have unreachable holes that go
+ * unreported (because they're NOPs), such holes would result in CFI_UNDEFINED
+ * states which then results in ORC entries, which we just said we didn't want.
+ *
+ * Avoid them by copying the CFI entry of the first instruction into the whole
+ * alternative.
+ */
+static void fill_alternative_cfi(struct objtool_file *file, struct instruction *insn)
+{
+	struct instruction *first_insn = insn;
+	int alt_group = insn->alt_group;
+
+	sec_for_each_insn_continue(file, insn) {
+		if (insn->alt_group != alt_group)
+			break;
+		insn->cfi = first_insn->cfi;
+	}
+}
+
+/*
  * Follow the branch starting at the given instruction, and recursively follow
  * any other branches (jumps).  Meanwhile, track the frame pointer state at
  * each instruction and validate all the rules described in
@@ -2179,12 +2291,6 @@ static int validate_branch(struct objtool_file *file, struct symbol *func,
 	int ret;
 
 	sec = insn->sec;
-
-	if (insn->alt_group && list_empty(&insn->alts)) {
-		WARN_FUNC("don't know how to handle branch to middle of alternative instruction group",
-			  sec, insn->offset);
-		return 1;
-	}
 
 	while (1) {
 		next_insn = next_insn_same_sec(file, insn);
@@ -2220,7 +2326,7 @@ static int validate_branch(struct objtool_file *file, struct symbol *func,
 
 		insn->visited |= visited;
 
-		if (!insn->ignore_alts) {
+		if (!insn->ignore_alts && !list_empty(&insn->alts)) {
 			bool skip_orig = false;
 
 			list_for_each_entry(alt, &insn->alts, list) {
@@ -2235,9 +2341,15 @@ static int validate_branch(struct objtool_file *file, struct symbol *func,
 				}
 			}
 
+			if (insn->alt_group)
+				fill_alternative_cfi(file, insn);
+
 			if (skip_orig)
 				return 0;
 		}
+
+		if (handle_insn_ops(insn, &state))
+			return 1;
 
 		switch (insn->type) {
 
@@ -2297,20 +2409,6 @@ static int validate_branch(struct objtool_file *file, struct symbol *func,
 
 			break;
 
-		case INSN_EXCEPTION_RETURN:
-			if (handle_insn_ops(insn, &state))
-				return 1;
-
-			/*
-			 * This handles x86's sync_core() case, where we use an
-			 * IRET to self. All 'normal' IRET instructions are in
-			 * STT_NOTYPE entry symbols.
-			 */
-			if (func)
-				break;
-
-			return 0;
-
 		case INSN_CONTEXT_SWITCH:
 			if (func && (!next_insn || !next_insn->hint)) {
 				WARN_FUNC("unsupported instruction in callable function",
@@ -2318,11 +2416,6 @@ static int validate_branch(struct objtool_file *file, struct symbol *func,
 				return 1;
 			}
 			return 0;
-
-		case INSN_STACK:
-			if (handle_insn_ops(insn, &state))
-				return 1;
-			break;
 
 		case INSN_STAC:
 			if (state.uaccess) {
