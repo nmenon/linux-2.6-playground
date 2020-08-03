@@ -6533,8 +6533,7 @@ struct extent_map *btrfs_get_extent(struct btrfs_inode *inode,
 				    u64 start, u64 len)
 {
 	struct btrfs_fs_info *fs_info = inode->root->fs_info;
-	int ret;
-	int err = 0;
+	int ret = 0;
 	u64 extent_start = 0;
 	u64 extent_end = 0;
 	u64 objectid = btrfs_ino(inode);
@@ -6562,7 +6561,7 @@ struct extent_map *btrfs_get_extent(struct btrfs_inode *inode,
 	}
 	em = alloc_extent_map();
 	if (!em) {
-		err = -ENOMEM;
+		ret = -ENOMEM;
 		goto out;
 	}
 	em->start = EXTENT_MAP_HOLE;
@@ -6572,7 +6571,7 @@ struct extent_map *btrfs_get_extent(struct btrfs_inode *inode,
 
 	path = btrfs_alloc_path();
 	if (!path) {
-		err = -ENOMEM;
+		ret = -ENOMEM;
 		goto out;
 	}
 
@@ -6587,7 +6586,6 @@ struct extent_map *btrfs_get_extent(struct btrfs_inode *inode,
 
 	ret = btrfs_lookup_file_extent(NULL, root, path, objectid, start, 0);
 	if (ret < 0) {
-		err = ret;
 		goto out;
 	} else if (ret > 0) {
 		if (path->slots[0] == 0)
@@ -6618,7 +6616,7 @@ struct extent_map *btrfs_get_extent(struct btrfs_inode *inode,
 	    extent_type == BTRFS_FILE_EXTENT_PREALLOC) {
 		/* Only regular file could have regular/prealloc extent */
 		if (!S_ISREG(inode->vfs_inode.i_mode)) {
-			err = -EUCLEAN;
+			ret = -EUCLEAN;
 			btrfs_crit(fs_info,
 		"regular/prealloc extent found for non-regular inode %llu",
 				   btrfs_ino(inode));
@@ -6636,12 +6634,11 @@ next:
 		path->slots[0]++;
 		if (path->slots[0] >= btrfs_header_nritems(leaf)) {
 			ret = btrfs_next_leaf(root, path);
-			if (ret < 0) {
-				err = ret;
+			if (ret < 0)
 				goto out;
-			} else if (ret > 0) {
+			else if (ret > 0)
 				goto not_found;
-			}
+
 			leaf = path->nodes[0];
 		}
 		btrfs_item_key_to_cpu(leaf, &found_key, path->slots[0]);
@@ -6692,10 +6689,8 @@ next:
 			    BTRFS_COMPRESS_NONE) {
 				ret = uncompress_inline(path, page, pg_offset,
 							extent_offset, item);
-				if (ret) {
-					err = ret;
+				if (ret)
 					goto out;
-				}
 			} else {
 				map = kmap(page);
 				read_extent_buffer(leaf, map + pg_offset, ptr,
@@ -6719,27 +6714,27 @@ not_found:
 	em->len = len;
 	em->block_start = EXTENT_MAP_HOLE;
 insert:
+	ret = 0;
 	btrfs_release_path(path);
 	if (em->start > start || extent_map_end(em) <= start) {
 		btrfs_err(fs_info,
 			  "bad extent! em: [%llu %llu] passed [%llu %llu]",
 			  em->start, em->len, start, len);
-		err = -EIO;
+		ret = -EIO;
 		goto out;
 	}
 
-	err = 0;
 	write_lock(&em_tree->lock);
-	err = btrfs_add_extent_mapping(fs_info, em_tree, &em, start, len);
+	ret = btrfs_add_extent_mapping(fs_info, em_tree, &em, start, len);
 	write_unlock(&em_tree->lock);
 out:
 	btrfs_free_path(path);
 
 	trace_btrfs_get_extent(root, inode, em);
 
-	if (err) {
+	if (ret) {
 		free_extent_map(em);
-		return ERR_PTR(err);
+		return ERR_PTR(ret);
 	}
 	return em;
 }
