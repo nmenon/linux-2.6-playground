@@ -530,6 +530,7 @@ enum {
 	REQ_F_HARDLINK_BIT	= IOSQE_IO_HARDLINK_BIT,
 	REQ_F_FORCE_ASYNC_BIT	= IOSQE_ASYNC_BIT,
 	REQ_F_BUFFER_SELECT_BIT	= IOSQE_BUFFER_SELECT_BIT,
+	REQ_F_POLL_FIRST_BIT	= IOSQE_POLL_FIRST_BIT,
 
 	REQ_F_LINK_HEAD_BIT,
 	REQ_F_FAIL_LINK_BIT,
@@ -563,6 +564,8 @@ enum {
 	REQ_F_FORCE_ASYNC	= BIT(REQ_F_FORCE_ASYNC_BIT),
 	/* IOSQE_BUFFER_SELECT */
 	REQ_F_BUFFER_SELECT	= BIT(REQ_F_BUFFER_SELECT_BIT),
+	/* IOSQE_POLL_FIRST */
+	REQ_F_POLL_FIRST	= BIT(REQ_F_POLL_FIRST_BIT),
 
 	/* head of a link */
 	REQ_F_LINK_HEAD		= BIT(REQ_F_LINK_HEAD_BIT),
@@ -720,10 +723,13 @@ struct io_op_def {
 	unsigned		pollout : 1;
 	/* op supports buffer selection */
 	unsigned		buffer_select : 1;
+	/* op needs fsize set */
 	unsigned		needs_fsize : 1;
+	/* op supports poll-before-io-attempt logic */
+	unsigned		poll_first : 1;
 };
 
-static const struct io_op_def io_op_defs[] = {
+static const struct io_op_def io_op_defs[] __read_mostly = {
 	[IORING_OP_NOP] = {},
 	[IORING_OP_READV] = {
 		.async_ctx		= 1,
@@ -772,6 +778,7 @@ static const struct io_op_def io_op_defs[] = {
 		.unbound_nonreg_file	= 1,
 		.needs_fs		= 1,
 		.pollout		= 1,
+		.poll_first		= 1,
 	},
 	[IORING_OP_RECVMSG] = {
 		.async_ctx		= 1,
@@ -781,6 +788,7 @@ static const struct io_op_def io_op_defs[] = {
 		.needs_fs		= 1,
 		.pollin			= 1,
 		.buffer_select		= 1,
+		.poll_first		= 1,
 	},
 	[IORING_OP_TIMEOUT] = {
 		.async_ctx		= 1,
@@ -853,6 +861,7 @@ static const struct io_op_def io_op_defs[] = {
 		.needs_file		= 1,
 		.unbound_nonreg_file	= 1,
 		.pollout		= 1,
+		.poll_first		= 1,
 	},
 	[IORING_OP_RECV] = {
 		.needs_mm		= 1,
@@ -860,6 +869,7 @@ static const struct io_op_def io_op_defs[] = {
 		.unbound_nonreg_file	= 1,
 		.pollin			= 1,
 		.buffer_select		= 1,
+		.poll_first		= 1,
 	},
 	[IORING_OP_OPENAT2] = {
 		.file_table		= 1,
@@ -918,7 +928,7 @@ static int io_setup_async_rw(struct io_kiocb *req, const struct iovec *iovec,
 
 static struct kmem_cache *req_cachep;
 
-static const struct file_operations io_uring_fops;
+static const struct file_operations io_uring_fops __read_mostly;
 
 struct sock *io_uring_get_socket(struct file *file)
 {
@@ -4002,6 +4012,28 @@ static int io_sync_file_range(struct io_kiocb *req, bool force_nonblock)
 }
 
 #if defined(CONFIG_NET)
+/*
+ * Returns true if we should trigger poll-first logic. If true, then the op
+ * will prepare what it needs to perform the IO, but it won't actually attempt
+ * it. Rather, it'll return -EAGAIN to force arm of the poll handler, which
+ * will then trigger the IO through task_work when data/space becomes
+ * available.
+ */
+static inline bool io_poll_first(struct io_kiocb *req, bool force_nonblock)
+{
+	if (!force_nonblock)
+		return false;
+
+	/*
+	 * If POLL_FIRST is requested and we haven't gone through the poll
+	 * handler already, then ask for poll-first behavior.
+	 */
+	if ((req->flags & (REQ_F_POLL_FIRST | REQ_F_POLLED)) == REQ_F_POLL_FIRST)
+		return true;
+
+	return false;
+}
+
 static int io_setup_async_msg(struct io_kiocb *req,
 			      struct io_async_msghdr *kmsg)
 {
@@ -4082,13 +4114,17 @@ static int io_sendmsg(struct io_kiocb *req, bool force_nonblock,
 		kmsg = &iomsg;
 	}
 
-	flags = req->sr_msg.msg_flags;
-	if (flags & MSG_DONTWAIT)
-		req->flags |= REQ_F_NOWAIT;
-	else if (force_nonblock)
-		flags |= MSG_DONTWAIT;
+	if (io_poll_first(req, force_nonblock)) {
+		ret = -EAGAIN;
+	} else {
+		flags = req->sr_msg.msg_flags;
+		if (flags & MSG_DONTWAIT)
+			req->flags |= REQ_F_NOWAIT;
+		else if (force_nonblock)
+			flags |= MSG_DONTWAIT;
 
-	ret = __sys_sendmsg_sock(sock, &kmsg->msg, flags);
+		ret = __sys_sendmsg_sock(sock, &kmsg->msg, flags);
+	}
 	if (force_nonblock && ret == -EAGAIN)
 		return io_setup_async_msg(req, kmsg);
 	if (ret == -ERESTARTSYS)
@@ -4121,19 +4157,23 @@ static int io_send(struct io_kiocb *req, bool force_nonblock,
 	if (unlikely(ret))
 		return ret;;
 
-	msg.msg_name = NULL;
-	msg.msg_control = NULL;
-	msg.msg_controllen = 0;
-	msg.msg_namelen = 0;
+	if (io_poll_first(req, force_nonblock)) {
+		ret = -EAGAIN;
+	} else {
+		msg.msg_name = NULL;
+		msg.msg_control = NULL;
+		msg.msg_controllen = 0;
+		msg.msg_namelen = 0;
 
-	flags = req->sr_msg.msg_flags;
-	if (flags & MSG_DONTWAIT)
-		req->flags |= REQ_F_NOWAIT;
-	else if (force_nonblock)
-		flags |= MSG_DONTWAIT;
+		flags = req->sr_msg.msg_flags;
+		if (flags & MSG_DONTWAIT)
+			req->flags |= REQ_F_NOWAIT;
+		else if (force_nonblock)
+			flags |= MSG_DONTWAIT;
 
-	msg.msg_flags = flags;
-	ret = sock_sendmsg(sock, &msg);
+		msg.msg_flags = flags;
+		ret = sock_sendmsg(sock, &msg);
+	}
 	if (force_nonblock && ret == -EAGAIN)
 		return -EAGAIN;
 	if (ret == -ERESTARTSYS)
@@ -4322,14 +4362,18 @@ static int io_recvmsg(struct io_kiocb *req, bool force_nonblock,
 				1, req->sr_msg.len);
 	}
 
-	flags = req->sr_msg.msg_flags;
-	if (flags & MSG_DONTWAIT)
-		req->flags |= REQ_F_NOWAIT;
-	else if (force_nonblock)
-		flags |= MSG_DONTWAIT;
+	if (io_poll_first(req, force_nonblock)) {
+		ret = -EAGAIN;
+	} else {
+		flags = req->sr_msg.msg_flags;
+		if (flags & MSG_DONTWAIT)
+			req->flags |= REQ_F_NOWAIT;
+		else if (force_nonblock)
+			flags |= MSG_DONTWAIT;
 
-	ret = __sys_recvmsg_sock(sock, &kmsg->msg, req->sr_msg.umsg,
-					kmsg->uaddr, flags);
+		ret = __sys_recvmsg_sock(sock, &kmsg->msg, req->sr_msg.umsg,
+						kmsg->uaddr, flags);
+	}
 	if (force_nonblock && ret == -EAGAIN)
 		return io_setup_async_msg(req, kmsg);
 	if (ret == -ERESTARTSYS)
@@ -4373,20 +4417,24 @@ static int io_recv(struct io_kiocb *req, bool force_nonblock,
 	if (unlikely(ret))
 		goto out_free;
 
-	msg.msg_name = NULL;
-	msg.msg_control = NULL;
-	msg.msg_controllen = 0;
-	msg.msg_namelen = 0;
-	msg.msg_iocb = NULL;
-	msg.msg_flags = 0;
+	if (io_poll_first(req, force_nonblock)) {
+		ret = -EAGAIN;
+	} else {
+		msg.msg_name = NULL;
+		msg.msg_control = NULL;
+		msg.msg_controllen = 0;
+		msg.msg_namelen = 0;
+		msg.msg_iocb = NULL;
+		msg.msg_flags = 0;
 
-	flags = req->sr_msg.msg_flags;
-	if (flags & MSG_DONTWAIT)
-		req->flags |= REQ_F_NOWAIT;
-	else if (force_nonblock)
-		flags |= MSG_DONTWAIT;
+		flags = req->sr_msg.msg_flags;
+		if (flags & MSG_DONTWAIT)
+			req->flags |= REQ_F_NOWAIT;
+		else if (force_nonblock)
+			flags |= MSG_DONTWAIT;
 
-	ret = sock_recvmsg(sock, &msg, flags);
+		ret = sock_recvmsg(sock, &msg, flags);
+	}
 	if (force_nonblock && ret == -EAGAIN)
 		return -EAGAIN;
 	if (ret == -ERESTARTSYS)
@@ -6373,7 +6421,7 @@ static inline void io_consume_sqe(struct io_ring_ctx *ctx)
 
 #define SQE_VALID_FLAGS	(IOSQE_FIXED_FILE|IOSQE_IO_DRAIN|IOSQE_IO_LINK|	\
 				IOSQE_IO_HARDLINK | IOSQE_ASYNC | \
-				IOSQE_BUFFER_SELECT)
+				IOSQE_BUFFER_SELECT | IOSQE_POLL_FIRST)
 
 static int io_init_req(struct io_ring_ctx *ctx, struct io_kiocb *req,
 		       const struct io_uring_sqe *sqe,
@@ -6406,6 +6454,9 @@ static int io_init_req(struct io_ring_ctx *ctx, struct io_kiocb *req,
 
 	if ((sqe_flags & IOSQE_BUFFER_SELECT) &&
 	    !io_op_defs[req->opcode].buffer_select)
+		return -EOPNOTSUPP;
+	if ((sqe_flags & IOSQE_POLL_FIRST) &&
+	    !io_op_defs[req->opcode].poll_first)
 		return -EOPNOTSUPP;
 
 	id = READ_ONCE(sqe->personality);

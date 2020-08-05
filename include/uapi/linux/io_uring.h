@@ -68,6 +68,7 @@ enum {
 	IOSQE_IO_HARDLINK_BIT,
 	IOSQE_ASYNC_BIT,
 	IOSQE_BUFFER_SELECT_BIT,
+	IOSQE_POLL_FIRST_BIT,
 };
 
 /*
@@ -85,6 +86,8 @@ enum {
 #define IOSQE_ASYNC		(1U << IOSQE_ASYNC_BIT)
 /* select buffer from sqe->buf_group */
 #define IOSQE_BUFFER_SELECT	(1U << IOSQE_BUFFER_SELECT_BIT)
+/* don't attempt op handler first, always poll */
+#define IOSQE_POLL_FIRST	(1U << IOSQE_POLL_FIRST_BIT)
 
 /*
  * io_uring_setup() flags
