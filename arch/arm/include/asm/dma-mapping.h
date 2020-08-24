@@ -35,8 +35,11 @@ static inline const struct dma_map_ops *get_arch_dma_ops(struct bus_type *bus)
 #ifndef __arch_pfn_to_dma
 static inline dma_addr_t pfn_to_dma(struct device *dev, unsigned long pfn)
 {
-	if (dev)
-		pfn -= dev->dma_pfn_offset;
+	if (dev) {
+		phys_addr_t paddr = PFN_PHYS(pfn);
+
+		pfn -= PFN_DOWN(dma_offset_from_phys_addr(dev, paddr));
+	}
 	return (dma_addr_t)__pfn_to_bus(pfn);
 }
 
@@ -45,8 +48,7 @@ static inline unsigned long dma_to_pfn(struct device *dev, dma_addr_t addr)
 	unsigned long pfn = __bus_to_pfn(addr);
 
 	if (dev)
-		pfn += dev->dma_pfn_offset;
-
+		pfn += PFN_DOWN(dma_offset_from_dma_addr(dev, addr));
 	return pfn;
 }
 

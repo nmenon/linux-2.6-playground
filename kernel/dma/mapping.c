@@ -11,6 +11,7 @@
 #include <linux/dma-noncoherent.h>
 #include <linux/export.h>
 #include <linux/gfp.h>
+#include <linux/limits.h>
 #include <linux/of_device.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
@@ -611,3 +612,68 @@ unsigned long dma_get_merge_boundary(struct device *dev)
 	return ops->get_merge_boundary(dev);
 }
 EXPORT_SYMBOL_GPL(dma_get_merge_boundary);
+
+/**
+ * dma_set_offset_range - Assign scalar offset for a single DMA range.
+ * @dev:	device pointer; needed to "own" the alloced memory.
+ * @cpu_start:  beginning of memory region covered by this offset.
+ * @dma_start:  beginning of DMA/PCI region covered by this offset.
+ * @size:	size of the region.
+ *
+ * This is for the simple case of a uniform offset which cannot
+ * be discovered by "dma-ranges".
+ *
+ * It returns -ENOMEM if out of memory, -EINVAL if a map
+ * already exists, 0 otherwise.
+ */
+int dma_set_offset_range(struct device *dev, phys_addr_t cpu_start,
+			 dma_addr_t dma_start, u64 size)
+{
+	struct bus_dma_region *map;
+	u64 offset = (u64)cpu_start - (u64)dma_start;
+
+	if (dev->dma_range_map) {
+		dev_err(dev, "attempt to add DMA range to existing map\n");
+		return -EINVAL;
+	}
+
+	if (!offset)
+		return 0;
+
+	map = kcalloc(2, sizeof(*map), GFP_KERNEL);
+	if (!map)
+		return -ENOMEM;
+	map[0].cpu_start = cpu_start;
+	map[0].dma_start = dma_start;
+	map[0].offset = offset;
+	map[0].size = size;
+	dev->dma_range_map = map;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(dma_set_offset_range);
+
+/**
+ * dma_copy_dma_range_map - Copy the dma_range from one device to another
+ * @to:		device to copy to
+ * @from:	device to copy from
+ */
+int dma_copy_dma_range_map(struct device *to, struct device *from)
+{
+	const struct bus_dma_region *map = from->dma_range_map, *new_map, *r;
+	int num_ranges = 0;
+
+	if (!map)
+		return 0;
+
+	for (r = map; r->size; r++)
+		num_ranges++;
+
+	new_map = kmemdup(map, array_size(num_ranges + 1, sizeof(*map)),
+			  GFP_KERNEL);
+	if (!new_map)
+		return -ENOMEM;
+	to->dma_range_map = new_map;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(dma_copy_dma_range_map);
