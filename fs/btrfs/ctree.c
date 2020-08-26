@@ -68,7 +68,7 @@ const char *btrfs_super_csum_driver(u16 csum_type)
 		btrfs_csums[csum_type].name;
 }
 
-size_t __const btrfs_get_num_csums(void)
+size_t __attribute_const__ btrfs_get_num_csums(void)
 {
 	return ARRAY_SIZE(btrfs_csums);
 }
@@ -5111,7 +5111,7 @@ again:
 			slot--;
 		/*
 		 * check this node pointer against the min_trans parameters.
-		 * If it is too old, old, skip to the next one.
+		 * If it is too old, skip to the next one.
 		 */
 		while (slot < nritems) {
 			u64 gen;
