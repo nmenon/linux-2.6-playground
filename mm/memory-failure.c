@@ -1762,8 +1762,6 @@ static bool isolate_page(struct page *page, struct list_head *pagelist)
 
 		if (isolated)
 			list_add(&page->lru, pagelist);
-
-		return -EBUSY;
 	}
 
 	if (isolated && lru)
