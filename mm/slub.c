@@ -3785,8 +3785,7 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 	 * free and re-initialize it with re-calculated value.
 	 */
 	if (slab_state >= UP) {
-		if (s->random_seq)
-			cache_random_seq_destroy(s);
+		cache_random_seq_destroy(s);
 		if (init_cache_random_seq(s))
 			return 0;
 	}
