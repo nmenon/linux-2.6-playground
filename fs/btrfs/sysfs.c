@@ -939,8 +939,6 @@ void btrfs_sysfs_remove_mounted(struct btrfs_fs_info *fs_info)
 {
 	struct kobject *fsid_kobj = &fs_info->fs_devices->fsid_kobj;
 
-	btrfs_reset_fs_info_ptr(fs_info);
-
 	sysfs_remove_link(fsid_kobj, "bdi");
 
 	if (fs_info->space_info_kobj) {
@@ -973,7 +971,7 @@ static const char * const btrfs_feature_set_names[FEAT_MAX] = {
 	[FEAT_INCOMPAT]	 = "incompat",
 };
 
-const char * const btrfs_feature_set_name(enum btrfs_feature_set set)
+const char *btrfs_feature_set_name(enum btrfs_feature_set set)
 {
 	return btrfs_feature_set_names[set];
 }
@@ -1324,8 +1322,8 @@ void btrfs_kobject_uevent(struct block_device *bdev, enum kobject_action action)
 			&disk_to_dev(bdev->bd_disk)->kobj);
 }
 
-void btrfs_sysfs_update_sprout_fsid(struct btrfs_fs_devices *fs_devices,
-				    const u8 *fsid)
+void btrfs_sysfs_update_sprout_fsid(struct btrfs_fs_devices *fs_devices)
+
 {
 	char fsid_buf[BTRFS_UUID_UNPARSED_SIZE];
 
@@ -1333,7 +1331,7 @@ void btrfs_sysfs_update_sprout_fsid(struct btrfs_fs_devices *fs_devices,
 	 * Sprouting changes fsid of the mounted filesystem, rename the fsid
 	 * directory
 	 */
-	snprintf(fsid_buf, BTRFS_UUID_UNPARSED_SIZE, "%pU", fsid);
+	snprintf(fsid_buf, BTRFS_UUID_UNPARSED_SIZE, "%pU", fs_devices->fsid);
 	if (kobject_rename(&fs_devices->fsid_kobj, fsid_buf))
 		btrfs_warn(fs_devices->fs_info,
 				"sysfs: failed to create fsid for sprout");
@@ -1399,8 +1397,6 @@ int btrfs_sysfs_add_mounted(struct btrfs_fs_info *fs_info)
 	int error;
 	struct btrfs_fs_devices *fs_devs = fs_info->fs_devices;
 	struct kobject *fsid_kobj = &fs_devs->fsid_kobj;
-
-	btrfs_set_fs_info_ptr(fs_info);
 
 	error = btrfs_sysfs_add_devices_dir(fs_devs, NULL);
 	if (error)
@@ -1626,12 +1622,16 @@ void btrfs_sysfs_feature_update(struct btrfs_fs_info *fs_info,
 {
 	struct btrfs_fs_devices *fs_devs;
 	struct kobject *fsid_kobj;
-	u64 features;
-	int ret;
+	u64 __maybe_unused features;
+	int __maybe_unused ret;
 
 	if (!fs_info)
 		return;
 
+	/*
+	 * See 14e46e04958df74 and e410e34fad913dd, feature bit updates are not
+	 * safe when called from some contexts (eg. balance)
+	 */
 	features = get_features(fs_info, set);
 	ASSERT(bit & supported_feature_masks[set]);
 
