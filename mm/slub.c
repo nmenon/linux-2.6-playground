@@ -3776,7 +3776,22 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 	if (oo_objects(s->oo) > oo_objects(s->max))
 		s->max = s->oo;
 
-	return !!oo_objects(s->oo);
+	if (!oo_objects(s->oo))
+		return 0;
+
+	/*
+	 * Initialize the pre-computed randomized freelist if slab is up.
+	 * If the randomized freelist random_seq is already initialized,
+	 * free and re-initialize it with re-calculated value.
+	 */
+	if (slab_state >= UP) {
+		if (s->random_seq)
+			cache_random_seq_destroy(s);
+		if (init_cache_random_seq(s))
+			return 0;
+	}
+
+	return 1;
 }
 
 static int kmem_cache_open(struct kmem_cache *s, slab_flags_t flags)
@@ -3819,12 +3834,6 @@ static int kmem_cache_open(struct kmem_cache *s, slab_flags_t flags)
 #ifdef CONFIG_NUMA
 	s->remote_node_defrag_ratio = 1000;
 #endif
-
-	/* Initialize the pre-computed randomized freelist if slab is up */
-	if (slab_state >= UP) {
-		if (init_cache_random_seq(s))
-			goto error;
-	}
 
 	if (!init_kmem_cache_nodes(s))
 		goto error;
