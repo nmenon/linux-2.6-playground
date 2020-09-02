@@ -1,0 +1,28 @@
+arm/soc
+
+arm/dt
+
+arm/drivers
+	tee/i2c
+		git://git.linaro.org/people/jens.wiklander/linux-tee tags/optee-i2c-for-v5.10
+	tee/memref-null
+		git://git.linaro.org/people/jens.wiklander/linux-tee tags/tee-memref-null-for-v5.10
+	tee/get-user-pages
+		git://git.linaro.org/people/jens.wiklander/linux-tee tags/tee-pin-user-pages-for-5.10
+
+arm/defconfig
+
+arm/late
+
+arm/fixes
+	<no branch> (0ff5a4812be4ebd4782bbb555d369636eea164f7)
+		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux tags/socfpga_fix_for_v5.9
+	patch
+		ARM: configs: Update Integrator defconfig
+		arm64: defconfig: Enable USB gadget with configfs
+		arm64: defconfig: Enable ptn5150 extcon driver
+	<no branch> (8d53ecfbf23135381d2ebbd1b261a7c7f18a7294)
+		https://github.com/Xilinx/linux-xlnx tags/zynqmp-dt-for-v5.9
+	<no branch> (5cbb80d5236b47b149da292b86d5fc99a680894b)
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-fixes-5.9
+
