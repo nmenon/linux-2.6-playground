@@ -188,7 +188,43 @@ static inline int dma_mmap_from_global_coherent(struct vm_area_struct *vma,
 }
 #endif /* CONFIG_DMA_DECLARE_COHERENT */
 
+/*
+ * Record the mapping of CPU physical to DMA addresses for a given region.
+ */
+struct bus_dma_region {
+	phys_addr_t	cpu_start;
+	dma_addr_t	dma_start;
+	u64		size;
+	u64		offset;
+};
+
 #ifdef CONFIG_HAS_DMA
+static inline u64 dma_offset_from_dma_addr(struct device *dev,
+		dma_addr_t dma_addr)
+{
+	const struct bus_dma_region *m = dev->dma_range_map;
+
+	if (m)
+		for (; m->size; m++)
+			if (dma_addr >= m->dma_start &&
+			    dma_addr - m->dma_start < m->size)
+				return m->offset;
+	return 0;
+}
+
+static inline u64 dma_offset_from_phys_addr(struct device *dev,
+		phys_addr_t paddr)
+{
+	const struct bus_dma_region *m = dev->dma_range_map;
+
+	if (m)
+		for (; m->size; m++)
+			if (paddr >= m->cpu_start &&
+			    paddr - m->cpu_start < m->size)
+				return m->offset;
+	return 0;
+}
+
 #include <asm/dma-mapping.h>
 
 #ifdef CONFIG_DMA_OPS
@@ -608,6 +644,11 @@ static inline void arch_teardown_dma_ops(struct device *dev)
 {
 }
 #endif /* CONFIG_ARCH_HAS_TEARDOWN_DMA_OPS */
+
+int dma_set_offset_range(struct device *dev, phys_addr_t cpu_start,
+		dma_addr_t dma_start, u64 size);
+
+int dma_copy_dma_range_map(struct device *to, struct device *from);
 
 static inline unsigned int dma_get_max_seg_size(struct device *dev)
 {
