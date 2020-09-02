@@ -767,15 +767,13 @@ static void reada_start_machine_worker(struct btrfs_work *work)
 	kfree(rmw);
 }
 
-static void __reada_start_machine(struct btrfs_fs_info *fs_info)
+/* Try to start up to 10k READA requests for a group of devices */
+static int __reada_start_for_fsdevs(struct btrfs_fs_devices *fs_devices)
 {
-	struct btrfs_device *device;
-	struct btrfs_fs_devices *fs_devices = fs_info->fs_devices;
 	u64 enqueued;
 	u64 total = 0;
-	int i;
+	struct btrfs_device *device;
 
-again:
 	do {
 		enqueued = 0;
 		mutex_lock(&fs_devices->device_list_mutex);
@@ -787,10 +785,19 @@ again:
 		mutex_unlock(&fs_devices->device_list_mutex);
 		total += enqueued;
 	} while (enqueued && total < 10000);
-	if (fs_devices->seed) {
-		fs_devices = fs_devices->seed;
-		goto again;
-	}
+
+	return total;
+}
+
+static void __reada_start_machine(struct btrfs_fs_info *fs_info)
+{
+	struct btrfs_fs_devices *fs_devices = fs_info->fs_devices, *seed_devs;
+	int i;
+	u64 enqueued = 0;
+
+	enqueued += __reada_start_for_fsdevs(fs_devices);
+	list_for_each_entry(seed_devs, &fs_devices->seed_list, seed_list)
+		enqueued += __reada_start_for_fsdevs(seed_devs);
 
 	if (enqueued == 0)
 		return;

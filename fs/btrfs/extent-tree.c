@@ -1178,7 +1178,22 @@ int insert_inline_extent_backref(struct btrfs_trans_handle *trans,
 					   num_bytes, parent, root_objectid,
 					   owner, offset, 1);
 	if (ret == 0) {
-		BUG_ON(owner < BTRFS_FIRST_FREE_OBJECTID);
+		/*
+		 * We're adding refs to an tree block we already own, this
+		 * should not happen at all.
+		 */
+		if (owner < BTRFS_FIRST_FREE_OBJECTID) {
+			btrfs_crit(trans->fs_info,
+"invalid operation, adding refs to an existing tree ref, bytenr=%llu num_bytes=%llu root_objectid=%llu",
+				   bytenr, num_bytes, root_objectid);
+			if (IS_ENABLED(CONFIG_BTRFS_DEBUG)) {
+				WARN_ON(1);
+				btrfs_crit(trans->fs_info,
+			"path->slots[0]=%d path->nodes[0]:", path->slots[0]);
+				btrfs_print_leaf(path->nodes[0]);
+			}
+			return -EUCLEAN;
+		}
 		update_inline_extent_backref(path, iref, refs_to_add,
 					     extent_op, NULL);
 	} else if (ret == -ENOENT) {
@@ -1397,6 +1412,9 @@ int btrfs_inc_extent_ref(struct btrfs_trans_handle *trans,
 
 /*
  * __btrfs_inc_extent_ref - insert backreference for a given extent
+ *
+ * The work is opposite as __btrfs_free_extent().
+ * For more info about how it works or examples, refer to __btrfs_free_extent().
  *
  * @trans:	    Handle of transaction
  *
@@ -2850,11 +2868,10 @@ static int unpin_extent_range(struct btrfs_fs_info *fs_info,
 				len -= to_add;
 			}
 			spin_unlock(&global_rsv->lock);
-			/* Add to any tickets we may have */
-			if (len)
-				btrfs_try_granting_tickets(fs_info,
-							   space_info);
 		}
+		/* Add to any tickets we may have */
+		if (!readonly && return_free_space && len)
+			btrfs_try_granting_tickets(fs_info, space_info);
 		spin_unlock(&space_info->lock);
 	}
 
@@ -2936,6 +2953,53 @@ int btrfs_finish_extent_commit(struct btrfs_trans_handle *trans)
 	return 0;
 }
 
+/*
+ * Real work happens here to drop one or more refs of @node.
+ *
+ * The work is mostly done in two parts:
+ * 1. Locate the extent refs.
+ *    It's either inlined in EXTENT/METADATA_ITEM or in keyed SHARED_* item.
+ *    Locate it then reduces the refs number or remove the ref line completely.
+ *
+ * 2. Update the refs count in EXTENT/METADATA_ITEM
+ *
+ * Due to the above two operations and possible optimizations, the function
+ * is a little hard to read, but with the following examples, the result
+ * of this function should be pretty easy to get.
+ *
+ * Example:
+ * *** Inlined backref case ***
+ * In extent tree we have:
+ * 	item 0 key (13631488 EXTENT_ITEM 1048576) itemoff 16201 itemsize 82
+ *		refs 2 gen 6 flags DATA
+ *		extent data backref root FS_TREE objectid 258 offset 0 count 1
+ *		extent data backref root FS_TREE objectid 257 offset 0 count 1
+ *
+ * This function get called with
+ *  node->bytenr = 13631488, node->num_bytes = 1048576
+ *  root_objectid = FS_TREE, owner_objectid = 257, owner_offset = 0,
+ *  refs_to_drop = 1
+ * Then we should get some like:
+ * 	item 0 key (13631488 EXTENT_ITEM 1048576) itemoff 16201 itemsize 82
+ *		refs 1 gen 6 flags DATA
+ *		extent data backref root FS_TREE objectid 258 offset 0 count 1
+ *
+ * *** Keyed backref case ***
+ * In extent tree we have:
+ *	item 0 key (13631488 EXTENT_ITEM 1048576) itemoff 3971 itemsize 24
+ *		refs 754 gen 6 flags DATA
+ *	[...]
+ *	item 2 key (13631488 EXTENT_DATA_REF <HASH>) itemoff 3915 itemsize 28
+ *		extent data backref root FS_TREE objectid 866 offset 0 count 1
+ * This function get called with
+ *  node->bytenr = 13631488, node->num_bytes = 1048576
+ *  root_objectid = FS_TREE, owner_objectid = 866, owner_offset = 0,
+ *  refs_to_drop = 1
+ * Then we should get some like:
+ *	item 0 key (13631488 EXTENT_ITEM 1048576) itemoff 3971 itemsize 24
+ *		refs 753 gen 6 flags DATA
+ * And that (13631488 EXTENT_DATA_REF <HASH>) get removed.
+ */
 static int __btrfs_free_extent(struct btrfs_trans_handle *trans,
 			       struct btrfs_delayed_ref_node *node, u64 parent,
 			       u64 root_objectid, u64 owner_objectid,
@@ -2968,7 +3032,15 @@ static int __btrfs_free_extent(struct btrfs_trans_handle *trans,
 	path->leave_spinning = 1;
 
 	is_data = owner_objectid >= BTRFS_FIRST_FREE_OBJECTID;
-	BUG_ON(!is_data && refs_to_drop != 1);
+
+	if (unlikely(!is_data && refs_to_drop != 1)) {
+		btrfs_crit(info,
+"invalid refs_to_drop, dropping more than 1 refs for tree block %llu refs_to_drop %u",
+			   node->bytenr, refs_to_drop);
+		ret = -EINVAL;
+		btrfs_abort_transaction(trans, ret);
+		goto out;
+	}
 
 	if (is_data)
 		skinny_metadata = false;
@@ -2977,6 +3049,13 @@ static int __btrfs_free_extent(struct btrfs_trans_handle *trans,
 				    parent, root_objectid, owner_objectid,
 				    owner_offset);
 	if (ret == 0) {
+		/*
+		 * Either the inline backref or the SHARED_DATA_REF/
+		 * SHARED_BLOCK_REF is found
+		 *
+		 * Here is a quick path to locate EXTENT/METADATA_ITEM.
+		 * It's possible the EXTENT/METADATA_ITEM is near current slot.
+		 */
 		extent_slot = path->slots[0];
 		while (extent_slot >= 0) {
 			btrfs_item_key_to_cpu(path->nodes[0], &key,
@@ -2993,13 +3072,21 @@ static int __btrfs_free_extent(struct btrfs_trans_handle *trans,
 				found_extent = 1;
 				break;
 			}
+
+			/* Quick path didn't find the EXTEMT/METADATA_ITEM */
 			if (path->slots[0] - extent_slot > 5)
 				break;
 			extent_slot--;
 		}
 
 		if (!found_extent) {
-			BUG_ON(iref);
+			if (unlikely(iref)) {
+				btrfs_crit(info,
+"invalid iref, no EXTENT/METADATA_ITEM found but has inline extent ref");
+				btrfs_abort_transaction(trans, -EUCLEAN);
+				goto err_dump;
+			}
+			/* Must be SHARED_* item, remove the backref first */
 			ret = remove_extent_backref(trans, path, NULL,
 						    refs_to_drop,
 						    is_data, &last_ref);
@@ -3010,6 +3097,8 @@ static int __btrfs_free_extent(struct btrfs_trans_handle *trans,
 			btrfs_release_path(path);
 			path->leave_spinning = 1;
 
+
+			/* Slow path to locate EXTENT/METADATA_ITEM */
 			key.objectid = bytenr;
 			key.type = BTRFS_EXTENT_ITEM_KEY;
 			key.offset = num_bytes;
@@ -3084,19 +3173,26 @@ static int __btrfs_free_extent(struct btrfs_trans_handle *trans,
 	if (owner_objectid < BTRFS_FIRST_FREE_OBJECTID &&
 	    key.type == BTRFS_EXTENT_ITEM_KEY) {
 		struct btrfs_tree_block_info *bi;
-		BUG_ON(item_size < sizeof(*ei) + sizeof(*bi));
+		if (unlikely(item_size < sizeof(*ei) + sizeof(*bi))) {
+			btrfs_crit(info,
+"invalid extent item size for key (%llu, %u, %llu) owner %llu, has %u expect >= %lu",
+				   key.objectid, key.type, key.offset,
+				   owner_objectid, item_size,
+				   sizeof(*ei) + sizeof(*bi));
+			btrfs_abort_transaction(trans, -EUCLEAN);
+			goto err_dump;
+		}
 		bi = (struct btrfs_tree_block_info *)(ei + 1);
 		WARN_ON(owner_objectid != btrfs_tree_block_level(leaf, bi));
 	}
 
 	refs = btrfs_extent_refs(leaf, ei);
 	if (refs < refs_to_drop) {
-		btrfs_err(info,
-			  "trying to drop %d refs but we only have %Lu for bytenr %Lu",
+		btrfs_crit(info,
+		"trying to drop %d refs but we only have %Lu for bytenr %Lu",
 			  refs_to_drop, refs, bytenr);
-		ret = -EINVAL;
-		btrfs_abort_transaction(trans, ret);
-		goto out;
+		btrfs_abort_transaction(trans, -EUCLEAN);
+		goto err_dump;
 	}
 	refs -= refs_to_drop;
 
@@ -3108,7 +3204,12 @@ static int __btrfs_free_extent(struct btrfs_trans_handle *trans,
 		 * be updated by remove_extent_backref
 		 */
 		if (iref) {
-			BUG_ON(!found_extent);
+			if (unlikely(!found_extent)) {
+				btrfs_crit(info,
+"invalid iref, got inlined extent ref but no EXTENT/METADATA_ITEM found");
+				btrfs_abort_transaction(trans, -EUCLEAN);
+				goto err_dump;
+			}
 		} else {
 			btrfs_set_extent_refs(leaf, ei, refs);
 			btrfs_mark_buffer_dirty(leaf);
@@ -3123,13 +3224,39 @@ static int __btrfs_free_extent(struct btrfs_trans_handle *trans,
 			}
 		}
 	} else {
+		/* In this branch refs == 1 */
 		if (found_extent) {
-			BUG_ON(is_data && refs_to_drop !=
-			       extent_data_ref_count(path, iref));
+			if (is_data && refs_to_drop !=
+			    extent_data_ref_count(path, iref)) {
+				btrfs_crit(info,
+		"invalid refs_to_drop, current refs %u refs_to_drop %u",
+					   extent_data_ref_count(path, iref),
+					   refs_to_drop);
+				btrfs_abort_transaction(trans, -EUCLEAN);
+				goto err_dump;
+			}
 			if (iref) {
-				BUG_ON(path->slots[0] != extent_slot);
+				if (path->slots[0] != extent_slot) {
+					btrfs_crit(info,
+"invalid iref, extent item key (%llu %u %llu) doesn't has wanted iref",
+						   key.objectid, key.type,
+						   key.offset);
+					btrfs_abort_transaction(trans, -EUCLEAN);
+					goto err_dump;
+				}
 			} else {
-				BUG_ON(path->slots[0] != extent_slot + 1);
+				/*
+				 * No inline ref, we must at SHARED_* item,
+				 * And it's single ref, it must be:
+				 * |	extent_slot	  ||extent_slot + 1|
+				 * [ EXTENT/METADATA_ITEM ][ SHARED_* ITEM ]
+				 */
+				if (path->slots[0] != extent_slot + 1) {
+					btrfs_crit(info,
+	"invalid SHARED_* item, previous item is not EXTENT/METADATA_ITEM");
+					btrfs_abort_transaction(trans, -EUCLEAN);
+					goto err_dump;
+				}
 				path->slots[0] = extent_slot;
 				num_to_del = 2;
 			}
@@ -3170,6 +3297,20 @@ static int __btrfs_free_extent(struct btrfs_trans_handle *trans,
 out:
 	btrfs_free_path(path);
 	return ret;
+err_dump:
+	/*
+	 * Leaf dump can take up a lot of dmesg buffer since default nodesize
+	 * is already 16K.
+	 * So we only do full leaf dump for debug build.
+	 */
+	if (IS_ENABLED(CONFIG_BTRFS_DEBUG)) {
+		btrfs_crit(info, "path->slots[0]=%d extent_slot=%d",
+			   path->slots[0], extent_slot);
+		btrfs_print_leaf(path->nodes[0]);
+	}
+
+	btrfs_free_path(path);
+	return -EUCLEAN;
 }
 
 /*
@@ -3919,11 +4060,12 @@ static int prepare_allocation(struct btrfs_fs_info *fs_info,
  * |- Push harder to find free extents
  *    |- If not found, re-iterate all block groups
  */
-static noinline int find_free_extent(struct btrfs_fs_info *fs_info,
+static noinline int find_free_extent(struct btrfs_root *root,
 				u64 ram_bytes, u64 num_bytes, u64 empty_size,
 				u64 hint_byte_orig, struct btrfs_key *ins,
 				u64 flags, int delalloc)
 {
+	struct btrfs_fs_info *fs_info = root->fs_info;
 	int ret = 0;
 	int cache_block_group_error = 0;
 	struct btrfs_block_group *block_group = NULL;
@@ -3955,7 +4097,7 @@ static noinline int find_free_extent(struct btrfs_fs_info *fs_info,
 	ins->objectid = 0;
 	ins->offset = 0;
 
-	trace_find_free_extent(fs_info, num_bytes, empty_size, flags);
+	trace_find_free_extent(root, num_bytes, empty_size, flags);
 
 	space_info = btrfs_find_space_info(fs_info, flags);
 	if (!space_info) {
@@ -4204,7 +4346,7 @@ int btrfs_reserve_extent(struct btrfs_root *root, u64 ram_bytes,
 	flags = get_alloc_profile_by_root(root, is_data);
 again:
 	WARN_ON(num_bytes < fs_info->sectorsize);
-	ret = find_free_extent(fs_info, ram_bytes, num_bytes, empty_size,
+	ret = find_free_extent(root, ram_bytes, num_bytes, empty_size,
 			       hint_byte, ins, flags, delalloc);
 	if (!ret && !is_data) {
 		btrfs_dec_block_group_reservations(fs_info, ins->objectid);
