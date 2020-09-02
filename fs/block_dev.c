@@ -881,7 +881,7 @@ struct block_device *bdget(dev_t dev)
 		bdev->bd_super = NULL;
 		bdev->bd_inode = inode;
 		bdev->bd_part_count = 0;
-		bdev->bd_invalidated = 0;
+		bdev->bd_flags = 0;
 		inode->i_mode = S_IFBLK;
 		inode->i_rdev = dev;
 		inode->i_bdev = bdev;
@@ -1302,7 +1302,6 @@ static void check_disk_size_change(struct gendisk *disk,
 		}
 		i_size_write(bdev->bd_inode, disk_size);
 	}
-	bdev->bd_invalidated = 0;
 	spin_unlock(&bdev->bd_size_lock);
 
 	if (bdev_size > disk_size) {
@@ -1313,35 +1312,32 @@ static void check_disk_size_change(struct gendisk *disk,
 }
 
 /**
- * revalidate_disk - wrapper for lower-level driver's revalidate_disk call-back
- * @disk: struct gendisk to be revalidated
+ * revalidate_disk_size - checks for disk size change and adjusts bdev size.
+ * @disk: struct gendisk to check
+ * @verbose: if %true log a message about a size change if there is any
  *
- * This routine is a wrapper for lower-level driver's revalidate_disk
- * call-backs.  It is used to do common pre and post operations needed
- * for all revalidate_disk operations.
+ * This routine checks to see if the bdev size does not match the disk size
+ * and adjusts it if it differs. When shrinking the bdev size, its all caches
+ * are freed.
  */
-int revalidate_disk(struct gendisk *disk)
+void revalidate_disk_size(struct gendisk *disk, bool verbose)
 {
-	int ret = 0;
-
-	if (disk->fops->revalidate_disk)
-		ret = disk->fops->revalidate_disk(disk);
+	struct block_device *bdev;
 
 	/*
 	 * Hidden disks don't have associated bdev so there's no point in
-	 * revalidating it.
+	 * revalidating them.
 	 */
-	if (!(disk->flags & GENHD_FL_HIDDEN)) {
-		struct block_device *bdev = bdget_disk(disk, 0);
+	if (disk->flags & GENHD_FL_HIDDEN)
+		return;
 
-		if (bdev) {
-			check_disk_size_change(disk, bdev, ret == 0);
-			bdput(bdev);
-		}
+	bdev = bdget_disk(disk, 0);
+	if (bdev) {
+		check_disk_size_change(disk, bdev, verbose);
+		bdput(bdev);
 	}
-	return ret;
 }
-EXPORT_SYMBOL(revalidate_disk);
+EXPORT_SYMBOL(revalidate_disk_size);
 
 /*
  * This routine checks whether a removable media has been changed,
@@ -1366,7 +1362,7 @@ int check_disk_change(struct block_device *bdev)
 	if (__invalidate_device(bdev, true))
 		pr_warn("VFS: busy inodes on changed media %s\n",
 			disk->disk_name);
-	bdev->bd_invalidated = 1;
+	set_bit(BDEV_NEED_PART_SCAN, &bdev->bd_flags);
 	if (bdops->revalidate_disk)
 		bdops->revalidate_disk(bdev->bd_disk);
 	return 1;
@@ -1390,6 +1386,8 @@ int bdev_disk_changed(struct block_device *bdev, bool invalidate)
 	int ret;
 
 	lockdep_assert_held(&bdev->bd_mutex);
+
+	clear_bit(BDEV_NEED_PART_SCAN, &bdev->bd_flags);
 
 rescan:
 	ret = blk_drop_partitions(bdev);
@@ -1513,7 +1511,7 @@ static int __blkdev_get(struct block_device *bdev, fmode_t mode, void *holder,
 			 * The latter is necessary to prevent ghost
 			 * partitions on a removed medium.
 			 */
-			if (bdev->bd_invalidated &&
+			if (test_bit(BDEV_NEED_PART_SCAN, &bdev->bd_flags) &&
 			    (!ret || ret == -ENOMEDIUM))
 				bdev_disk_changed(bdev, ret == -ENOMEDIUM);
 
@@ -1543,7 +1541,7 @@ static int __blkdev_get(struct block_device *bdev, fmode_t mode, void *holder,
 			if (bdev->bd_disk->fops->open)
 				ret = bdev->bd_disk->fops->open(bdev, mode);
 			/* the same as first opener case, read comment there */
-			if (bdev->bd_invalidated &&
+			if (test_bit(BDEV_NEED_PART_SCAN, &bdev->bd_flags) &&
 			    (!ret || ret == -ENOMEDIUM))
 				bdev_disk_changed(bdev, ret == -ENOMEDIUM);
 			if (ret)
