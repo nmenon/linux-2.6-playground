@@ -370,7 +370,7 @@ struct snd_sof_dev {
 	/* DSP firmware boot */
 	wait_queue_head_t boot_wait;
 	enum snd_sof_fw_state fw_state;
-	u32 first_boot;
+	bool first_boot;
 
 	/* work queue in case the probe is implemented in two steps */
 	struct work_struct probe_work;
@@ -383,6 +383,7 @@ struct snd_sof_dev {
 	struct snd_sof_mailbox dsp_box;		/* DSP initiated IPC */
 	struct snd_sof_mailbox host_box;	/* Host initiated IPC */
 	struct snd_sof_mailbox stream_box;	/* Stream position update */
+	struct snd_sof_mailbox debug_box;	/* Debug info updates */
 	struct snd_sof_ipc_msg *msg;
 	int ipc_irq;
 	u32 next_comp_id; /* monotonic - reset during S3 */
@@ -431,10 +432,10 @@ struct snd_sof_dev {
 	int dma_trace_pages;
 	wait_queue_head_t trace_sleep;
 	u32 host_offset;
-	u32 dtrace_is_supported; /* set with Kconfig or module parameter */
-	u32 dtrace_is_enabled;
-	u32 dtrace_error;
-	u32 dtrace_draining;
+	bool dtrace_is_supported; /* set with Kconfig or module parameter */
+	bool dtrace_is_enabled;
+	bool dtrace_error;
+	bool dtrace_draining;
 
 	bool msi_enabled;
 
