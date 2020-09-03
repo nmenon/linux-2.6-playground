@@ -751,7 +751,7 @@ static int ov5640_mod_reg(struct ov5640_dev *sensor, u16 reg,
  *               +->| PLL Root Div | - reg 0x3037, bit 4
  *                  +-+------------+
  *                    |  +---------+
- *                    +->| Bit Div | - reg 0x3035, bits 0-3
+ *                    +->| Bit Div | - reg 0x3034, bits 0-3
  *                       +-+-------+
  *                         |  +-------------+
  *                         +->| SCLK Div    | - reg 0x3108, bits 0-1
@@ -3010,7 +3010,7 @@ static int ov5640_probe(struct i2c_client *client)
 		switch (rotation) {
 		case 180:
 			sensor->upside_down = true;
-			/* fall through */
+			fallthrough;
 		case 0:
 			break;
 		default:
