@@ -1706,7 +1706,7 @@ static noinline_for_stack int ethtool_set_channels(struct net_device *dev,
 		min(channels.rx_count, channels.tx_count);
 	to_channel = curr.combined_count + max(curr.rx_count, curr.tx_count);
 	for (i = from_channel; i < to_channel; i++)
-		if (xdp_get_umem_from_qid(dev, i))
+		if (xsk_get_pool_from_qid(dev, i))
 			return -EINVAL;
 
 	ret = dev->ethtool_ops->set_channels(dev, &channels);
@@ -3025,13 +3025,14 @@ ethtool_rx_flow_rule_create(const struct ethtool_rx_flow_spec_input *input)
 	case TCP_V4_FLOW:
 	case TCP_V6_FLOW:
 		match->key.basic.ip_proto = IPPROTO_TCP;
+		match->mask.basic.ip_proto = 0xff;
 		break;
 	case UDP_V4_FLOW:
 	case UDP_V6_FLOW:
 		match->key.basic.ip_proto = IPPROTO_UDP;
+		match->mask.basic.ip_proto = 0xff;
 		break;
 	}
-	match->mask.basic.ip_proto = 0xff;
 
 	match->dissector.used_keys |= BIT(FLOW_DISSECTOR_KEY_BASIC);
 	match->dissector.offset[FLOW_DISSECTOR_KEY_BASIC] =
