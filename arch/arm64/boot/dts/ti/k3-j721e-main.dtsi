@@ -1444,6 +1444,7 @@
 		reg = <0x0 0x04800000 0x0 0x300>;
 		clocks = <&k3_clks 150 2>, <&k3_clks 150 5>;
 		clock-names = "dsi_p_clk", "dsi_sys_clk";
+		power-domains = <&k3_pds 150 TI_SCI_PD_EXCLUSIVE>;
 		interrupt-parent = <&gic500>;
 		interrupts = <GIC_SPI 600 IRQ_TYPE_LEVEL_HIGH>;
 		phys = <&torrent_phy_dp>;
