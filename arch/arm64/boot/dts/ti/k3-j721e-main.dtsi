@@ -1439,6 +1439,24 @@
 		};
 	};
 
+	dsi0: dsi@fd0c0000 {
+		compatible = "cdns,dsi";
+		reg = <0x0 0x04800000 0x0 0x300>;
+		clocks = <&k3_clks 150 2>, <&k3_clks 150 5>;
+		clock-names = "dsi_p_clk", "dsi_sys_clk";
+		interrupt-parent = <&gic500>;
+		interrupts = <GIC_SPI 600 IRQ_TYPE_LEVEL_HIGH>;
+		phys = <&torrent_phy_dp>;
+		phy-names = "dphy";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		dsi0_ports: ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+	};
+
 	dss: dss@4a00000 {
 		compatible = "ti,j721e-dss";
 		reg =
