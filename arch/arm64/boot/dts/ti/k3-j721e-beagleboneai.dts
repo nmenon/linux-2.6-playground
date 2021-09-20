@@ -220,7 +220,7 @@
 	};
 
 	panel_disp1: panel_disp1@0 {
-		compatible = "raspberrypi,7inch-dsi", "simple-panel";
+		compatible = "raspberrypi,7inch-touchscreen-panel", "simple-panel";
 		backlight = <&reg_display>;
 		power-supply = <&reg_display>;
 
