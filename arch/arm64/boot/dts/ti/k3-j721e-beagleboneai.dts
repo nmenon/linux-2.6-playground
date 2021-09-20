@@ -796,6 +796,14 @@
 			remote-endpoint = <&dp0_in>;
 		};
 	};
+
+	port@1 {
+		reg = <1>;
+
+		dpi1_out: endpoint {
+			remote-endpoint = <&dsi0_in>;
+		};
+	};
 };
 
 &mhdp {
@@ -818,6 +826,20 @@
 		reg = <4>;
 		dp0_out: endpoint {
 			remote-endpoint = <&dp_connector_in>;
+		};
+	};
+};
+
+/*
+ * DSI_WRAP_DPI_CONTROL (0x04710004) allows to select between various DPI options
+ * On reset, DPI1 is being used
+ */
+
+&dsi0_ports {
+	port@1 {
+		reg = <1>;
+		dsi0_in: endpoint {
+			remote-endpoint = <&dpi1_out>;
 		};
 	};
 };
