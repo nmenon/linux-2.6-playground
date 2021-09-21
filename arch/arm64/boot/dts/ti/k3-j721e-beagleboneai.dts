@@ -197,33 +197,9 @@
 		enable-active-high;
 	};
 
-	bridge@0 {
-		compatible = "toshiba,tc358762";
+	panel_disp0: panel_disp1@0 {
 		reg = <0 0 0x0 0x0>;
-		vddc-supply = <&reg_bridge>;
-		ports {
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			port@0 {
-				reg = <0>;
-				panel_bridge_in: endpoint {
-					remote-endpoint = <&dsi0_out>;
-				};
-			};
-
-			port@1 {
-				reg = <1>;
-				panel_bridge_out: endpoint {
-					remote-endpoint = <&panel_in>;
-				};
-			};
-		};
-	};
-
-	panel_disp1: panel_disp1@0 {
 		compatible = "raspberrypi,7inch-dsi", "simple-panel";
-		reg = <0 0 0x0 0x0>;
 		backlight = <&reg_display>;
 		power-supply = <&reg_display>;
 
@@ -914,26 +890,51 @@
 	};
 };
 
+&dsi0 {
 /*
  * DSI_WRAP_DPI_CONTROL (0x04710004) allows to select between various DPI options
  * On reset, DPI1 is being used
  */
+	ports {
+		port@0 {
+			reg = <0>;
+			dsi0_out: endpoint {
+				remote-endpoint = <&panel_bridge_in>;
+			};
+		};
+		port@1 {
+			reg = <1>;
+			dsi0_in: endpoint {
+				remote-endpoint = <&dpi1_out>;
+			};
+		};
 
-&dsi0_ports {
+	};
 
-	port@0 {
+	bridge@0 {
+		compatible = "toshiba,tc358762";
 		reg = <0>;
-		dsi0_out: endpoint {
-			remote-endpoint = <&panel_bridge_in>;
+		vddc-supply = <&reg_bridge>;
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				panel_bridge_in: endpoint {
+					remote-endpoint = <&dsi0_out>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				panel_bridge_out: endpoint {
+					remote-endpoint = <&panel_in>;
+				};
+			};
 		};
 	};
 
-	port@1 {
-		reg = <1>;
-		dsi0_in: endpoint {
-			remote-endpoint = <&dpi1_out>;
-		};
-	};
 };
 
 &mcasp0 {
