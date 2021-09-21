@@ -198,6 +198,7 @@
 
 	bridge@0 {
 		compatible = "toshiba,tc358762";
+		reg = <0>;
 		vddc-supply = <&reg_bridge>;
 		ports {
 			#address-cells = <1>;
