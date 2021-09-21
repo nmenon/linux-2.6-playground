@@ -189,6 +189,7 @@
 	};
 
 	reg_bridge: reg_bridge@0 {
+		reg = <0 0 0x0 0x0>;
 		compatible = "regulator-fixed";
 		regulator-name = "bridge_reg";
 		gpio = <&reg_display 0 0>;
@@ -198,7 +199,7 @@
 
 	bridge@0 {
 		compatible = "toshiba,tc358762";
-		reg = <0>;
+		reg = <0 0 0x0 0x0>;
 		vddc-supply = <&reg_bridge>;
 		ports {
 			#address-cells = <1>;
@@ -221,7 +222,8 @@
 	};
 
 	panel_disp1: panel_disp1@0 {
-		compatible = "raspberrypi,7inch-touchscreen-panel", "simple-panel";
+		compatible = "raspberrypi,7inch-dsi", "simple-panel";
+		reg = <0 0 0x0 0x0>;
 		backlight = <&reg_display>;
 		power-supply = <&reg_display>;
 
