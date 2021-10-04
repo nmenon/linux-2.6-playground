@@ -1159,3 +1159,9 @@
 &csi0_port4 {
 	status = "disabled";
 };
+
+&dphy2 {
+	assigned-clocks = <&k3_clks 296 3>;
+	assigned-clock-parents = <&k3_clks 296 7>;
+	assigned-clock-rates = <100000000>;
+};
