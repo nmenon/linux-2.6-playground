@@ -1911,3 +1911,9 @@ bone_uart_6: &main_uart2 {
 &csi1_port4 {
 	status = "disabled";
 };
+
+&dphy2 {
+	assigned-clocks = <&k3_clks 296 3>;
+	assigned-clock-parents = <&k3_clks 296 7>;
+	assigned-clock-rates = <100000000>;
+};
