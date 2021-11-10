@@ -1597,8 +1597,8 @@ bone_i2c_1: &main_i2c6 {
 		};
 	};
 
-	port@1 {
-		reg = <1>;
+	port@2 {
+		reg = <2>;
 
 		dpi1_out: endpoint {
 			remote-endpoint = <&dsi0_in>;
