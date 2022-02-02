@@ -464,6 +464,8 @@ struct cdns_dsi {
 	bool link_initialized;
 	struct phy *dphy;
 };
+static void cdns_dsi_hs_init(struct cdns_dsi *dsi);
+static void cdns_dsi_init_link(struct cdns_dsi *dsi);
 
 static inline struct cdns_dsi *input_to_dsi(struct cdns_dsi_input *input)
 {
@@ -625,6 +627,7 @@ static int cdns_dsi_check_conf(struct cdns_dsi *dsi,
 	unsigned long dsi_hss_hsa_hse_hbp;
 	unsigned int nlanes = output->dev->lanes;
 	int ret;
+	static int count = 0;
 
 	ret = cdns_dsi_mode2cfg(dsi, mode, dsi_cfg, mode_valid_check);
 	if (ret) {
@@ -697,7 +700,14 @@ static int cdns_dsi_check_conf(struct cdns_dsi *dsi,
 		return -EINVAL;
 	}*/
 
-	pr_err("%s / %d: return: %d\n", __func__, __LINE__, 0);
+	pr_err("%s / %d: return: %d count %d \n", __func__, __LINE__, 0, count);
+#if 1
+	if(!count) {
+		cdns_dsi_init_link(dsi);
+		cdns_dsi_hs_init(dsi);
+		count++;
+	}
+#endif
 	return 0;
 }
 
@@ -765,7 +775,7 @@ static void cdns_dsi_bridge_disable(struct drm_bridge *bridge)
 
 	val = readl(dsi->regs + MCTL_MAIN_EN) & ~IF_EN(input->id);
 	iowrite32(val, dsi->regs + MCTL_MAIN_EN);
-	pm_runtime_put(dsi->base.dev);
+//	pm_runtime_put(dsi->base.dev);
 }
 
 static void cdns_dsi_hs_init(struct cdns_dsi *dsi)
@@ -791,7 +801,9 @@ static void cdns_dsi_hs_init(struct cdns_dsi *dsi)
 	iowrite32(DPHY_CMN_PSO | DPHY_ALL_D_PDN | DPHY_C_PDN | DPHY_CMN_PDN,
 	       dsi->regs + MCTL_DPHY_CFG0);
 	WARN_ON_ONCE(readl_poll_timeout(dsi->regs + MCTL_MAIN_STS, status,
-					status & PLL_LOCKED, 100, 100));
+					status & PLL_LOCKED, 0, 1000));
+	pr_err("%s / %d: MCTL_MAIN_STS : 0x%08X\n", __func__, __LINE__, ioread32(dsi->regs + MCTL_MAIN_STS));
+
 	/* De-assert data and clock reset lines. */
 	iowrite32(DPHY_CMN_PSO | DPHY_ALL_D_PDN | DPHY_C_PDN | DPHY_CMN_PDN |
 	       DPHY_D_RSTB(output->dev->lanes) | DPHY_C_RSTB,
@@ -804,6 +816,7 @@ static void cdns_dsi_init_link(struct cdns_dsi *dsi)
 	unsigned long sysclk_period, ulpout;
 	u32 val;
 	int i;
+	pr_err("%s : %d link initialized %d \n", __func__, __LINE__, dsi->link_initialized );
 
 	if (dsi->link_initialized)
 		return;
@@ -815,7 +828,7 @@ static void cdns_dsi_init_link(struct cdns_dsi *dsi)
 	if (!(output->dev->mode_flags & MIPI_DSI_CLOCK_NON_CONTINUOUS))
 		val |= CLK_CONTINUOUS;
 
-	iowrite32(val, dsi->regs + MCTL_MAIN_PHY_CTL);
+	iowrite32(val, dsi->regs + MCTL_MAIN_PHY_CTL);	//TODO 0x00003c11 check for wait burst time
 
 	/* ULPOUT should be set to 1ms and is expressed in sysclk cycles. */
 	sysclk_period = NSEC_PER_SEC / clk_get_rate(dsi->dsi_sys_clk);
@@ -830,6 +843,7 @@ static void cdns_dsi_init_link(struct cdns_dsi *dsi)
 		val |= DATA_LANE_START(i);
 
 	iowrite32(val, dsi->regs + MCTL_MAIN_EN);
+	pr_err("%s :MCTL_MAIN_EN : 0x%08X val 0x%08X\n", __func__, ioread32(dsi->regs + MCTL_MAIN_EN), val);
 
 	dsi->link_initialized = true;
 }
@@ -846,8 +860,8 @@ static void cdns_dsi_bridge_enable(struct drm_bridge *bridge)
 	u32 tmp, reg_wakeup, div;
 	int nlanes;
 
-	if (WARN_ON(pm_runtime_get_sync(dsi->base.dev) < 0))
-		return;
+//	if (WARN_ON(pm_runtime_get_sync(dsi->base.dev) < 0))
+//		return;
 
 	mode = &bridge->encoder->crtc->state->adjusted_mode;
 	nlanes = output->dev->lanes;
@@ -855,8 +869,8 @@ static void cdns_dsi_bridge_enable(struct drm_bridge *bridge)
 	WARN_ON_ONCE(cdns_dsi_check_conf(dsi, mode, &dsi_cfg, false));
 	pr_err("%s / %d: CONFIGURE phy_cfg->wakeup: %d\n", __func__, __LINE__, phy_cfg->wakeup);
 
-	cdns_dsi_hs_init(dsi);
-	cdns_dsi_init_link(dsi);
+//	cdns_dsi_init_link(dsi);
+//	cdns_dsi_hs_init(dsi);
 
 	iowrite32(HBP_LEN(dsi_cfg.hbp) | HSA_LEN(dsi_cfg.hsa),
 	       dsi->regs + VID_HSIZE1);
@@ -1094,13 +1108,15 @@ static ssize_t cdns_dsi_transfer(struct mipi_dsi_host *host,
 	struct mipi_dsi_packet packet;
 	int ret, i, tx_len, rx_len;
 
-	ret = pm_runtime_resume_and_get(host->dev);
+/*	ret = pm_runtime_resume_and_get(host->dev);
 	if (ret < 0) {
 		pr_err("%s / %d: pm_runtime_resume_and_get: %d\n", __func__, __LINE__, ret);
 		return ret;
-	}
-
+	}*/
+	
+	pr_err("%s / %d: :  \n", __func__, __LINE__);
 	cdns_dsi_init_link(dsi);
+
 
 	ret = mipi_dsi_create_packet(&packet, msg);
 	if (ret) {
@@ -1207,7 +1223,7 @@ static ssize_t cdns_dsi_transfer(struct mipi_dsi_host *host,
 	}
 
 out:
-	pm_runtime_put(host->dev);
+	//pm_runtime_put(host->dev);
 	return ret;
 }
 
@@ -1244,14 +1260,13 @@ static UNIVERSAL_DEV_PM_OPS(cdns_dsi_pm_ops, cdns_dsi_suspend, cdns_dsi_resume,
 
 static int cdns_dsi_drm_probe(struct platform_device *pdev)
 {
-	struct device *dev = &pdev->dev;
 	struct cdns_dsi *dsi;
 	struct cdns_dsi_input *input;
 	struct resource *res;
 	int ret, irq;
 	u32 val;
+	pr_err("%s / %d: +++\n", __func__, __LINE__);
 
-	dev_err(dev, "%s: %d\n", __func__, __LINE__);
 	dsi = devm_kzalloc(&pdev->dev, sizeof(*dsi), GFP_KERNEL);
 	if (!dsi)
 		return -ENOMEM;
@@ -1330,7 +1345,7 @@ static int cdns_dsi_drm_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_disable_pclk;
 
-	pm_runtime_enable(&pdev->dev);
+//	pm_runtime_enable(&pdev->dev);
 	dsi->base.dev = &pdev->dev;
 	dsi->base.ops = &cdns_dsi_ops;
 
@@ -1339,13 +1354,12 @@ static int cdns_dsi_drm_probe(struct platform_device *pdev)
 		goto err_disable_runtime_pm;
 
 	clk_disable_unprepare(dsi->dsi_p_clk);
-	dev_err(dev, "%s: %d\n", __func__, __LINE__);
-
+	pr_err("%s / %d: ----\n", __func__, __LINE__);
 
 	return 0;
 
 err_disable_runtime_pm:
-	pm_runtime_disable(&pdev->dev);
+//	pm_runtime_disable(&pdev->dev);
 
 err_disable_pclk:
 	clk_disable_unprepare(dsi->dsi_p_clk);
@@ -1358,7 +1372,7 @@ static int cdns_dsi_drm_remove(struct platform_device *pdev)
 	struct cdns_dsi *dsi = platform_get_drvdata(pdev);
 
 	mipi_dsi_host_unregister(&dsi->base);
-	pm_runtime_disable(&pdev->dev);
+//	pm_runtime_disable(&pdev->dev);
 
 	return 0;
 }
