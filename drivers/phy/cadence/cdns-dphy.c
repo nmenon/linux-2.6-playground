@@ -21,6 +21,7 @@
 
 #define REG_WAKEUP_TIME_NS		800
 #define DPHY_PLL_RATE_HZ		108000000
+#define POLL_TIMEOUT_US			1000
 
 /* DPHY registers */
 #define DPHY_PMA_CMN(reg)		(reg)
@@ -88,6 +89,16 @@
 
 #define DPHY_LANES_MIN			1
 #define DPHY_LANES_MAX			4
+
+#define DPHY_TX_PLL_CTRL        0xF04
+#define DPHY_TX_STATUS          0xF08
+#define DPHY_TX_RST_CTRL        0xF0C
+#define DPHY_TX_PSM_FREQ        0xF10
+
+#define IPDIV_WIZ		GENMASK(4, 0)
+#define OPDIV_WIZ		GENMASK(13, 8)
+#define FBDIV_WIZ		GENMASK(25, 16)
+
 
 struct cdns_dphy_cfg {
 	u8 pll_ipdiv;
@@ -192,6 +203,9 @@ static int cdns_dsi_get_dphy_pll_cfg(struct cdns_dphy *dphy,
 	cfg->pll_fbdiv = DIV_ROUND_UP_ULL(dlane_bps * 2 * cfg->pll_opdiv *
 					  cfg->pll_ipdiv,
 					  pll_ref_hz);
+	dphy->cfg.pll_ipdiv = cfg->pll_ipdiv;
+	dphy->cfg.pll_opdiv = cfg->pll_opdiv;
+	dphy->cfg.pll_fbdiv = cfg->pll_fbdiv;
 
 	return 0;
 }
@@ -258,8 +272,16 @@ static void cdns_dphy_ref_set_pll_cfg(struct cdns_dphy *dphy,
 
 static void cdns_dphy_ref_set_psm_div(struct cdns_dphy *dphy, u8 div)
 {
+#if 0
 	writel(DPHY_PSM_CFG_FROM_REG | DPHY_PSM_CLK_DIV(div),
 	       dphy->regs + DPHY_PSM_CFG);
+#endif
+	/* The signal musst be driven such a that internal freq of divided  psm clock is 1MHZ
+	 * psm clk 20MHz / 20 = 1MHz so div 14 in hex */
+
+	writel(0x00000014, dphy->regs + CSL_WIZ16B8M4CDT_WIZ_CONFIG_PSM_FREQ);
+	pr_err("%s: CSL_WIZ16B8M4CDT_WIZ_CONFIG_PSM_FREQ : 0x%08X  \n", __func__, readl(dphy->regs + CSL_WIZ16B8M4CDT_WIZ_CONFIG_PSM_FREQ));
+
 }
 
 static int cdns_dphy_tx_config_from_opts(struct phy *phy,
@@ -333,6 +355,7 @@ static int cdns_dphy_tx_validate(struct cdns_dphy *dphy, enum phy_mode mode,
 
 static int cdns_dphy_tx_power_on(struct cdns_dphy *dphy)
 {
+	u32 status;
 	if (!dphy->psm_clk || !dphy->pll_ref_clk)
 		return -EINVAL;
 
@@ -342,6 +365,21 @@ static int cdns_dphy_tx_power_on(struct cdns_dphy *dphy)
 	/* Start TX state machine. */
 	writel(DPHY_CMN_SSM_EN | DPHY_CMN_TX_MODE_EN,
 	       dphy->regs + DPHY_CMN_SSM);
+	writel(0x00000229 , dphy->regs + DPHY_CMN_SSM);   //  this value is required for pll lock
+	/* Lane reset */	//Required for PLL LOCK
+	writel(0x80000000,
+	       dphy->regs + CSL_WIZ16B8M4CDT_WIZ_CONFIG_RST_CTRL);
+
+	writel((FIELD_PREP(IPDIV_WIZ, dphy->cfg.pll_ipdiv) | FIELD_PREP(OPDIV_WIZ, dphy->cfg.pll_opdiv) |
+				FIELD_PREP(FBDIV_WIZ, dphy->cfg.pll_fbdiv)), dphy->regs + CSL_WIZ16B8M4CDT_WIZ_CONFIG_PLL_CTRL);
+
+ 	writel(0x14A, dphy->regs + DPHY_BAND_CFG);
+
+	readl_poll_timeout(dphy->regs + CSL_WIZ16B8M4CDT_WIZ_CONFIG_PLL_CTRL, status,
+					(status & 0x80000000), 0, POLL_TIMEOUT_US);
+
+	readl_poll_timeout(dphy->regs + CSL_WIZ16B8M4CDT_WIZ_CONFIG_STATUS, status,
+					(status & 0x80000000), 0, POLL_TIMEOUT_US);
 
 	return 0;
 }
