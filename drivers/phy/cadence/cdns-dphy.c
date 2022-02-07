@@ -156,8 +156,11 @@ static int cdns_dsi_get_dphy_pll_cfg(struct cdns_dphy *dphy,
 
 	memset(cfg, 0, sizeof(*cfg));
 
-	if (pll_ref_hz < 9600000 || pll_ref_hz >= 150000000)
+	pr_err("%s / %d : pll_ref_hz  = %lu\n", __func__, __LINE__, pll_ref_hz);
+	if (pll_ref_hz < 9600000 || pll_ref_hz >= 150000000) {
+	    pr_err("%s / %d : pll_ref_hz  = %lu\n", __func__, __LINE__, pll_ref_hz);
 		return -EINVAL;
+    }
 	else if (pll_ref_hz < 19200000)
 		cfg->pll_ipdiv = 1;
 	else if (pll_ref_hz < 38400000)
@@ -169,8 +172,11 @@ static int cdns_dsi_get_dphy_pll_cfg(struct cdns_dphy *dphy,
 
 	dlane_bps = opts->hs_clk_rate;
 
-	if (dlane_bps > 2500000000UL || dlane_bps < 160000000UL)
+	pr_err("%s / %d : dlane_bps  = %llu\n", __func__, __LINE__, dlane_bps);
+	if (dlane_bps > 2500000000UL || dlane_bps < 160000000UL) {
+	    pr_err("%s / %d : dlane_bps  = %llu\n", __func__, __LINE__, dlane_bps);
 		return -EINVAL;
+    }
 	else if (dlane_bps >= 1250000000)
 		cfg->pll_opdiv = 1;
 	else if (dlane_bps >= 630000000)
@@ -224,6 +230,7 @@ static unsigned long cdns_dphy_get_wakeup_time_ns(struct cdns_dphy *dphy)
 static unsigned long cdns_dphy_ref_get_wakeup_time_ns(struct cdns_dphy *dphy)
 {
 	/* Default wakeup time is 800 ns (in a simulated environment). */
+    pr_err("%s / %d, cdns_dphy_ref_get_wakeup_time_ns called", __func__, __LINE__);
 	return 800;
 }
 
@@ -262,11 +269,13 @@ static int cdns_dphy_tx_config_from_opts(struct phy *phy,
 	int ret;
 
 	ret = phy_mipi_dphy_config_validate(opts);
+	pr_err("%s: phy_mipi_dphy_config_validate: ret = %d\n", __func__, ret);
 	if (ret)
 		return ret;
 
 	ret = cdns_dsi_get_dphy_pll_cfg(dphy, cfg,
 					opts, &dsi_hfp_ext);
+	pr_err("%s: cdns_dsi_get_dphy_pll_cfg: ret = %d\n", __func__, ret);
 	if (ret)
 		return ret;
 
@@ -316,8 +325,11 @@ static int cdns_dphy_tx_validate(struct cdns_dphy *dphy, enum phy_mode mode,
 {
 	struct cdns_dphy_cfg cfg = { 0 };
 
-	if (submode != PHY_MIPI_DPHY_SUBMODE_TX)
+	pr_err("%s: validate: submode = %d\n", __func__, submode);
+	if (submode != PHY_MIPI_DPHY_SUBMODE_TX) {
+		pr_err("%s: validate: submode should be = %d\n", __func__, PHY_MIPI_DPHY_SUBMODE_TX);
 		return -EINVAL;
+	}
 
 	return cdns_dphy_tx_config_from_opts(dphy->phy, &opts->mipi_dphy, &cfg);
 }

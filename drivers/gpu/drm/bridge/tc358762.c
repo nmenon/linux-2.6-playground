@@ -106,19 +106,30 @@ static int tc358762_init(struct tc358762 *ctx)
 {
 	tc358762_write(ctx, DSI_LANEENABLE,
 		       LANEENABLE_L0EN | LANEENABLE_CLEN);
+	pr_err("%s / %d: tc reg: %d\n", __func__, __LINE__, ctx->error);
 	tc358762_write(ctx, PPI_D0S_CLRSIPOCOUNT, 5);
+	pr_err("%s / %d: tc reg: %d\n", __func__, __LINE__, ctx->error);
 	tc358762_write(ctx, PPI_D1S_CLRSIPOCOUNT, 5);
+	pr_err("%s / %d: tc reg: %d\n", __func__, __LINE__, ctx->error);
 	tc358762_write(ctx, PPI_D0S_ATMR, 0);
+	pr_err("%s / %d: tc reg: %d\n", __func__, __LINE__, ctx->error);
 	tc358762_write(ctx, PPI_D1S_ATMR, 0);
+	pr_err("%s / %d: tc reg: %d\n", __func__, __LINE__, ctx->error);
 	tc358762_write(ctx, PPI_LPTXTIMECNT, LPX_PERIOD);
+	pr_err("%s / %d: tc reg: %d\n", __func__, __LINE__, ctx->error);
 
 	tc358762_write(ctx, SPICMR, 0x00);
+	pr_err("%s / %d: tc reg: %d\n", __func__, __LINE__, ctx->error);
 	tc358762_write(ctx, LCDCTRL, 0x00100150);
+	pr_err("%s / %d: tc reg: %d\n", __func__, __LINE__, ctx->error);
 	tc358762_write(ctx, SYSCTRL, 0x040f);
+	pr_err("%s / %d: tc reg: %d\n", __func__, __LINE__, ctx->error);
 	msleep(100);
 
 	tc358762_write(ctx, PPI_STARTPPI, PPI_START_FUNCTION);
+	pr_err("%s / %d: tc reg: %d\n", __func__, __LINE__, ctx->error);
 	tc358762_write(ctx, DSI_STARTDSI, DSI_RX_START);
+	pr_err("%s / %d: tc reg: %d\n", __func__, __LINE__, ctx->error);
 
 	msleep(100);
 
