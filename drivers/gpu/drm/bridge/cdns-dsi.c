@@ -589,6 +589,22 @@ static int cdns_dsi_adjust_phy_config(struct cdns_dsi *dsi,
 	if (do_div(dlane_bps, lanes * dpi_htotal))
 		return -EINVAL;
 
+	pr_err("%s / %d: dsi_cfg->hbp: %d\n", __func__, __LINE__, dsi_cfg->hbp);
+	pr_err("%s / %d: dsi_cfg->hsa: %d\n", __func__, __LINE__, dsi_cfg->hsa);
+	pr_err("%s / %d: dsi_cfg->hact: %d\n", __func__, __LINE__, dsi_cfg->hact);
+	pr_err("%s / %d: dsi_cfg->hfp: %d\n\n", __func__, __LINE__, dsi_cfg->hfp);
+
+	pr_err("%s / %d: dpi_hz: %ld\n", __func__, __LINE__, dpi_hz);
+	pr_err("%s / %d: dlane_bps: %lld\n", __func__, __LINE__, dlane_bps);
+	pr_err("%s / %d: lanes: %d\n", __func__, __LINE__, lanes);
+	pr_err("%s / %d: dpi_htotal: %lld\n", __func__, __LINE__, (u64)dpi_htotal);
+	pr_err("%s / %d: mode->htotal: %d\n", __func__, __LINE__, mode->htotal);
+	pr_err("%s / %d: mode->crtc_htotal: %d\n", __func__, __LINE__, mode->crtc_htotal);
+
+	pr_err("%s / %d: mode_valid_check: %d\n", __func__, __LINE__, mode_valid_check);
+	pr_err("%s / %d: mode->clock: %d\n", __func__, __LINE__, mode->clock);
+	pr_err("%s / %d: mode->crtc_clock: %d\n", __func__, __LINE__, mode->crtc_clock);
+
 	/* data rate was in bytes/sec, convert to bits/sec. */
 	phy_cfg->hs_clk_rate = dlane_bps * 8;
 
@@ -611,36 +627,77 @@ static int cdns_dsi_check_conf(struct cdns_dsi *dsi,
 	int ret;
 
 	ret = cdns_dsi_mode2cfg(dsi, mode, dsi_cfg, mode_valid_check);
-	if (ret)
+	if (ret) {
+		pr_err("%s / %d: cdns_dsi_mode2cfg: %d\n", __func__, __LINE__, ret);
 		return ret;
+	}
 
 	phy_mipi_dphy_get_default_config(mode->crtc_clock * 1000,
 					 mipi_dsi_pixel_format_to_bpp(output->dev->format),
 					 nlanes, phy_cfg);
 
+	pr_err("%s / %d: BEFORE cdns_dsi_adjust_phy_config", __func__, __LINE__);
+	pr_err("%s / %d: hs_clk_rate: %lld\n", __func__, __LINE__, (u64)phy_cfg->hs_clk_rate);
+	pr_err("%s / %d: mode_to_dpi_hfp: %d\n", __func__, __LINE__, mode_to_dpi_hfp(mode, mode_valid_check));
+	pr_err("%s / %d: lanes: %d\n", __func__, __LINE__, nlanes);
+	pr_err("%s / %d: mode_valid_check: %d\n", __func__, __LINE__, mode_valid_check);
+	pr_err("%s / %d: mode->clock: %d\n", __func__, __LINE__, mode->clock);
+	pr_err("%s / %d: mode->crtc_clock: %d\n", __func__, __LINE__, mode->crtc_clock);
+
 	ret = cdns_dsi_adjust_phy_config(dsi, dsi_cfg, phy_cfg, mode, mode_valid_check);
-	if (ret)
+	pr_err("%s / %d: phy_cfg->wakeup: %d\n", __func__, __LINE__, phy_cfg->wakeup);
+	if (ret) {
+		pr_err("%s / %d: cdns_dsi_adjust_phy_config: %d\n", __func__, __LINE__, ret);
 		return ret;
+	}
+
+	pr_err("%s / %d: AFTER cdns_dsi_adjust_phy_config", __func__, __LINE__);
+	pr_err("%s / %d: hs_clk_rate: %lld\n", __func__, __LINE__, (u64)phy_cfg->hs_clk_rate);
+	pr_err("%s / %d: mode_to_dpi_hfp: %d\n", __func__, __LINE__, mode_to_dpi_hfp(mode, mode_valid_check));
+	pr_err("%s / %d: lanes: %d\n\n", __func__, __LINE__, nlanes);
+	pr_err("%s / %d: mode_valid_check: %d\n", __func__, __LINE__, mode_valid_check);
+	pr_err("%s / %d: mode->clock: %d\n", __func__, __LINE__, mode->clock);
+	pr_err("%s / %d: mode->crtc_clock: %d\n", __func__, __LINE__, mode->crtc_clock);
 
 	ret = phy_validate(dsi->dphy, PHY_MODE_MIPI_DPHY, 0, &output->phy_opts);
-	if (ret)
+	if (ret) {
+		pr_err("%s / %d: phy_validate: %d\n", __func__, __LINE__, ret);
 		return ret;
+	}
+
+	pr_err("%s / %d: dsi_cfg->hbp: %u\n", __func__, __LINE__, dsi_cfg->hbp);
+	pr_err("%s / %d: dsi_cfg->hsa: %u\n", __func__, __LINE__, dsi_cfg->hsa);
 
 	dsi_hss_hsa_hse_hbp = dsi_cfg->hbp + DSI_HBP_FRAME_OVERHEAD;
 	if (output->dev->mode_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE)
 		dsi_hss_hsa_hse_hbp += dsi_cfg->hsa + DSI_HSA_FRAME_OVERHEAD;
 
+	pr_err("%s / %d: dsi_hss_hsa_hse_hbp: %lu\n", __func__, __LINE__, dsi_hss_hsa_hse_hbp);
 	/*
 	 * Make sure DPI(HFP) > DSI(HSS+HSA+HSE+HBP) to guarantee that the FIFO
 	 * is empty before we start a receiving a new line on the DPI
 	 * interface.
 	 */
-	if ((u64)phy_cfg->hs_clk_rate *
+
+	pr_err("%s / %d: LHS: %llu\n", __func__, __LINE__, (u64)phy_cfg->hs_clk_rate *  mode_to_dpi_hfp(mode, mode_valid_check) * nlanes);
+	pr_err("%s / %d: hs_clk_rate: %lld\n", __func__, __LINE__, (u64)phy_cfg->hs_clk_rate);
+	pr_err("%s / %d: mode_to_dpi_hfp: %d\n", __func__, __LINE__, mode_to_dpi_hfp(mode, mode_valid_check));
+	pr_err("%s / %d: lanes: %d\n\n", __func__, __LINE__, nlanes);
+
+	pr_err("%s / %d: RHS: %llu\n", __func__, __LINE__, (u64)dsi_hss_hsa_hse_hbp *  mode->clock * 1000);
+	pr_err("%s / %d: dsi_hss_hsa_hse_hbp: %lu\n", __func__, __LINE__, dsi_hss_hsa_hse_hbp);
+	pr_err("%s / %d: mode->clock: %d\n", __func__, __LINE__, mode->clock);
+	pr_err("%s / %d: mode->crtc_clock: %d\n", __func__, __LINE__, mode->crtc_clock);
+
+	/*if ((u64)phy_cfg->hs_clk_rate *
 	    mode_to_dpi_hfp(mode, mode_valid_check) * nlanes <
 	    (u64)dsi_hss_hsa_hse_hbp *
-	    (mode_valid_check ? mode->clock : mode->crtc_clock) * 1000)
+	    (mode_valid_check ? mode->clock : mode->crtc_clock) * 1000) {
+		pr_err("%s / %d: DPI(HFP) check fail: %d\n", __func__, __LINE__, -EINVAL);
 		return -EINVAL;
+	}*/
 
+	pr_err("%s / %d: return: %d\n", __func__, __LINE__, 0);
 	return 0;
 }
 
@@ -704,10 +761,10 @@ static void cdns_dsi_bridge_disable(struct drm_bridge *bridge)
 	val = readl(dsi->regs + MCTL_MAIN_DATA_CTL);
 	val &= ~(IF_VID_SELECT_MASK | IF_VID_MODE | VID_EN | HOST_EOT_GEN |
 		 DISP_EOT_GEN);
-	writel(val, dsi->regs + MCTL_MAIN_DATA_CTL);
+	iowrite32(val, dsi->regs + MCTL_MAIN_DATA_CTL);
 
 	val = readl(dsi->regs + MCTL_MAIN_EN) & ~IF_EN(input->id);
-	writel(val, dsi->regs + MCTL_MAIN_EN);
+	iowrite32(val, dsi->regs + MCTL_MAIN_EN);
 	pm_runtime_put(dsi->base.dev);
 }
 
@@ -720,7 +777,7 @@ static void cdns_dsi_hs_init(struct cdns_dsi *dsi)
 	 * Power all internal DPHY blocks down and maintain their reset line
 	 * asserted before changing the DPHY config.
 	 */
-	writel(DPHY_CMN_PSO | DPHY_PLL_PSO | DPHY_ALL_D_PDN | DPHY_C_PDN |
+	iowrite32(DPHY_CMN_PSO | DPHY_PLL_PSO | DPHY_ALL_D_PDN | DPHY_C_PDN |
 	       DPHY_CMN_PDN | DPHY_PLL_PDN,
 	       dsi->regs + MCTL_DPHY_CFG0);
 
@@ -730,13 +787,13 @@ static void cdns_dsi_hs_init(struct cdns_dsi *dsi)
 	phy_power_on(dsi->dphy);
 
 	/* Activate the PLL and wait until it's locked. */
-	writel(PLL_LOCKED, dsi->regs + MCTL_MAIN_STS_CLR);
-	writel(DPHY_CMN_PSO | DPHY_ALL_D_PDN | DPHY_C_PDN | DPHY_CMN_PDN,
+	iowrite32(PLL_LOCKED, dsi->regs + MCTL_MAIN_STS_CLR);
+	iowrite32(DPHY_CMN_PSO | DPHY_ALL_D_PDN | DPHY_C_PDN | DPHY_CMN_PDN,
 	       dsi->regs + MCTL_DPHY_CFG0);
 	WARN_ON_ONCE(readl_poll_timeout(dsi->regs + MCTL_MAIN_STS, status,
 					status & PLL_LOCKED, 100, 100));
 	/* De-assert data and clock reset lines. */
-	writel(DPHY_CMN_PSO | DPHY_ALL_D_PDN | DPHY_C_PDN | DPHY_CMN_PDN |
+	iowrite32(DPHY_CMN_PSO | DPHY_ALL_D_PDN | DPHY_C_PDN | DPHY_CMN_PDN |
 	       DPHY_D_RSTB(output->dev->lanes) | DPHY_C_RSTB,
 	       dsi->regs + MCTL_DPHY_CFG0);
 }
@@ -758,21 +815,21 @@ static void cdns_dsi_init_link(struct cdns_dsi *dsi)
 	if (!(output->dev->mode_flags & MIPI_DSI_CLOCK_NON_CONTINUOUS))
 		val |= CLK_CONTINUOUS;
 
-	writel(val, dsi->regs + MCTL_MAIN_PHY_CTL);
+	iowrite32(val, dsi->regs + MCTL_MAIN_PHY_CTL);
 
 	/* ULPOUT should be set to 1ms and is expressed in sysclk cycles. */
 	sysclk_period = NSEC_PER_SEC / clk_get_rate(dsi->dsi_sys_clk);
 	ulpout = DIV_ROUND_UP(NSEC_PER_MSEC, sysclk_period);
-	writel(CLK_LANE_ULPOUT_TIME(ulpout) | DATA_LANE_ULPOUT_TIME(ulpout),
+	iowrite32(CLK_LANE_ULPOUT_TIME(ulpout) | DATA_LANE_ULPOUT_TIME(ulpout),
 	       dsi->regs + MCTL_ULPOUT_TIME);
 
-	writel(LINK_EN, dsi->regs + MCTL_MAIN_DATA_CTL);
+	iowrite32(LINK_EN, dsi->regs + MCTL_MAIN_DATA_CTL);
 
 	val = CLK_LANE_EN | PLL_START;
 	for (i = 0; i < output->dev->lanes; i++)
 		val |= DATA_LANE_START(i);
 
-	writel(val, dsi->regs + MCTL_MAIN_EN);
+	iowrite32(val, dsi->regs + MCTL_MAIN_EN);
 
 	dsi->link_initialized = true;
 }
@@ -796,34 +853,35 @@ static void cdns_dsi_bridge_enable(struct drm_bridge *bridge)
 	nlanes = output->dev->lanes;
 
 	WARN_ON_ONCE(cdns_dsi_check_conf(dsi, mode, &dsi_cfg, false));
+	pr_err("%s / %d: CONFIGURE phy_cfg->wakeup: %d\n", __func__, __LINE__, phy_cfg->wakeup);
 
 	cdns_dsi_hs_init(dsi);
 	cdns_dsi_init_link(dsi);
 
-	writel(HBP_LEN(dsi_cfg.hbp) | HSA_LEN(dsi_cfg.hsa),
+	iowrite32(HBP_LEN(dsi_cfg.hbp) | HSA_LEN(dsi_cfg.hsa),
 	       dsi->regs + VID_HSIZE1);
-	writel(HFP_LEN(dsi_cfg.hfp) | HACT_LEN(dsi_cfg.hact),
+	iowrite32(HFP_LEN(dsi_cfg.hfp) | HACT_LEN(dsi_cfg.hact),
 	       dsi->regs + VID_HSIZE2);
 
-	writel(VBP_LEN(mode->crtc_vtotal - mode->crtc_vsync_end - 1) |
+	iowrite32(VBP_LEN(mode->crtc_vtotal - mode->crtc_vsync_end - 1) |
 	       VFP_LEN(mode->crtc_vsync_start - mode->crtc_vdisplay) |
 	       VSA_LEN(mode->crtc_vsync_end - mode->crtc_vsync_start + 1),
 	       dsi->regs + VID_VSIZE1);
-	writel(mode->crtc_vdisplay, dsi->regs + VID_VSIZE2);
+	iowrite32(mode->crtc_vdisplay, dsi->regs + VID_VSIZE2);
 
 	tmp = dsi_cfg.htotal -
 	      (dsi_cfg.hsa + DSI_BLANKING_FRAME_OVERHEAD +
 	       DSI_HSA_FRAME_OVERHEAD);
-	writel(BLK_LINE_PULSE_PKT_LEN(tmp), dsi->regs + VID_BLKSIZE2);
+	iowrite32(BLK_LINE_PULSE_PKT_LEN(tmp), dsi->regs + VID_BLKSIZE2);
 	if (output->dev->mode_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE)
-		writel(MAX_LINE_LIMIT(tmp - DSI_NULL_FRAME_OVERHEAD),
+		iowrite32(MAX_LINE_LIMIT(tmp - DSI_NULL_FRAME_OVERHEAD),
 		       dsi->regs + VID_VCA_SETTING2);
 
 	tmp = dsi_cfg.htotal -
 	      (DSI_HSS_VSS_VSE_FRAME_OVERHEAD + DSI_BLANKING_FRAME_OVERHEAD);
-	writel(BLK_LINE_EVENT_PKT_LEN(tmp), dsi->regs + VID_BLKSIZE1);
+	iowrite32(BLK_LINE_EVENT_PKT_LEN(tmp), dsi->regs + VID_BLKSIZE1);
 	if (!(output->dev->mode_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE))
-		writel(MAX_LINE_LIMIT(tmp - DSI_NULL_FRAME_OVERHEAD),
+		iowrite32(MAX_LINE_LIMIT(tmp - DSI_NULL_FRAME_OVERHEAD),
 		       dsi->regs + VID_VCA_SETTING2);
 
 	tmp = DIV_ROUND_UP(dsi_cfg.htotal, nlanes) -
@@ -835,7 +893,7 @@ static void cdns_dsi_bridge_enable(struct drm_bridge *bridge)
 	tx_byte_period = DIV_ROUND_DOWN_ULL((u64)NSEC_PER_SEC * 8,
 					    phy_cfg->hs_clk_rate);
 	reg_wakeup = (phy_cfg->hs_prepare + phy_cfg->hs_zero) / tx_byte_period;
-	writel(REG_WAKEUP_TIME(reg_wakeup) | REG_LINE_DURATION(tmp),
+	iowrite32(REG_WAKEUP_TIME(reg_wakeup) | REG_LINE_DURATION(tmp),
 	       dsi->regs + VID_DPHY_TIME);
 
 	/*
@@ -856,10 +914,10 @@ static void cdns_dsi_bridge_enable(struct drm_bridge *bridge)
 	if (tmp > HSTX_TIMEOUT_MAX)
 		tmp = HSTX_TIMEOUT_MAX;
 
-	writel(CLK_DIV(div) | HSTX_TIMEOUT(tmp),
+	iowrite32(CLK_DIV(div) | HSTX_TIMEOUT(tmp),
 	       dsi->regs + MCTL_DPHY_TIMEOUT1);
 
-	writel(LPRX_TIMEOUT(tmp), dsi->regs + MCTL_DPHY_TIMEOUT2);
+	iowrite32(LPRX_TIMEOUT(tmp), dsi->regs + MCTL_DPHY_TIMEOUT2);
 
 	if (output->dev->mode_flags & MIPI_DSI_MODE_VIDEO) {
 		switch (output->dev->format) {
@@ -896,7 +954,7 @@ static void cdns_dsi_bridge_enable(struct drm_bridge *bridge)
 		       RECOVERY_MODE(RECOVERY_MODE_NEXT_HSYNC) |
 		       VID_IGNORE_MISS_VSYNC;
 
-		writel(tmp, dsi->regs + VID_MAIN_CTL);
+		iowrite32(tmp, dsi->regs + VID_MAIN_CTL);
 	}
 
 	tmp = readl(dsi->regs + MCTL_MAIN_DATA_CTL);
@@ -908,10 +966,10 @@ static void cdns_dsi_bridge_enable(struct drm_bridge *bridge)
 	if (output->dev->mode_flags & MIPI_DSI_MODE_VIDEO)
 		tmp |= IF_VID_MODE | IF_VID_SELECT(input->id) | VID_EN;
 
-	writel(tmp, dsi->regs + MCTL_MAIN_DATA_CTL);
+	iowrite32(tmp, dsi->regs + MCTL_MAIN_DATA_CTL);
 
 	tmp = readl(dsi->regs + MCTL_MAIN_EN) | IF_EN(input->id);
-	writel(tmp, dsi->regs + MCTL_MAIN_EN);
+	iowrite32(tmp, dsi->regs + MCTL_MAIN_EN);
 }
 
 static const struct drm_bridge_funcs cdns_dsi_bridge_funcs = {
@@ -932,17 +990,22 @@ static int cdns_dsi_attach(struct mipi_dsi_host *host,
 	struct device_node *np;
 	int ret;
 
+	dev_err(host->dev, "%s: %d\n", __func__, __LINE__);
 	/*
 	 * We currently do not support connecting several DSI devices to the
 	 * same host. In order to support that we'd need the DRM bridge
 	 * framework to allow dynamic reconfiguration of the bridge chain.
 	 */
-	if (output->dev)
+	if (output->dev) {
+		dev_err(host->dev, "%s: %d\n", __func__, __LINE__);
 		return -EBUSY;
+	}
 
 	/* We do not support burst mode yet. */
-	if (dev->mode_flags & MIPI_DSI_MODE_VIDEO_BURST)
+	if (dev->mode_flags & MIPI_DSI_MODE_VIDEO_BURST) {
+		dev_err(host->dev, "%s: %d\n", __func__, __LINE__);
 		return -ENOTSUPP;
+	}
 
 	/*
 	 * The host <-> device link might be described using an OF-graph
@@ -961,8 +1024,10 @@ static int cdns_dsi_attach(struct mipi_dsi_host *host,
 						    DRM_MODE_CONNECTOR_DSI);
 	} else {
 		bridge = of_drm_find_bridge(dev->dev.of_node);
-		if (!bridge)
+		if (!bridge) {
+			dev_err(host->dev,"%s: %d\n", __func__, __LINE__);
 			bridge = ERR_PTR(-EINVAL);
+		}
 	}
 
 	of_node_put(np);
@@ -985,6 +1050,7 @@ static int cdns_dsi_attach(struct mipi_dsi_host *host,
 	 */
 	drm_bridge_add(&input->bridge);
 
+	dev_err(host->dev, "%s: %d\n", __func__, __LINE__);
 	return 0;
 }
 
@@ -1012,7 +1078,7 @@ static irqreturn_t cdns_dsi_interrupt(int irq, void *data)
 	if (flag) {
 		ctl = readl(dsi->regs + DIRECT_CMD_STS_CTL);
 		ctl &= ~flag;
-		writel(ctl, dsi->regs + DIRECT_CMD_STS_CTL);
+		iowrite32(ctl, dsi->regs + DIRECT_CMD_STS_CTL);
 		complete(&dsi->direct_cmd_comp);
 		ret = IRQ_HANDLED;
 	}
@@ -1029,14 +1095,18 @@ static ssize_t cdns_dsi_transfer(struct mipi_dsi_host *host,
 	int ret, i, tx_len, rx_len;
 
 	ret = pm_runtime_resume_and_get(host->dev);
-	if (ret < 0)
+	if (ret < 0) {
+		pr_err("%s / %d: pm_runtime_resume_and_get: %d\n", __func__, __LINE__, ret);
 		return ret;
+	}
 
 	cdns_dsi_init_link(dsi);
 
 	ret = mipi_dsi_create_packet(&packet, msg);
-	if (ret)
+	if (ret) {
+		pr_err("%s / %d: mipi_dsi_create_packet: %d\n", __func__, __LINE__, ret);
 		goto out;
+	}
 
 	tx_len = msg->tx_buf ? msg->tx_len : 0;
 	rx_len = msg->rx_buf ? msg->rx_len : 0;
@@ -1044,18 +1114,21 @@ static ssize_t cdns_dsi_transfer(struct mipi_dsi_host *host,
 	/* For read operations, the maximum TX len is 2. */
 	if (rx_len && tx_len > 2) {
 		ret = -ENOTSUPP;
+		pr_err("%s / %d: For read operations, the maximum TX len is 2: %d\n", __func__, __LINE__, ret);
 		goto out;
 	}
 
 	/* TX len is limited by the CMD FIFO depth. */
 	if (tx_len > dsi->direct_cmd_fifo_depth) {
 		ret = -ENOTSUPP;
+		pr_err("%s / %d: TX len is limited by the CMD FIFO depth: %d\n", __func__, __LINE__, ret);
 		goto out;
 	}
 
 	/* RX len is limited by the RX FIFO depth. */
 	if (rx_len > dsi->rx_fifo_depth) {
 		ret = -ENOTSUPP;
+		pr_err("%s / %d: RX len is limited by the RX FIFO depth: %d\n", __func__, __LINE__, ret);
 		goto out;
 	}
 
@@ -1078,10 +1151,10 @@ static ssize_t cdns_dsi_transfer(struct mipi_dsi_host *host,
 		ctl = BTA_EN;
 	}
 
-	writel(readl(dsi->regs + MCTL_MAIN_DATA_CTL) | ctl,
+	iowrite32(readl(dsi->regs + MCTL_MAIN_DATA_CTL) | ctl,
 	       dsi->regs + MCTL_MAIN_DATA_CTL);
 
-	writel(cmd, dsi->regs + DIRECT_CMD_MAIN_SETTINGS);
+	iowrite32(cmd, dsi->regs + DIRECT_CMD_MAIN_SETTINGS);
 
 	for (i = 0; i < tx_len; i += 4) {
 		const u8 *buf = msg->tx_buf;
@@ -1091,34 +1164,36 @@ static ssize_t cdns_dsi_transfer(struct mipi_dsi_host *host,
 		for (j = 0; j < 4 && j + i < tx_len; j++)
 			val |= (u32)buf[i + j] << (8 * j);
 
-		writel(val, dsi->regs + DIRECT_CMD_WRDATA);
+		iowrite32(val, dsi->regs + DIRECT_CMD_WRDATA);
 	}
 
 	/* Clear status flags before sending the command. */
-	writel(wait, dsi->regs + DIRECT_CMD_STS_CLR);
-	writel(wait, dsi->regs + DIRECT_CMD_STS_CTL);
+	iowrite32(wait, dsi->regs + DIRECT_CMD_STS_CLR);
+	iowrite32(wait, dsi->regs + DIRECT_CMD_STS_CTL);
 	reinit_completion(&dsi->direct_cmd_comp);
-	writel(0, dsi->regs + DIRECT_CMD_SEND);
+	iowrite32(0, dsi->regs + DIRECT_CMD_SEND);
 
 	wait_for_completion_timeout(&dsi->direct_cmd_comp,
 				    msecs_to_jiffies(1000));
 
 	sts = readl(dsi->regs + DIRECT_CMD_STS);
-	writel(wait, dsi->regs + DIRECT_CMD_STS_CLR);
-	writel(0, dsi->regs + DIRECT_CMD_STS_CTL);
+	iowrite32(wait, dsi->regs + DIRECT_CMD_STS_CLR);
+	iowrite32(0, dsi->regs + DIRECT_CMD_STS_CTL);
 
-	writel(readl(dsi->regs + MCTL_MAIN_DATA_CTL) & ~ctl,
+	iowrite32(readl(dsi->regs + MCTL_MAIN_DATA_CTL) & ~ctl,
 	       dsi->regs + MCTL_MAIN_DATA_CTL);
 
 	/* We did not receive the events we were waiting for. */
 	if (!(sts & wait)) {
 		ret = -ETIMEDOUT;
+		pr_err("%s / %d: TIMEOUT: sts = %d, wait = %d, %d\n", __func__, __LINE__, sts, wait, ret);
 		goto out;
 	}
 
 	/* 'READ' or 'WRITE with ACK' failed. */
 	if (sts & (READ_COMPLETED_WITH_ERR | ACK_WITH_ERR_RCVD)) {
 		ret = -EIO;
+		pr_err("%s / %d: 'READ' or 'WRITE with ACK' failed: %d\n", __func__, __LINE__, ret);
 		goto out;
 	}
 
@@ -1169,12 +1244,14 @@ static UNIVERSAL_DEV_PM_OPS(cdns_dsi_pm_ops, cdns_dsi_suspend, cdns_dsi_resume,
 
 static int cdns_dsi_drm_probe(struct platform_device *pdev)
 {
+	struct device *dev = &pdev->dev;
 	struct cdns_dsi *dsi;
 	struct cdns_dsi_input *input;
 	struct resource *res;
 	int ret, irq;
 	u32 val;
 
+	dev_err(dev, "%s: %d\n", __func__, __LINE__);
 	dsi = devm_kzalloc(&pdev->dev, sizeof(*dsi), GFP_KERNEL);
 	if (!dsi)
 		return -ENOMEM;
@@ -1210,6 +1287,8 @@ static int cdns_dsi_drm_probe(struct platform_device *pdev)
 		return PTR_ERR(dsi->dphy);
 
 	ret = clk_prepare_enable(dsi->dsi_p_clk);
+    pr_err("%s , %d, pixel clock rate - %lu", __func__, __LINE__, clk_get_rate(dsi->dsi_p_clk));
+    pr_err("%s , %d, sys clock rate - %lu", __func__, __LINE__, clk_get_rate(dsi->dsi_sys_clk));
 	if (ret)
 		return ret;
 
@@ -1225,9 +1304,9 @@ static int cdns_dsi_drm_probe(struct platform_device *pdev)
 	dsi->rx_fifo_depth = RX_FIFO_DEPTH(val);
 	init_completion(&dsi->direct_cmd_comp);
 
-	writel(0, dsi->regs + MCTL_MAIN_DATA_CTL);
-	writel(0, dsi->regs + MCTL_MAIN_EN);
-	writel(0, dsi->regs + MCTL_MAIN_PHY_CTL);
+	iowrite32(0, dsi->regs + MCTL_MAIN_DATA_CTL);
+	iowrite32(0, dsi->regs + MCTL_MAIN_EN);
+	iowrite32(0, dsi->regs + MCTL_MAIN_PHY_CTL);
 
 	/*
 	 * We only support the DPI input, so force input->id to
@@ -1238,14 +1317,14 @@ static int cdns_dsi_drm_probe(struct platform_device *pdev)
 	input->bridge.of_node = pdev->dev.of_node;
 
 	/* Mask all interrupts before registering the IRQ handler. */
-	writel(0, dsi->regs + MCTL_MAIN_STS_CTL);
-	writel(0, dsi->regs + MCTL_DPHY_ERR_CTL1);
-	writel(0, dsi->regs + CMD_MODE_STS_CTL);
-	writel(0, dsi->regs + DIRECT_CMD_STS_CTL);
-	writel(0, dsi->regs + DIRECT_CMD_RD_STS_CTL);
-	writel(0, dsi->regs + VID_MODE_STS_CTL);
-	writel(0, dsi->regs + TVG_STS_CTL);
-	writel(0, dsi->regs + DPI_IRQ_EN);
+	iowrite32(0, dsi->regs + MCTL_MAIN_STS_CTL);
+	iowrite32(0, dsi->regs + MCTL_DPHY_ERR_CTL1);
+	iowrite32(0, dsi->regs + CMD_MODE_STS_CTL);
+	iowrite32(0, dsi->regs + DIRECT_CMD_STS_CTL);
+	iowrite32(0, dsi->regs + DIRECT_CMD_RD_STS_CTL);
+	iowrite32(0, dsi->regs + VID_MODE_STS_CTL);
+	iowrite32(0, dsi->regs + TVG_STS_CTL);
+	iowrite32(0, dsi->regs + DPI_IRQ_EN);
 	ret = devm_request_irq(&pdev->dev, irq, cdns_dsi_interrupt, 0,
 			       dev_name(&pdev->dev), dsi);
 	if (ret)
@@ -1260,6 +1339,8 @@ static int cdns_dsi_drm_probe(struct platform_device *pdev)
 		goto err_disable_runtime_pm;
 
 	clk_disable_unprepare(dsi->dsi_p_clk);
+	dev_err(dev, "%s: %d\n", __func__, __LINE__);
+
 
 	return 0;
 
