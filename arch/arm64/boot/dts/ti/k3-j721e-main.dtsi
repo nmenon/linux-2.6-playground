@@ -1441,7 +1441,7 @@
 
 	dsi0: dsi@48000000 {
 		compatible = "cdns,dsi";
-		reg = <0x0 0x04800000 0x0 0x100000>;
+		reg = <0x0 0x04800000 0x0 0x100000>, <0x0 0x04710000 0x0 0x100>;
 		clocks = <&k3_clks 150 1>, <&k3_clks 150 5>;
 		clock-names = "dsi_p_clk", "dsi_sys_clk";
 		resets = <&k3_reset 150 1>;
