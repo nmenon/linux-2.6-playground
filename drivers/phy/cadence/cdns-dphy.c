@@ -269,10 +269,11 @@ static void cdns_dphy_ref_set_pll_cfg(struct cdns_dphy *dphy,
 	writel(DPHY_CMN_FBDIV_FROM_REG |
 	       DPHY_CMN_FBDIV_VAL(fbdiv_low, fbdiv_high),
 	       dphy->regs + DPHY_CMN_FBDIV);
-#endif
 	writel(DPHY_CMN_PWM_HIGH(6) | DPHY_CMN_PWM_LOW(0x101) |
 	       DPHY_CMN_PWM_DIV(0x8),
 	       dphy->regs + DPHY_CMN_PWM);	//RTOS 0x0087FC0E 1FF, 00E and 8
+#endif
+	writel(0x0087FC0E, dphy->regs + DPHY_CMN_PWM);
 }
 
 static void cdns_dphy_ref_set_psm_div(struct cdns_dphy *dphy, u8 div)
