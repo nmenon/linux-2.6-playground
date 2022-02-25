@@ -806,9 +806,12 @@ static void cdns_dsi_hs_init(struct cdns_dsi *dsi)
 	pr_err("%s / %d: MCTL_MAIN_STS : 0x%08X\n", __func__, __LINE__, ioread32(dsi->regs + MCTL_MAIN_STS));
 
 	/* De-assert data and clock reset lines. */
+	/*
 	iowrite32(DPHY_CMN_PSO | DPHY_ALL_D_PDN | DPHY_C_PDN | DPHY_CMN_PDN |
 	       DPHY_D_RSTB(output->dev->lanes) | DPHY_C_RSTB,
 	       dsi->regs + MCTL_DPHY_CFG0);
+	       */
+	iowrite32(0x00110000, dsi->regs + MCTL_DPHY_CFG0 );
 }
 
 static void cdns_dsi_init_link(struct cdns_dsi *dsi)
@@ -829,13 +832,15 @@ static void cdns_dsi_init_link(struct cdns_dsi *dsi)
 	if (!(output->dev->mode_flags & MIPI_DSI_CLOCK_NON_CONTINUOUS))
 		val |= CLK_CONTINUOUS;
 
-	iowrite32(val, dsi->regs + MCTL_MAIN_PHY_CTL);	//TODO 0x00003c11 check for wait burst time
+	//iowrite32(val, dsi->regs + MCTL_MAIN_PHY_CTL);	//TODO 0x00003c11 check for wait burst time
+	iowrite32(0x00003c11, dsi->regs + MCTL_MAIN_PHY_CTL);	//TODO 0x00003c11 check for wait burst time
 
 	/* ULPOUT should be set to 1ms and is expressed in sysclk cycles. */
 	sysclk_period = NSEC_PER_SEC / clk_get_rate(dsi->dsi_sys_clk);
 	ulpout = DIV_ROUND_UP(NSEC_PER_MSEC, sysclk_period);
-	iowrite32(CLK_LANE_ULPOUT_TIME(ulpout) | DATA_LANE_ULPOUT_TIME(ulpout),
-	       dsi->regs + MCTL_ULPOUT_TIME);
+	/*iowrite32(CLK_LANE_ULPOUT_TIME(ulpout) | DATA_LANE_ULPOUT_TIME(ulpout),
+	       dsi->regs + MCTL_ULPOUT_TIME);*/
+	iowrite32(0x0003ab05 , dsi->regs + MCTL_ULPOUT_TIME);
 
 	iowrite32(LINK_EN, dsi->regs + MCTL_MAIN_DATA_CTL);
 
@@ -929,10 +934,13 @@ static void cdns_dsi_bridge_enable(struct drm_bridge *bridge)
 	if (tmp > HSTX_TIMEOUT_MAX)
 		tmp = HSTX_TIMEOUT_MAX;
 
-	iowrite32(CLK_DIV(div) | HSTX_TIMEOUT(tmp),
-	       dsi->regs + MCTL_DPHY_TIMEOUT1);
+/*	iowrite32(CLK_DIV(div) | HSTX_TIMEOUT(tmp),
+	       dsi->regs + MCTL_DPHY_TIMEOUT1);*/
+	iowrite32(0x000afffb , dsi->regs + MCTL_DPHY_TIMEOUT1);
 
-	iowrite32(LPRX_TIMEOUT(tmp), dsi->regs + MCTL_DPHY_TIMEOUT2);
+
+	//iowrite32(LPRX_TIMEOUT(tmp), dsi->regs + MCTL_DPHY_TIMEOUT2);
+	iowrite32(0x0003ffff , dsi->regs + MCTL_DPHY_TIMEOUT2);
 
 	if (output->dev->mode_flags & MIPI_DSI_MODE_VIDEO) {
 		switch (output->dev->format) {
