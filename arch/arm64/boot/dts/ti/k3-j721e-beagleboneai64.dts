@@ -1914,6 +1914,6 @@ bone_uart_6: &main_uart2 {
 
 &dphy2 {
 	assigned-clocks = <&k3_clks 296 3>;
-	assigned-clock-parents = <&k3_clks 296 7>;
-	assigned-clock-rates = <100000000>;
+	assigned-clock-parents = <&k3_clks 296 4>;
+	assigned-clock-rates = <19200000>;
 };
