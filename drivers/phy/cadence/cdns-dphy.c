@@ -383,6 +383,9 @@ static int cdns_dphy_tx_power_on(struct cdns_dphy *dphy)
 
 	writel((FIELD_PREP(IPDIV_WIZ, dphy->cfg.pll_ipdiv) | FIELD_PREP(OPDIV_WIZ, dphy->cfg.pll_opdiv) |
 				FIELD_PREP(FBDIV_WIZ, dphy->cfg.pll_fbdiv)), dphy->regs + CSL_WIZ16B8M4CDT_WIZ_CONFIG_PLL_CTRL);
+ 
+ 	writel(0x14A, dphy->regs + DPHY_BAND_CFG);
+        pr_err("%s: TX_DIG_TBIT0 DPHY_BAND_CFG 0x%08X \n", __func__, readl(dphy->regs + DPHY_BAND_CFG));
 
 
 	readl_poll_timeout(dphy->regs + CSL_WIZ16B8M4CDT_WIZ_CONFIG_PLL_CTRL, status,
