@@ -832,8 +832,7 @@ static void cdns_dsi_init_link(struct cdns_dsi *dsi)
 	if (!(output->dev->mode_flags & MIPI_DSI_CLOCK_NON_CONTINUOUS))
 		val |= CLK_CONTINUOUS;
 
-	//iowrite32(val, dsi->regs + MCTL_MAIN_PHY_CTL);	//TODO 0x00003c11 check for wait burst time
-	iowrite32(0x00003c11, dsi->regs + MCTL_MAIN_PHY_CTL);	//TODO 0x00003c11 check for wait burst time
+	iowrite32(val, dsi->regs + MCTL_MAIN_PHY_CTL);	//TODO 0x00003c11 check for wait burst time
 
 	/* ULPOUT should be set to 1ms and is expressed in sysclk cycles. */
 	sysclk_period = NSEC_PER_SEC / clk_get_rate(dsi->dsi_sys_clk);
