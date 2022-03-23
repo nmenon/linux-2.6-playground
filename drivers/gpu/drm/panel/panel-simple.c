@@ -3231,25 +3231,25 @@ static const struct drm_display_mode raspberrypi_7inch_mode = {
 	.vsync_end = 480 + 7 + 2,	//489
 	.vtotal = 480 + 7 + 2 + 21,	//510
 #else
-	.clock = 26010000 / 1000,
+	.clock = 28569600 / 1000,
 	.hdisplay = 800,
-	.hsync_start = 800 + 2, //802
-	.hsync_end = 800 + 2 + 2, //804
-	.htotal = 800 + 2 + 2 + 46, //850
+	.hsync_start = 800 + 48, //848
+	.hsync_end = 800 + 48 + 32, //880
+	.htotal = 800 + 48 + 32 + 80, //960
 	.vdisplay = 480,
-	.vsync_start = 480 + 7, //487
-	.vsync_end = 480 + 7 + 2, //489
-	.vtotal = 480 + 7 + 2 + 21, //510
+	.vsync_start = 480 + 3, //487
+	.vsync_end = 480 + 3 + 7, //450
+	.vtotal = 480 + 3 + 7 + 6, //496
 
-	.crtc_clock = 26010000 / 1000,
+	.crtc_clock = 28569600 / 1000,
 	.crtc_hdisplay = 800,
-	.crtc_hsync_start = 800 + 2, //802
-	.crtc_hsync_end = 800 + 2 + 2, //804
-	.crtc_htotal = 800 + 2 + 2 + 46, //850
+	.crtc_hsync_start = 800 + 48, //848
+	.crtc_hsync_end = 800 + 48 + 32, //880
+	.crtc_htotal = 800 + 48 + 32 + 80, //960
 	.crtc_vdisplay = 480,
-	.crtc_vsync_start = 480 + 7, //487
-	.crtc_vsync_end = 480 + 7 + 2, //489
-	.crtc_vtotal = 480 + 7 + 2 + 21, //510
+	.crtc_vsync_start = 480 + 3, //487
+	.crtc_vsync_end = 480 + 3 + 7, //450
+	.crtc_vtotal = 480 + 3 + 7 + 6, //496
 #endif
 	.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
 };
