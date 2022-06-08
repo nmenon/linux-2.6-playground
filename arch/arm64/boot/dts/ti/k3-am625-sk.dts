@@ -134,6 +134,23 @@
 			default-state = "off";
 		};
 	};
+
+	hdmi_mstrclk: hdmi_mstrclk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <12288000>;
+	};
+
+	hdmi: connector {
+		compatible = "hdmi-connector";
+		label = "hdmi";
+		type = "a";
+		port {
+			hdmi_connector_in: endpoint {
+				remote-endpoint = <&sii9022_out>;
+			};
+		};
+	};
 };
 
 &main_pmx0 {
@@ -266,6 +283,77 @@
 			AM62X_IOPAD(0x01d4, PIN_INPUT, 7) /* (B15) UART0_RTSn.GPIO1_23 */
 		>;
 	};
+
+	main_usb0_pins_default: main-usb0-pins-default {
+		pinctrl-single,pins = <
+			AM62X_IOPAD(0x254, PIN_OUTPUT, 0) /* (C20) USB0_DRVVBUS */
+		>;
+	};
+
+	main_usb1_gpio_id_pins_default: main-usb1-gpio-id-pins-default {
+		pinctrl-single,pins = <
+			AM62X_IOPAD(0x258, PIN_INPUT, 7) /* (F18) USB1_DRVVBUS.GPIO1_51 */
+		>;
+	};
+
+	main_dss0_pins_default: main-dss0-pins-default {
+		pinctrl-single,pins = <
+			AM62X_IOPAD(0x0b8, PIN_OUTPUT, 0) /* (U22) VOUT0_DATA0 */
+			AM62X_IOPAD(0x0bc, PIN_OUTPUT, 0) /* (V24) VOUT0_DATA1 */
+			AM62X_IOPAD(0x0e0, PIN_OUTPUT, 0) /* (V20) VOUT0_DATA10 */
+			AM62X_IOPAD(0x0e4, PIN_OUTPUT, 0) /* (AA23) VOUT0_DATA11 */
+			AM62X_IOPAD(0x0e8, PIN_OUTPUT, 0) /* (AB25) VOUT0_DATA12 */
+			AM62X_IOPAD(0x0ec, PIN_OUTPUT, 0) /* (AA24) VOUT0_DATA13 */
+			AM62X_IOPAD(0x0f0, PIN_OUTPUT, 0) /* (Y22) VOUT0_DATA14 */
+			AM62X_IOPAD(0x0f4, PIN_OUTPUT, 0) /* (AA21) VOUT0_DATA15 */
+			AM62X_IOPAD(0x0c0, PIN_OUTPUT, 0) /* (W25) VOUT0_DATA2 */
+			AM62X_IOPAD(0x0c4, PIN_OUTPUT, 0) /* (W24) VOUT0_DATA3 */
+			AM62X_IOPAD(0x0c8, PIN_OUTPUT, 0) /* (Y25) VOUT0_DATA4 */
+			AM62X_IOPAD(0x0cc, PIN_OUTPUT, 0) /* (Y24) VOUT0_DATA5 */
+			AM62X_IOPAD(0x0d0, PIN_OUTPUT, 0) /* (Y23) VOUT0_DATA6 */
+			AM62X_IOPAD(0x0d4, PIN_OUTPUT, 0) /* (AA25) VOUT0_DATA7 */
+			AM62X_IOPAD(0x0d8, PIN_OUTPUT, 0) /* (V21) VOUT0_DATA8 */
+			AM62X_IOPAD(0x0dc, PIN_OUTPUT, 0) /* (W21) VOUT0_DATA9 */
+			AM62X_IOPAD(0x0fc, PIN_OUTPUT, 0) /* (Y20) VOUT0_DE */
+			AM62X_IOPAD(0x0f8, PIN_OUTPUT, 0) /* (AB24) VOUT0_HSYNC */
+			AM62X_IOPAD(0x104, PIN_OUTPUT, 0) /* (AC24) VOUT0_PCLK */
+			AM62X_IOPAD(0x100, PIN_OUTPUT, 0) /* (AC25) VOUT0_VSYNC */
+		>;
+	};
+	oldi0_pins_default: oldi0-pins-default {
+		pinctrl-single,pins = <
+			AM62X_IOPAD(0x260, PIN_OUTPUT, 0) /* (AA5) OLDI0_A0N */
+			AM62X_IOPAD(0x25c, PIN_OUTPUT, 0) /* (Y6) OLDI0_A0P */
+			AM62X_IOPAD(0x268, PIN_OUTPUT, 0) /* (AD3) OLDI0_A1N */
+			AM62X_IOPAD(0x264, PIN_OUTPUT, 0) /* (AB4) OLDI0_A1P */
+			AM62X_IOPAD(0x270, PIN_OUTPUT, 0) /* (Y8) OLDI0_A2N */
+			AM62X_IOPAD(0x26c, PIN_OUTPUT, 0) /* (AA8) OLDI0_A2P */
+			AM62X_IOPAD(0x278, PIN_OUTPUT, 0) /* (AB6) OLDI0_A3N */
+			AM62X_IOPAD(0x274, PIN_OUTPUT, 0) /* (AA7) OLDI0_A3P */
+			AM62X_IOPAD(0x280, PIN_OUTPUT, 0) /* (AC6) OLDI0_A4N */
+			AM62X_IOPAD(0x27c, PIN_OUTPUT, 0) /* (AC5) OLDI0_A4P */
+			AM62X_IOPAD(0x288, PIN_OUTPUT, 0) /* (AE5) OLDI0_A5N */
+			AM62X_IOPAD(0x284, PIN_OUTPUT, 0) /* (AD6) OLDI0_A5P */
+			AM62X_IOPAD(0x290, PIN_OUTPUT, 0) /* (AE6) OLDI0_A6N */
+			AM62X_IOPAD(0x28c, PIN_OUTPUT, 0) /* (AD7) OLDI0_A6P */
+			AM62X_IOPAD(0x298, PIN_OUTPUT, 0) /* (AD8) OLDI0_A7N */
+			AM62X_IOPAD(0x294, PIN_OUTPUT, 0) /* (AE7) OLDI0_A7P */
+			AM62X_IOPAD(0x2a0, PIN_OUTPUT, 0) /* (AD4) OLDI0_CLK0N */
+			AM62X_IOPAD(0x29c, PIN_OUTPUT, 0) /* (AE3) OLDI0_CLK0P */
+			AM62X_IOPAD(0x2a8, PIN_OUTPUT, 0) /* (AE4) OLDI0_CLK1N */
+			AM62X_IOPAD(0x2a4, PIN_OUTPUT, 0) /* (AD5) OLDI0_CLK1P */
+		>;
+	};
+
+
+};
+
+&mcu_pmx0 {
+	mcu_gpio0_ioexp_intr_pins_default: mcu-gpio0-ioexp-intr-pins-default {
+		pinctrl-single,pins = <
+			AM62X_MCU_IOPAD(0x03c, PIN_INPUT, 7) /* (E5) MCU_MCAN1_TX.MCU_GPIO0_15 */
+		>;
+	};
 };
 
 &wkup_uart0 {
@@ -336,21 +424,54 @@
 				   "VPP_LDO_EN", "EXP_PS_3V3_En",
 				   "EXP_PS_5V0_En", "EXP_HAT_DETECT",
 				   "GPIO_AUD_RSTn", "GPIO_eMMC_RSTn",
-				   "UART1_FET_BUF_EN", "WL_LT_EN",
+				   "UART1_MUX_SEL", "WL_LT_EN",
 				   "GPIO_HDMI_RSTn", "CSI_GPIO1",
 				   "CSI_GPIO2", "PRU_3V3_EN",
 				   "HDMI_INTn", "TEST_GPIO2",
-				   "MCASP1_FET_EN", "MCASP1_BUF_BT_EN",
-				   "MCASP1_FET_SEL", "UART1_FET_SEL",
-				   "TSINT#", "IO_EXP_TEST_LED";
+				   "AUD_BUF_EN", "WL_BUF_EN",
+				   "WL_BUF_EN", "AUD_BUF_CLK_DIR",
+				   "WL_BUF_CLK_DIR", "VLED_ENB",
+				   "IO_EXP_TEST_LED";
 
-		interrupt-parent = <&main_gpio1>;
-		interrupts = <23 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-parent = <&mcu_gpio0>;
+		interrupts = <15 IRQ_TYPE_EDGE_FALLING>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
 
 		pinctrl-names = "default";
-		pinctrl-0 = <&main_gpio1_ioexp_intr_pins_default>;
+		pinctrl-0 = <&mcu_gpio0_ioexp_intr_pins_default>;
+	};
+
+	sii9022: sii9022@3b {
+		 compatible = "sil,sii9022";
+		 reg = <0x3b>;
+
+		 clocks = <&hdmi_mstrclk>;
+		 clock-names = "mclk";
+
+		 interrupt-parent = <&exp1>;
+		 interrupts = <16 IRQ_TYPE_EDGE_FALLING>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				sii9022_in: endpoint {
+					remote-endpoint = <&dpi1_out>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+
+				sii9022_out: endpoint {
+					remote-endpoint = <&hdmi_connector_in>;
+				};
+			};
+		};
 	};
 };
 
@@ -492,4 +613,44 @@
 
 &main_mcan0 {
 	status = "disabled";
+};
+
+&usb0 {
+	dr_mode = "host";
+	pinctrl-names = "default";
+	pinctrl-0 = <&main_usb0_pins_default>;
+};
+
+&usbss1 {
+	id-gpio = <&main_gpio1 51 GPIO_ACTIVE_LOW>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&main_usb1_gpio_id_pins_default>;
+	ti,vbus-divider;
+};
+
+&usb1 {
+	dr_mode = "otg";
+	/* To indicate the connector can be used
+	 * for both host as well as gadget mode
+	 */
+	usb-role-switch;
+};
+
+&dss {
+	pinctrl-names = "default";
+	pinctrl-0 = <&main_dss0_pins_default>;
+};
+
+&dss_ports {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	/* VP2: DPI/HDMI Output */
+	port@1 {
+		reg = <1>;
+
+		dpi1_out: endpoint {
+			remote-endpoint = <&sii9022_in>;
+		};
+	};
 };
