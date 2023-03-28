@@ -2863,7 +2863,8 @@ static int mlx5_vdpa_suspend(struct vdpa_device *vdev)
 	down_write(&ndev->reslock);
 	ndev->nb_registered = false;
 	mlx5_notifier_unregister(mvdev->mdev, &ndev->nb);
-	flush_workqueue(ndev->mvdev.wq);
+	if (ndev->mvdev.wq)
+		flush_workqueue(ndev->mvdev.wq);
 	for (i = 0; i < ndev->cur_num_vqs; i++) {
 		mvq = &ndev->vqs[i];
 		suspend_vq(ndev, mvq);
