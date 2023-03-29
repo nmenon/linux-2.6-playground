@@ -773,7 +773,7 @@ err_disable_clk:
 	return ret;
 }
 
-static int clk_wzrd_remove(struct platform_device *pdev)
+static void clk_wzrd_remove(struct platform_device *pdev)
 {
 	int i;
 	struct clk_wzrd *clk_wzrd = platform_get_drvdata(pdev);
@@ -791,8 +791,6 @@ static int clk_wzrd_remove(struct platform_device *pdev)
 	}
 
 	clk_disable_unprepare(clk_wzrd->axi_clk);
-
-	return 0;
 }
 
 static const struct of_device_id clk_wzrd_ids[] = {
@@ -810,7 +808,7 @@ static struct platform_driver clk_wzrd_driver = {
 		.pm = &clk_wzrd_dev_pm_ops,
 	},
 	.probe = clk_wzrd_probe,
-	.remove = clk_wzrd_remove,
+	.remove_new = clk_wzrd_remove,
 };
 module_platform_driver(clk_wzrd_driver);
 
