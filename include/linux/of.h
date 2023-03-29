@@ -416,6 +416,8 @@ extern int of_detach_node(struct device_node *);
 
 #define of_match_ptr(_ptr)	(_ptr)
 
+extern const void *of_device_get_match_data(const struct device *dev);
+
 /*
  * struct property *prop;
  * const __be32 *p;
