@@ -683,6 +683,92 @@ config COMMON_CLK_MT8186_VENCSYS
 	help
 	  This driver supports MediaTek MT8186 vencsys clocks.
 
+config COMMON_CLK_MT8188
+	tristate "Clock driver for MediaTek MT8188"
+	depends on ARM64 || COMPILE_TEST
+	select COMMON_CLK_MEDIATEK
+	select COMMON_CLK_MEDIATEK_FHCTL
+	default ARCH_MEDIATEK
+	help
+          This driver supports MediaTek MT8188 clocks.
+
+config COMMON_CLK_MT8188_ADSP_AUDIO26M
+	tristate "Clock driver for MediaTek MT8188 adsp audio26m"
+	depends on COMMON_CLK_MT8188
+	default COMMON_CLK_MT8188
+	help
+	  This driver supports MediaTek MT8188 adsp audio26m clocks.
+
+config COMMON_CLK_MT8188_CAMSYS
+	tristate "Clock driver for MediaTek MT8188 camsys"
+	depends on COMMON_CLK_MT8188_VPPSYS
+	default COMMON_CLK_MT8188_VPPSYS
+	help
+	  This driver supports MediaTek MT8188 camsys and camsys_raw clocks.
+
+config COMMON_CLK_MT8188_IMGSYS
+	tristate "Clock driver for MediaTek MT8188 imgsys"
+	depends on COMMON_CLK_MT8188_VPPSYS
+	default COMMON_CLK_MT8188_VPPSYS
+	help
+	  This driver supports MediaTek MT8188 imgsys and imgsys2 clocks.
+
+config COMMON_CLK_MT8188_IMP_IIC_WRAP
+	tristate "Clock driver for MediaTek MT8188 imp_iic_wrap"
+	depends on COMMON_CLK_MT8188
+	default COMMON_CLK_MT8188
+	help
+	  This driver supports MediaTek MT8188 I2C/I3C clocks.
+
+config COMMON_CLK_MT8188_IPESYS
+	tristate "Clock driver for MediaTek MT8188 ipesys"
+	depends on COMMON_CLK_MT8188_IMGSYS
+	default COMMON_CLK_MT8188_IMGSYS
+	help
+	  This driver supports MediaTek MT8188 ipesys clocks.
+
+config COMMON_CLK_MT8188_MFGCFG
+	tristate "Clock driver for MediaTek MT8188 mfgcfg"
+	depends on COMMON_CLK_MT8188
+	default COMMON_CLK_MT8188
+	help
+	  This driver supports MediaTek MT8188 mfgcfg clocks.
+
+config COMMON_CLK_MT8188_VDECSYS
+	tristate "Clock driver for MediaTek MT8188 vdecsys"
+	depends on COMMON_CLK_MT8188_VPPSYS
+	default COMMON_CLK_MT8188_VPPSYS
+	help
+	  This driver supports MediaTek MT8188 vdecsys and vdecsys_soc clocks.
+
+config COMMON_CLK_MT8188_VDOSYS
+	tristate "Clock driver for MediaTek MT8188 vdosys"
+	depends on COMMON_CLK_MT8188
+	default COMMON_CLK_MT8188
+	help
+	  This driver supports MediaTek MT8188 vdosys0/1 (multimedia) clocks.
+
+config COMMON_CLK_MT8188_VENCSYS
+	tristate "Clock driver for MediaTek MT8188 vencsys"
+	depends on COMMON_CLK_MT8188_VPPSYS
+	default COMMON_CLK_MT8188_VPPSYS
+	help
+	  This driver supports MediaTek MT8188 vencsys clocks.
+
+config COMMON_CLK_MT8188_VPPSYS
+	tristate "Clock driver for MediaTek MT8188 vppsys"
+	depends on COMMON_CLK_MT8188
+	default COMMON_CLK_MT8188
+	help
+	  This driver supports MediaTek MT8188 vppsys0/1 clocks.
+
+config COMMON_CLK_MT8188_WPESYS
+	tristate "Clock driver for MediaTek MT8188 wpesys"
+	depends on COMMON_CLK_MT8188_IMGSYS
+	default COMMON_CLK_MT8188_IMGSYS
+	help
+	  This driver supports MediaTek MT8188 Warp Engine clocks.
+
 config COMMON_CLK_MT8192
 	tristate "Clock driver for MediaTek MT8192"
 	depends on ARM64 || COMPILE_TEST
