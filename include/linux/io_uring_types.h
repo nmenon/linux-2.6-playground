@@ -190,6 +190,7 @@ struct io_ev_fd {
 struct io_alloc_cache {
 	struct io_wq_work_node	list;
 	unsigned int		nr_cached;
+	unsigned int		max_cached;
 	size_t			elem_size;
 };
 
@@ -240,7 +241,6 @@ struct io_ring_ctx {
 		 * uring_lock, and updated through io_uring_register(2)
 		 */
 		struct io_rsrc_node	*rsrc_node;
-		int			rsrc_cached_refs;
 		atomic_t		cancel_seq;
 		struct io_file_table	file_table;
 		unsigned		nr_user_files;
@@ -331,11 +331,9 @@ struct io_ring_ctx {
 	struct io_rsrc_data		*file_data;
 	struct io_rsrc_data		*buf_data;
 
-	struct delayed_work		rsrc_put_work;
-	struct callback_head		rsrc_put_tw;
-	struct llist_head		rsrc_put_llist;
+	/* protected by ->uring_lock */
 	struct list_head		rsrc_ref_list;
-	spinlock_t			rsrc_ref_lock;
+	struct io_alloc_cache		rsrc_node_cache;
 
 	struct list_head		io_buffers_pages;
 
