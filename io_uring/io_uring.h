@@ -16,6 +16,20 @@
 #endif
 
 enum {
+	/* don't use deferred task_work */
+	IOU_F_TWQ_FORCE_NORMAL			= 1,
+
+	/*
+	 * A hint to not wake right away but delay until there are enough of
+	 * tw's queued to match the number of CQEs the task is waiting for.
+	 *
+	 * Must not be used wirh requests generating more than one CQE.
+	 * It's also ignored unless IORING_SETUP_DEFER_TASKRUN is set.
+	 */
+	IOU_F_TWQ_LAZY_WAKE			= 2,
+};
+
+enum {
 	IOU_OK			= 0,
 	IOU_ISSUE_SKIP_COMPLETE	= -EIOCBQUEUED,
 
@@ -48,7 +62,7 @@ static inline bool io_req_ffs_set(struct io_kiocb *req)
 	return req->flags & REQ_F_FIXED_FILE;
 }
 
-void __io_req_task_work_add(struct io_kiocb *req, bool allow_local);
+void __io_req_task_work_add(struct io_kiocb *req, unsigned flags);
 bool io_is_uring_fops(struct file *file);
 bool io_alloc_async_data(struct io_kiocb *req);
 void io_req_task_queue(struct io_kiocb *req);
@@ -93,7 +107,7 @@ bool io_match_task_safe(struct io_kiocb *head, struct task_struct *task,
 
 static inline void io_req_task_work_add(struct io_kiocb *req)
 {
-	__io_req_task_work_add(req, true);
+	__io_req_task_work_add(req, 0);
 }
 
 #define io_for_each_link(pos, head) \
@@ -228,8 +242,7 @@ static inline void io_poll_wq_wake(struct io_ring_ctx *ctx)
 				poll_to_key(EPOLL_URING_WAKE | EPOLLIN));
 }
 
-/* requires smb_mb() prior, see wq_has_sleeper() */
-static inline void __io_cqring_wake(struct io_ring_ctx *ctx)
+static inline void io_cqring_wake(struct io_ring_ctx *ctx)
 {
 	/*
 	 * Trigger waitqueue handler on all waiters on our waitqueue. This
@@ -241,15 +254,9 @@ static inline void __io_cqring_wake(struct io_ring_ctx *ctx)
 	 * waitqueue handlers, we know we have a dependency between eventfd or
 	 * epoll and should terminate multishot poll at that point.
 	 */
-	if (waitqueue_active(&ctx->cq_wait))
+	if (wq_has_sleeper(&ctx->cq_wait))
 		__wake_up(&ctx->cq_wait, TASK_NORMAL, 0,
 				poll_to_key(EPOLL_URING_WAKE | EPOLLIN));
-}
-
-static inline void io_cqring_wake(struct io_ring_ctx *ctx)
-{
-	smp_mb();
-	__io_cqring_wake(ctx);
 }
 
 static inline bool io_sqring_full(struct io_ring_ctx *ctx)
