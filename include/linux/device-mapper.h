@@ -359,6 +359,12 @@ struct dm_target {
 	bool discards_supported:1;
 
 	/*
+	 * Set if this target requires that discards be split on both
+	 * 'discard_granularity' and 'max_discard_sectors' boundaries.
+	 */
+	bool max_discard_granularity:1;
+
+	/*
 	 * Set if we need to limit the number of in-flight bios when swapping.
 	 */
 	bool limit_swap_bios:1;
@@ -624,6 +630,26 @@ void dm_destroy_crypto_profile(struct blk_crypto_profile *profile);
 #define DMEMIT_TARGET_NAME_VERSION(y) \
 		DMEMIT("target_name=%s,target_version=%u.%u.%u", \
 		       (y)->name, (y)->version[0], (y)->version[1], (y)->version[2])
+
+/**
+ * module_dm() - Helper macro for DM targets that don't do anything
+ * special in their module_init and module_exit.
+ * Each module may only use this macro once, and calling it replaces
+ * module_init() and module_exit().
+ *
+ * @name: DM target's name
+ */
+#define module_dm(name) \
+static int __init dm_##name##_init(void) \
+{ \
+	return dm_register_target(&(name##_target)); \
+} \
+module_init(dm_##name##_init) \
+static void __exit dm_##name##_exit(void) \
+{ \
+	dm_unregister_target(&(name##_target)); \
+} \
+module_exit(dm_##name##_exit)
 
 /*
  * Definitions of return values from target end_io function.
