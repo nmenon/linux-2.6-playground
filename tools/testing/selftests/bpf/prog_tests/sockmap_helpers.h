@@ -226,6 +226,16 @@ static inline void init_addr_loopback6(struct sockaddr_storage *ss, socklen_t *l
 	*len = sizeof(*addr6);
 }
 
+static void init_addr_loopback_vsock(struct sockaddr_storage *ss, socklen_t *len)
+{
+	struct sockaddr_vm *addr = memset(ss, 0, sizeof(*ss));
+
+	addr->svm_family = AF_VSOCK;
+	addr->svm_port = VMADDR_PORT_ANY;
+	addr->svm_cid = VMADDR_CID_LOCAL;
+	*len = sizeof(*addr);
+}
+
 static inline void init_addr_loopback(int family, struct sockaddr_storage *ss,
 			       socklen_t *len)
 {
@@ -235,6 +245,9 @@ static inline void init_addr_loopback(int family, struct sockaddr_storage *ss,
 		return;
 	case AF_INET6:
 		init_addr_loopback6(ss, len);
+		return;
+	case AF_VSOCK:
+		init_addr_loopback_vsock(ss, len);
 		return;
 	default:
 		FAIL("unsupported address family %d", family);
