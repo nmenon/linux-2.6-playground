@@ -14,7 +14,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <inttypes.h>
-#include <malloc.h>
 #include <string.h>
 
 #include "resctrl.h"
@@ -64,10 +63,14 @@ static void mem_flush(void *p, size_t s)
 
 static void *malloc_and_init_memory(size_t s)
 {
+	void *p = NULL;
 	uint64_t *p64;
 	size_t s64;
+	int ret;
 
-	void *p = memalign(PAGE_SIZE, s);
+	ret = posix_memalign(&p, PAGE_SIZE, s);
+	if (ret < 0)
+		return NULL;
 
 	p64 = (uint64_t *)p;
 	s64 = s / sizeof(uint64_t);
