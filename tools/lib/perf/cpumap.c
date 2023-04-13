@@ -10,7 +10,12 @@
 #include <ctype.h>
 #include <limits.h>
 
-static struct perf_cpu_map *perf_cpu_map__alloc(int nr_cpus)
+void perf_cpu_map__set_nr(struct perf_cpu_map *map, int nr_cpus)
+{
+	map->nr = nr_cpus;
+}
+
+struct perf_cpu_map *perf_cpu_map__alloc(int nr_cpus)
 {
 	struct perf_cpu_map *cpus = malloc(sizeof(*cpus) + sizeof(struct perf_cpu) * nr_cpus);
 
