@@ -842,9 +842,21 @@ EXPORT_SYMBOL_GPL(svc_set_num_threads);
  *
  * When replacing a page in rq_pages, batch the release of the
  * replaced pages to avoid hammering the page allocator.
+ *
+ * Return values:
+ *   %true: page replaced
+ *   %false: array bounds checking failed
  */
-void svc_rqst_replace_page(struct svc_rqst *rqstp, struct page *page)
+bool svc_rqst_replace_page(struct svc_rqst *rqstp, struct page *page)
 {
+	struct page **begin = rqstp->rq_pages;
+	struct page **end = &rqstp->rq_pages[RPCSVC_MAXPAGES];
+
+	if (unlikely(rqstp->rq_next_page < begin || rqstp->rq_next_page > end)) {
+		trace_svc_replace_page_err(rqstp);
+		return false;
+	}
+
 	if (*rqstp->rq_next_page) {
 		if (!pagevec_space(&rqstp->rq_pvec))
 			__pagevec_release(&rqstp->rq_pvec);
@@ -853,6 +865,7 @@ void svc_rqst_replace_page(struct svc_rqst *rqstp, struct page *page)
 
 	get_page(page);
 	*(rqstp->rq_next_page++) = page;
+	return true;
 }
 EXPORT_SYMBOL_GPL(svc_rqst_replace_page);
 
@@ -1431,11 +1444,12 @@ err_system_err:
 	goto sendit;
 }
 
-/*
- * Process the RPC request.
+/**
+ * svc_process - Execute one RPC transaction
+ * @rqstp: RPC transaction context
+ *
  */
-int
-svc_process(struct svc_rqst *rqstp)
+void svc_process(struct svc_rqst *rqstp)
 {
 	struct kvec		*resv = &rqstp->rq_res.head[0];
 	__be32 *p;
@@ -1471,7 +1485,8 @@ svc_process(struct svc_rqst *rqstp)
 
 	if (!svc_process_common(rqstp))
 		goto out_drop;
-	return svc_send(rqstp);
+	svc_send(rqstp);
+	return;
 
 out_baddir:
 	svc_printk(rqstp, "bad direction 0x%08x, dropping request\n",
@@ -1479,7 +1494,6 @@ out_baddir:
 	rqstp->rq_server->sv_stats->rpcbadfmt++;
 out_drop:
 	svc_drop(rqstp);
-	return 0;
 }
 EXPORT_SYMBOL_GPL(svc_process);
 
