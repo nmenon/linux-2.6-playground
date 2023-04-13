@@ -1,0 +1,83 @@
+arm/soc
+
+soc/dt
+	patch
+		ARM: dts: ixp4xx: use "okay" for status
+		arm64: dts: sprd: Add support for Unisoc's UMS512
+	dt/cleanup-64
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux-dt tags/dt64-cleanup-6.4
+	dt/cleanup-32
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux-dt tags/dt-cleanup-6.4
+	renesas/dt-bindinds
+		git://git.kernel.org/pub/scm/linux/kernel/git/geert/renesas-devel tags/renesas-dt-bindings-for-v6.4-tag1
+	renesas/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/geert/renesas-devel tags/renesas-dts-for-v6.4-tag1
+	omap/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v6.4/dt-signed
+	omap/dt-overlays
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v6.4/dt-overlays-signed
+	at91/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-dt-6.4
+	patch
+		ARM: dts: oxnas: remove obsolete device tree files
+		dt-bindings: arm: oxnas: remove obsolete bindings
+	amlogic/dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/amlogic/linux tags/amlogic-arm-dt-for-v6.4
+	amlogic/dt64
+		https://git.kernel.org/pub/scm/linux/kernel/git/amlogic/linux tags/amlogic-arm64-dt-for-v6.4
+
+soc/drivers
+	renesas/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/geert/renesas-devel tags/renesas-drivers-for-v6.4-tag1
+	omap/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v6.4/ti-sysc-signed
+	drivers/memory
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux-mem-ctrl tags/memory-controller-drv-6.4
+	drivers/optee
+		https://git.linaro.org/people/jens.wiklander/linux-tee tags/optee-per-cpu-irq-for-v6.4
+	amlogic/drivers
+		https://git.kernel.org/pub/scm/linux/kernel/git/amlogic/linux tags/amlogic-drivers-for-v6.4
+	<no branch> (f3040daab8104ac68e2b241bc93288f63b88a3c7)
+		https://git.linaro.org/people/jens.wiklander/linux-tee tags/optee-load-for-v6.4
+
+arm/defconfig
+
+arm/late
+
+soc/fixes
+
+arm/fixes
+	<no branch> (172fa6366c0c84eda31f1bc34e6c3e4698786215)
+		https://git.linaro.org/people/jens.wiklander/linux-tee tags/optee-fix-for-v6.3
+	<no branch> (f9d323e7c1724270d747657051099826744e91e7)
+		https://git.kernel.org/pub/scm/linux/kernel/git/amlogic/linux tags/amlogic-fixes-v6.3-rc
+	<no branch> (8671133082176d1388e20ac33d61cf7e3b05adf5)
+		https://git.linaro.org/people/jens.wiklander/linux-tee tags/tee-fix-for-v6.3
+	<no branch> (86d5b27b379256cd5d48974b4cd7ad03091eea6b)
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-fixes-6.3-2
+	<no branch> (8056dc043d7f74d7675d413cb3dc4fa290609922)
+		https://git.kernel.org/pub/scm/linux/kernel/git/conor/linux tags/riscv-dt-fixes-for-v6.3-final
+
+soc/arm
+	patch
+		ARM: Convert to platform remove callback returning void
+		ARM: mmp: remove obsolete config USB_EHCI_MV_U2O
+		ARM: spear: remove obsolete config MACH_SPEAR600
+		ARM: mstar: remove unused config MACH_MERCURY
+	omap/cleanup
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v6.4/cleanup-signed
+	<no branch> (c29313d58c42f205cdecdd337f784f59bdf92dd7)
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v6.4/omap1-signed
+	patch
+		ARM: oxnas: remove OXNAS support
+
+soc/defconfig
+	patch
+		arm64: virtconfig: Further shrink the config
+		arm64: defconfig: Enable CAN PHY transceiver driver
+		arm64: defconfig: Enable Virtio RNG driver as built in
+	renesas/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/geert/renesas-devel tags/renesas-arm-defconfig-for-v6.4-tag1
+	patch
+		ARM: configs: remove oxnas_v6_defconfig
+
