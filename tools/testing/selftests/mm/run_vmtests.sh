@@ -5,6 +5,9 @@
 # Kselftest framework requirement - SKIP code is 4.
 ksft_skip=4
 
+count_pass=0
+count_fail=0
+count_skip=0
 exitcode=0
 
 usage() {
@@ -149,11 +152,14 @@ run_test() {
 		"$@"
 		local ret=$?
 		if [ $ret -eq 0 ]; then
+			count_pass=$(( count_pass + 1 ))
 			echo "[PASS]"
 		elif [ $ret -eq $ksft_skip ]; then
+			count_skip=$(( count_skip + 1 ))
 			echo "[SKIP]"
 			exitcode=$ksft_skip
 		else
+			count_fail=$(( count_fail + 1 ))
 			echo "[FAIL]"
 			exitcode=1
 		fi
@@ -190,15 +196,15 @@ CATEGORY="gup_test" run_test ./gup_test -a
 # Dump pages 0, 19, and 4096, using pin_user_pages:
 CATEGORY="gup_test" run_test ./gup_test -ct -F 0x1 0 19 0x1000
 
-uffd_mods=("" ":dev")
-for mod in "${uffd_mods[@]}"; do
-	CATEGORY="userfaultfd" run_test ./userfaultfd anon${mod} 20 16
-	# Hugetlb tests require source and destination huge pages. Pass in half
-	# the size ($half_ufd_size_MB), which is used for *each*.
-	CATEGORY="userfaultfd" run_test ./userfaultfd hugetlb${mod} "$half_ufd_size_MB" 32
-	CATEGORY="userfaultfd" run_test ./userfaultfd hugetlb_shared${mod} "$half_ufd_size_MB" 32
-	CATEGORY="userfaultfd" run_test ./userfaultfd shmem${mod} 20 16
-done
+CATEGORY="userfaultfd" run_test ./uffd-unit-tests
+uffd_stress_bin=./uffd-stress
+CATEGORY="userfaultfd" run_test ${uffd_stress_bin} anon 20 16
+# Hugetlb tests require source and destination huge pages. Pass in half
+# the size ($half_ufd_size_MB), which is used for *each*.
+CATEGORY="userfaultfd" run_test ${uffd_stress_bin} hugetlb "$half_ufd_size_MB" 32
+CATEGORY="userfaultfd" run_test ${uffd_stress_bin} hugetlb-private "$half_ufd_size_MB" 32
+CATEGORY="userfaultfd" run_test ${uffd_stress_bin} shmem 20 16
+CATEGORY="userfaultfd" run_test ${uffd_stress_bin} shmem-private 20 16
 
 #cleanup
 echo "$nr_hugepgs" > /proc/sys/vm/nr_hugepages
@@ -278,5 +284,7 @@ CATEGORY="soft_dirty" run_test ./soft-dirty
 
 # COW tests
 CATEGORY="cow" run_test ./cow
+
+echo "SUMMARY: PASS=${count_pass} SKIP=${count_skip} FAIL=${count_fail}"
 
 exit $exitcode
