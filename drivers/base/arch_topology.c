@@ -843,10 +843,8 @@ void __init init_cpu_topology(void)
 
 	for_each_possible_cpu(cpu) {
 		ret = fetch_cache_info(cpu);
-		if (ret) {
-			pr_err("Early cacheinfo failed, ret = %d\n", ret);
+		if (ret)
 			break;
-		}
 	}
 }
 
