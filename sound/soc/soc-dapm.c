@@ -99,52 +99,52 @@ static int dapm_up_seq[] = {
 	[snd_soc_dapm_adc] = 11,
 	[snd_soc_dapm_out_drv] = 12,
 	[snd_soc_dapm_hp] = 12,
-	[snd_soc_dapm_spk] = 12,
 	[snd_soc_dapm_line] = 12,
 	[snd_soc_dapm_sink] = 12,
-	[snd_soc_dapm_kcontrol] = 13,
-	[snd_soc_dapm_post] = 14,
+	[snd_soc_dapm_spk] = 13,
+	[snd_soc_dapm_kcontrol] = 14,
+	[snd_soc_dapm_post] = 15,
 };
 
 static int dapm_down_seq[] = {
 	[snd_soc_dapm_pre] = 1,
 	[snd_soc_dapm_kcontrol] = 2,
 	[snd_soc_dapm_adc] = 3,
-	[snd_soc_dapm_hp] = 4,
 	[snd_soc_dapm_spk] = 4,
-	[snd_soc_dapm_line] = 4,
-	[snd_soc_dapm_out_drv] = 4,
-	[snd_soc_dapm_sink] = 4,
-	[snd_soc_dapm_pga] = 5,
-	[snd_soc_dapm_buffer] = 5,
-	[snd_soc_dapm_scheduler] = 5,
-	[snd_soc_dapm_effect] = 5,
-	[snd_soc_dapm_src] = 5,
-	[snd_soc_dapm_asrc] = 5,
-	[snd_soc_dapm_encoder] = 5,
-	[snd_soc_dapm_decoder] = 5,
-	[snd_soc_dapm_switch] = 6,
-	[snd_soc_dapm_mixer_named_ctl] = 6,
-	[snd_soc_dapm_mixer] = 6,
-	[snd_soc_dapm_dac] = 7,
-	[snd_soc_dapm_mic] = 8,
-	[snd_soc_dapm_siggen] = 8,
-	[snd_soc_dapm_input] = 8,
-	[snd_soc_dapm_output] = 8,
-	[snd_soc_dapm_micbias] = 9,
-	[snd_soc_dapm_vmid] = 9,
-	[snd_soc_dapm_mux] = 10,
-	[snd_soc_dapm_demux] = 10,
-	[snd_soc_dapm_aif_in] = 11,
-	[snd_soc_dapm_aif_out] = 11,
-	[snd_soc_dapm_dai_in] = 11,
-	[snd_soc_dapm_dai_out] = 11,
-	[snd_soc_dapm_dai_link] = 12,
-	[snd_soc_dapm_supply] = 13,
-	[snd_soc_dapm_clock_supply] = 14,
-	[snd_soc_dapm_pinctrl] = 14,
-	[snd_soc_dapm_regulator_supply] = 14,
-	[snd_soc_dapm_post] = 15,
+	[snd_soc_dapm_hp] = 5,
+	[snd_soc_dapm_line] = 5,
+	[snd_soc_dapm_out_drv] = 5,
+	[snd_soc_dapm_sink] = 6,
+	[snd_soc_dapm_pga] = 6,
+	[snd_soc_dapm_buffer] = 6,
+	[snd_soc_dapm_scheduler] = 6,
+	[snd_soc_dapm_effect] = 6,
+	[snd_soc_dapm_src] = 6,
+	[snd_soc_dapm_asrc] = 6,
+	[snd_soc_dapm_encoder] = 6,
+	[snd_soc_dapm_decoder] = 6,
+	[snd_soc_dapm_switch] = 7,
+	[snd_soc_dapm_mixer_named_ctl] = 7,
+	[snd_soc_dapm_mixer] = 7,
+	[snd_soc_dapm_dac] = 8,
+	[snd_soc_dapm_mic] = 9,
+	[snd_soc_dapm_siggen] = 9,
+	[snd_soc_dapm_input] = 9,
+	[snd_soc_dapm_output] = 9,
+	[snd_soc_dapm_micbias] = 10,
+	[snd_soc_dapm_vmid] = 10,
+	[snd_soc_dapm_mux] = 11,
+	[snd_soc_dapm_demux] = 11,
+	[snd_soc_dapm_aif_in] = 12,
+	[snd_soc_dapm_aif_out] = 12,
+	[snd_soc_dapm_dai_in] = 12,
+	[snd_soc_dapm_dai_out] = 12,
+	[snd_soc_dapm_dai_link] = 13,
+	[snd_soc_dapm_supply] = 14,
+	[snd_soc_dapm_clock_supply] = 15,
+	[snd_soc_dapm_pinctrl] = 15,
+	[snd_soc_dapm_regulator_supply] = 15,
+	[snd_soc_dapm_post] = 16,
 };
 
 static void dapm_assert_locked(struct snd_soc_dapm_context *dapm)
@@ -1075,7 +1075,7 @@ static int dapm_new_dai_link(struct snd_soc_dapm_widget *w)
 	struct snd_soc_pcm_runtime *rtd = w->priv;
 
 	/* create control for links with > 1 config */
-	if (rtd->dai_link->num_params <= 1)
+	if (rtd->dai_link->num_c2c_params <= 1)
 		return 0;
 
 	/* add kcontrol */
@@ -3864,7 +3864,7 @@ snd_soc_dai_link_event_pre_pmu(struct snd_soc_dapm_widget *w,
 	 * either party on the link to alter the configuration if
 	 * necessary
 	 */
-	config = rtd->dai_link->params + rtd->params_select;
+	config = rtd->dai_link->c2c_params + rtd->c2c_params_select;
 	if (!config) {
 		dev_err(w->dapm->dev, "ASoC: link config missing\n");
 		ret = -EINVAL;
@@ -4010,7 +4010,7 @@ static int snd_soc_dapm_dai_link_get(struct snd_kcontrol *kcontrol,
 	struct snd_soc_dapm_widget *w = snd_kcontrol_chip(kcontrol);
 	struct snd_soc_pcm_runtime *rtd = w->priv;
 
-	ucontrol->value.enumerated.item[0] = rtd->params_select;
+	ucontrol->value.enumerated.item[0] = rtd->c2c_params_select;
 
 	return 0;
 }
@@ -4025,13 +4025,13 @@ static int snd_soc_dapm_dai_link_put(struct snd_kcontrol *kcontrol,
 	if (w->power)
 		return -EBUSY;
 
-	if (ucontrol->value.enumerated.item[0] == rtd->params_select)
+	if (ucontrol->value.enumerated.item[0] == rtd->c2c_params_select)
 		return 0;
 
-	if (ucontrol->value.enumerated.item[0] >= rtd->dai_link->num_params)
+	if (ucontrol->value.enumerated.item[0] >= rtd->dai_link->num_c2c_params)
 		return -EINVAL;
 
-	rtd->params_select = ucontrol->value.enumerated.item[0];
+	rtd->c2c_params_select = ucontrol->value.enumerated.item[0];
 
 	return 1;
 }
@@ -4039,7 +4039,7 @@ static int snd_soc_dapm_dai_link_put(struct snd_kcontrol *kcontrol,
 static void
 snd_soc_dapm_free_kcontrol(struct snd_soc_card *card,
 			unsigned long *private_value,
-			int num_params,
+			int num_c2c_params,
 			const char **w_param_text)
 {
 	int count;
@@ -4049,7 +4049,7 @@ snd_soc_dapm_free_kcontrol(struct snd_soc_card *card,
 	if (!w_param_text)
 		return;
 
-	for (count = 0 ; count < num_params; count++)
+	for (count = 0 ; count < num_c2c_params; count++)
 		devm_kfree(card->dev, (void *)w_param_text[count]);
 	devm_kfree(card->dev, w_param_text);
 }
@@ -4057,8 +4057,8 @@ snd_soc_dapm_free_kcontrol(struct snd_soc_card *card,
 static struct snd_kcontrol_new *
 snd_soc_dapm_alloc_kcontrol(struct snd_soc_card *card,
 			char *link_name,
-			const struct snd_soc_pcm_stream *params,
-			int num_params, const char **w_param_text,
+			const struct snd_soc_pcm_stream *c2c_params,
+			int num_c2c_params, const char **w_param_text,
 			unsigned long *private_value)
 {
 	struct soc_enum w_param_enum[] = {
@@ -4070,10 +4070,10 @@ snd_soc_dapm_alloc_kcontrol(struct snd_soc_card *card,
 			     snd_soc_dapm_dai_link_put),
 	};
 	struct snd_kcontrol_new *kcontrol_news;
-	const struct snd_soc_pcm_stream *config = params;
+	const struct snd_soc_pcm_stream *config = c2c_params;
 	int count;
 
-	for (count = 0 ; count < num_params; count++) {
+	for (count = 0 ; count < num_c2c_params; count++) {
 		if (!config->stream_name) {
 			dev_warn(card->dapm.dev,
 				"ASoC: anonymous config %d for dai link %s\n",
@@ -4093,7 +4093,7 @@ snd_soc_dapm_alloc_kcontrol(struct snd_soc_card *card,
 		config++;
 	}
 
-	w_param_enum[0].items = num_params;
+	w_param_enum[0].items = num_c2c_params;
 	w_param_enum[0].texts = w_param_text;
 
 	*private_value =
@@ -4118,7 +4118,7 @@ snd_soc_dapm_alloc_kcontrol(struct snd_soc_card *card,
 	return kcontrol_news;
 
 outfree_w_param:
-	snd_soc_dapm_free_kcontrol(card, private_value, num_params, w_param_text);
+	snd_soc_dapm_free_kcontrol(card, private_value, num_c2c_params, w_param_text);
 	return NULL;
 }
 
@@ -4146,17 +4146,17 @@ snd_soc_dapm_new_dai(struct snd_soc_card *card,
 	w_param_text	= NULL;
 	kcontrol_news	= NULL;
 	num_kcontrols	= 0;
-	if (rtd->dai_link->num_params > 1) {
+	if (rtd->dai_link->num_c2c_params > 1) {
 		w_param_text = devm_kcalloc(card->dev,
-					    rtd->dai_link->num_params,
+					    rtd->dai_link->num_c2c_params,
 					    sizeof(char *), GFP_KERNEL);
 		if (!w_param_text)
 			goto param_fail;
 
 		num_kcontrols = 1;
 		kcontrol_news = snd_soc_dapm_alloc_kcontrol(card, link_name,
-							    rtd->dai_link->params,
-							    rtd->dai_link->num_params,
+							    rtd->dai_link->c2c_params,
+							    rtd->dai_link->num_c2c_params,
 							    w_param_text, &private_value);
 		if (!kcontrol_news)
 			goto param_fail;
@@ -4187,7 +4187,7 @@ snd_soc_dapm_new_dai(struct snd_soc_card *card,
 outfree_kcontrol_news:
 	devm_kfree(card->dev, (void *)template.kcontrol_news);
 	snd_soc_dapm_free_kcontrol(card, &private_value,
-				   rtd->dai_link->num_params, w_param_text);
+				   rtd->dai_link->num_c2c_params, w_param_text);
 param_fail:
 	devm_kfree(card->dev, link_name);
 name_fail:
@@ -4325,60 +4325,81 @@ static void dapm_connect_dai_routes(struct snd_soc_dapm_context *dapm,
 	snd_soc_dapm_add_path(dapm, src, sink, NULL, NULL);
 }
 
+static int get_stream_cpu(struct snd_soc_dai_link *dai_link, int stream)
+{
+	/*
+	 * [Normal]
+	 *
+	 * Playback
+	 *	CPU  : SNDRV_PCM_STREAM_PLAYBACK
+	 *	Codec: SNDRV_PCM_STREAM_PLAYBACK
+	 *
+	 * Playback
+	 *	CPU  : SNDRV_PCM_STREAM_CAPTURE
+	 *	Codec: SNDRV_PCM_STREAM_CAPTURE
+	 */
+	if (!dai_link->c2c_params)
+		return stream;
+
+	/*
+	 * [Codec2Codec]
+	 *
+	 * Playback
+	 *	CPU  : SNDRV_PCM_STREAM_CAPTURE
+	 *	Codec: SNDRV_PCM_STREAM_PLAYBACK
+	 *
+	 * Capture
+	 *	CPU  : SNDRV_PCM_STREAM_PLAYBACK
+	 *	Codec: SNDRV_PCM_STREAM_CAPTURE
+	 */
+	if (stream == SNDRV_PCM_STREAM_CAPTURE)
+		return SNDRV_PCM_STREAM_PLAYBACK;
+
+	return SNDRV_PCM_STREAM_CAPTURE;
+}
+
 static void dapm_connect_dai_pair(struct snd_soc_card *card,
 				  struct snd_soc_pcm_runtime *rtd,
 				  struct snd_soc_dai *codec_dai,
 				  struct snd_soc_dai *cpu_dai)
 {
 	struct snd_soc_dai_link *dai_link = rtd->dai_link;
-	struct snd_soc_dapm_widget *dai, *codec, *playback_cpu, *capture_cpu;
-	struct snd_pcm_substream *substream;
-	struct snd_pcm_str *streams = rtd->pcm->streams;
+	struct snd_soc_dapm_widget *codec, *cpu;
+	struct snd_soc_dai *src_dai[]		= { cpu_dai,	codec_dai };
+	struct snd_soc_dai *sink_dai[]		= { codec_dai,	cpu_dai };
+	struct snd_soc_dapm_widget **src[]	= { &cpu,	&codec };
+	struct snd_soc_dapm_widget **sink[]	= { &codec,	&cpu };
+	char *widget_name[]			= { "playback",	"capture" };
 	int stream;
 
-	if (dai_link->params) {
-		playback_cpu	= snd_soc_dai_get_widget_capture(cpu_dai);
-		capture_cpu	= snd_soc_dai_get_widget_playback(cpu_dai);
-	} else {
-		playback_cpu	= snd_soc_dai_get_widget_playback(cpu_dai);
-		capture_cpu	= snd_soc_dai_get_widget_capture(cpu_dai);
-	}
+	for_each_pcm_streams(stream) {
+		int stream_cpu, stream_codec;
 
-	/* connect BE DAI playback if widgets are valid */
-	stream = SNDRV_PCM_STREAM_PLAYBACK;
-	codec = snd_soc_dai_get_widget(codec_dai, stream);
+		stream_cpu	= get_stream_cpu(dai_link, stream);
+		stream_codec	= stream;
 
-	if (playback_cpu && codec) {
-		if (dai_link->params && !rtd->c2c_widget[stream]) {
-			substream = streams[stream].substream;
-			dai = snd_soc_dapm_new_dai(card, substream, "playback");
+		/* connect BE DAI playback if widgets are valid */
+		cpu	= snd_soc_dai_get_widget(cpu_dai,	stream_cpu);
+		codec	= snd_soc_dai_get_widget(codec_dai,	stream_codec);
+
+		if (!cpu || !codec)
+			continue;
+
+		/* special handling for [Codec2Codec] */
+		if (dai_link->c2c_params && !rtd->c2c_widget[stream]) {
+			struct snd_pcm_substream *substream = rtd->pcm->streams[stream].substream;
+			struct snd_soc_dapm_widget *dai = snd_soc_dapm_new_dai(card, substream,
+									       widget_name[stream]);
+
 			if (IS_ERR(dai))
-				goto capture;
+				continue;
+
 			rtd->c2c_widget[stream] = dai;
 		}
 
-		dapm_connect_dai_routes(&card->dapm, cpu_dai, playback_cpu,
+		dapm_connect_dai_routes(&card->dapm, src_dai[stream], *src[stream],
 					rtd->c2c_widget[stream],
-					codec_dai, codec);
-	}
-
-capture:
-	/* connect BE DAI capture if widgets are valid */
-	stream = SNDRV_PCM_STREAM_CAPTURE;
-	codec = snd_soc_dai_get_widget(codec_dai, stream);
-
-	if (codec && capture_cpu) {
-		if (dai_link->params && !rtd->c2c_widget[stream]) {
-			substream = streams[stream].substream;
-			dai = snd_soc_dapm_new_dai(card, substream, "capture");
-			if (IS_ERR(dai))
-				return;
-			rtd->c2c_widget[stream] = dai;
-		}
-
-		dapm_connect_dai_routes(&card->dapm, codec_dai, codec,
-					rtd->c2c_widget[stream],
-					cpu_dai, capture_cpu);
+					sink_dai[stream], *sink[stream]);
 	}
 }
 
