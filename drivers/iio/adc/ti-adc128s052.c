@@ -89,14 +89,23 @@ static int adc128_read_raw(struct iio_dev *indio_dev,
 
 }
 
-#define ADC128_VOLTAGE_CHANNEL(num)	\
+#define _ADC128_VOLTAGE_CHANNEL(num, real_bits, store_bits, mask_shift)	\
 	{ \
 		.type = IIO_VOLTAGE, \
 		.indexed = 1, \
 		.channel = (num), \
 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW), \
-		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE) \
+		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),	\
+		.scan_index = (num),					\
+		.scan_type = {						\
+			.sign = 'u',					\
+			.realbits = (real_bits),			\
+			.storagebits = (store_bits),			\
+			.shift = (mask_shift),				\
+		},							\
 	}
+
+#define ADC128_VOLTAGE_CHANNEL(num) _ADC128_VOLTAGE_CHANNEL(num, 12, 16, 0)
 
 static const struct iio_chan_spec adc128s052_channels[] = {
 	ADC128_VOLTAGE_CHANNEL(0),
