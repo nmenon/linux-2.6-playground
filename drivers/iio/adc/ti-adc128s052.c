@@ -177,25 +177,25 @@ static int adc128_probe(struct spi_device *spi)
 }
 
 static const struct of_device_id adc128_of_match[] = {
-	{ .compatible = "ti,adc128s052", .data = &adc128_config[0] },
 	{ .compatible = "ti,adc122s021", .data = &adc128_config[1] },
 	{ .compatible = "ti,adc122s051", .data = &adc128_config[1] },
 	{ .compatible = "ti,adc122s101", .data = &adc128_config[1] },
 	{ .compatible = "ti,adc124s021", .data = &adc128_config[2] },
 	{ .compatible = "ti,adc124s051", .data = &adc128_config[2] },
 	{ .compatible = "ti,adc124s101", .data = &adc128_config[2] },
+	{ .compatible = "ti,adc128s052", .data = &adc128_config[0] },
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, adc128_of_match);
 
 static const struct spi_device_id adc128_id[] = {
-	{ "adc128s052", (kernel_ulong_t)&adc128_config[0] },
 	{ "adc122s021",	(kernel_ulong_t)&adc128_config[1] },
 	{ "adc122s051",	(kernel_ulong_t)&adc128_config[1] },
 	{ "adc122s101",	(kernel_ulong_t)&adc128_config[1] },
 	{ "adc124s021", (kernel_ulong_t)&adc128_config[2] },
 	{ "adc124s051", (kernel_ulong_t)&adc128_config[2] },
 	{ "adc124s101", (kernel_ulong_t)&adc128_config[2] },
+	{ "adc128s052", (kernel_ulong_t)&adc128_config[0] },
 	{ }
 };
 MODULE_DEVICE_TABLE(spi, adc128_id);
