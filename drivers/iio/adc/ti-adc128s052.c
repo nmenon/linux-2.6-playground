@@ -119,8 +119,14 @@ static int adc128_read_raw(struct iio_dev *indio_dev,
 		},							\
 	}
 
+#define ADC082_VOLTAGE_CHANNEL(num) _ADC128_VOLTAGE_CHANNEL(num, 8, 8, 0)
 #define ADC102_VOLTAGE_CHANNEL(num) _ADC128_VOLTAGE_CHANNEL(num, 10, 16, 2)
 #define ADC128_VOLTAGE_CHANNEL(num) _ADC128_VOLTAGE_CHANNEL(num, 12, 16, 0)
+
+static const struct iio_chan_spec adc082s021_channels[] = {
+	ADC082_VOLTAGE_CHANNEL(0),
+	ADC082_VOLTAGE_CHANNEL(1),
+};
 
 static const struct iio_chan_spec adc102s021_channels[] = {
 	ADC102_VOLTAGE_CHANNEL(0),
@@ -151,6 +157,7 @@ static const struct iio_chan_spec adc124s021_channels[] = {
 };
 
 static const struct adc128_configuration adc128_config[] = {
+	{ adc082s021_channels, ARRAY_SIZE(adc082s021_channels) },
 	{ adc102s021_channels, ARRAY_SIZE(adc102s021_channels) },
 	{ adc122s021_channels, ARRAY_SIZE(adc122s021_channels) },
 	{ adc124s021_channels, ARRAY_SIZE(adc124s021_channels) },
@@ -159,6 +166,7 @@ static const struct adc128_configuration adc128_config[] = {
 
 /* Ensure match with adc128_config indices */
 enum adc128_configuration_index {
+	ADC128_CONFIG_INDEX_082S,
 	ADC128_CONFIG_INDEX_102S,
 	ADC128_CONFIG_INDEX_122S,
 	ADC128_CONFIG_INDEX_124S,
@@ -215,6 +223,9 @@ static int adc128_probe(struct spi_device *spi)
 }
 
 static const struct of_device_id adc128_of_match[] = {
+	{ .compatible = "ti,adc082s021", .data = &adc128_config[ADC128_CONFIG_INDEX_082S] },
+	{ .compatible = "ti,adc082s051", .data = &adc128_config[ADC128_CONFIG_INDEX_082S] },
+	{ .compatible = "ti,adc082s101", .data = &adc128_config[ADC128_CONFIG_INDEX_082S] },
 	{ .compatible = "ti,adc102s021", .data = &adc128_config[ADC128_CONFIG_INDEX_102S] },
 	{ .compatible = "ti,adc102s051", .data = &adc128_config[ADC128_CONFIG_INDEX_102S] },
 	{ .compatible = "ti,adc102s101", .data = &adc128_config[ADC128_CONFIG_INDEX_102S] },
@@ -230,6 +241,9 @@ static const struct of_device_id adc128_of_match[] = {
 MODULE_DEVICE_TABLE(of, adc128_of_match);
 
 static const struct spi_device_id adc128_id[] = {
+	{ "adc082s021",	(kernel_ulong_t)&adc128_config[ADC128_CONFIG_INDEX_082S] },
+	{ "adc082s051",	(kernel_ulong_t)&adc128_config[ADC128_CONFIG_INDEX_082S] },
+	{ "adc082s101",	(kernel_ulong_t)&adc128_config[ADC128_CONFIG_INDEX_082S] },
 	{ "adc102s021",	(kernel_ulong_t)&adc128_config[ADC128_CONFIG_INDEX_102S] },
 	{ "adc102s051",	(kernel_ulong_t)&adc128_config[ADC128_CONFIG_INDEX_102S] },
 	{ "adc102s101",	(kernel_ulong_t)&adc128_config[ADC128_CONFIG_INDEX_102S] },
