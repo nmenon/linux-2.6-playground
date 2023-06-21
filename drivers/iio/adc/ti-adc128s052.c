@@ -122,16 +122,16 @@ static const struct iio_chan_spec adc124s021_channels[] = {
 };
 
 static const struct adc128_configuration adc128_config[] = {
-	{ adc128s052_channels, ARRAY_SIZE(adc128s052_channels) },
 	{ adc122s021_channels, ARRAY_SIZE(adc122s021_channels) },
 	{ adc124s021_channels, ARRAY_SIZE(adc124s021_channels) },
+	{ adc128s052_channels, ARRAY_SIZE(adc128s052_channels) },
 };
 
 /* Ensure match with adc128_config indices */
 enum adc128_configuration_index {
-	ADC128_CONFIG_INDEX_128S,
 	ADC128_CONFIG_INDEX_122S,
 	ADC128_CONFIG_INDEX_124S,
+	ADC128_CONFIG_INDEX_128S,
 };
 
 static const struct iio_info adc128_info = {
