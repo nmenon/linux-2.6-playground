@@ -649,6 +649,18 @@ find_readable_file(struct nfs4_file *f)
 	return ret;
 }
 
+static struct nfsd_file *
+find_rw_file(struct nfs4_file *f)
+{
+	struct nfsd_file *ret;
+
+	spin_lock(&f->fi_lock);
+	ret = nfsd_file_get(f->fi_fds[O_RDWR]);
+	spin_unlock(&f->fi_lock);
+
+	return ret;
+}
+
 struct nfsd_file *
 find_any_file(struct nfs4_file *f)
 {
@@ -5449,7 +5461,7 @@ nfs4_set_delegation(struct nfsd4_open *open, struct nfs4_ol_stateid *stp,
 	struct nfs4_file *fp = stp->st_stid.sc_file;
 	struct nfs4_clnt_odstate *odstate = stp->st_clnt_odstate;
 	struct nfs4_delegation *dp;
-	struct nfsd_file *nf;
+	struct nfsd_file *nf = NULL;
 	struct file_lock *fl;
 	u32 dl_type;
 
@@ -5461,21 +5473,35 @@ nfs4_set_delegation(struct nfsd4_open *open, struct nfs4_ol_stateid *stp,
 	if (fp->fi_had_conflict)
 		return ERR_PTR(-EAGAIN);
 
-	if (open->op_share_access & NFS4_SHARE_ACCESS_WRITE) {
-		nf = find_writeable_file(fp);
+	/*
+	 * Try for a write delegation first. RFC8881 section 10.4 says:
+	 *
+	 *  "An OPEN_DELEGATE_WRITE delegation allows the client to handle,
+	 *   on its own, all opens."
+	 *
+	 * Furthermore the client can use a write delegation for most READ
+	 * operations as well, so we require a O_RDWR file here.
+	 *
+	 * Offer a write delegation in the case of a BOTH open, and ensure
+	 * we get the O_RDWR descriptor.
+	 */
+	if ((open->op_share_access & NFS4_SHARE_ACCESS_BOTH) == NFS4_SHARE_ACCESS_BOTH) {
+		nf = find_rw_file(fp);
 		dl_type = NFS4_OPEN_DELEGATE_WRITE;
-	} else {
+	}
+
+	/*
+	 * If the file is being opened O_RDONLY or we couldn't get a O_RDWR
+	 * file for some reason, then try for a read delegation instead.
+	 */
+	if (!nf && (open->op_share_access & NFS4_SHARE_ACCESS_READ)) {
 		nf = find_readable_file(fp);
 		dl_type = NFS4_OPEN_DELEGATE_READ;
 	}
-	if (!nf) {
-		/*
-		 * We probably could attempt another open and get a read
-		 * delegation, but for now, don't bother until the
-		 * client actually sends us one.
-		 */
+
+	if (!nf)
 		return ERR_PTR(-EAGAIN);
-	}
+
 	spin_lock(&state_lock);
 	spin_lock(&fp->fi_lock);
 	if (nfs4_delegation_exists(clp, fp))
