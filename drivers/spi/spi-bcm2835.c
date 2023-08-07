@@ -24,7 +24,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
-#include <linux/of_device.h>
+#include <linux/platform_device.h>
 #include <linux/gpio/consumer.h>
 #include <linux/gpio/machine.h> /* FIXME: using chip internals */
 #include <linux/gpio/driver.h> /* FIXME: using chip internals */
@@ -903,15 +903,15 @@ static int bcm2835_dma_init(struct spi_controller *ctlr, struct device *dev,
 	/* get tx/rx dma */
 	ctlr->dma_tx = dma_request_chan(dev, "tx");
 	if (IS_ERR(ctlr->dma_tx)) {
-		dev_err(dev, "no tx-dma configuration found - not using dma mode\n");
-		ret = PTR_ERR(ctlr->dma_tx);
+		ret = dev_err_probe(dev, PTR_ERR(ctlr->dma_tx),
+			"no tx-dma configuration found - not using dma mode\n");
 		ctlr->dma_tx = NULL;
 		goto err;
 	}
 	ctlr->dma_rx = dma_request_chan(dev, "rx");
 	if (IS_ERR(ctlr->dma_rx)) {
-		dev_err(dev, "no rx-dma configuration found - not using dma mode\n");
-		ret = PTR_ERR(ctlr->dma_rx);
+		ret = dev_err_probe(dev, PTR_ERR(ctlr->dma_rx),
+			"no rx-dma configuration found - not using dma mode\n");
 		ctlr->dma_rx = NULL;
 		goto err_release;
 	}
@@ -1363,7 +1363,9 @@ static int bcm2835_spi_probe(struct platform_device *pdev)
 	if (bs->irq <= 0)
 		return bs->irq ? bs->irq : -ENODEV;
 
-	clk_prepare_enable(bs->clk);
+	err = clk_prepare_enable(bs->clk);
+	if (err)
+		return err;
 	bs->clk_hz = clk_get_rate(bs->clk);
 
 	err = bcm2835_dma_init(ctlr, &pdev->dev, bs);
