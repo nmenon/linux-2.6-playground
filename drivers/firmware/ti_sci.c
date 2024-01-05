@@ -32,6 +32,9 @@
 
 #include "ti_sci.h"
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/ti_sci.h>
+
 /* List of all TI SCI devices active in system */
 static LIST_HEAD(ti_sci_list);
 /* Protection for the entire list */
@@ -269,6 +272,10 @@ static void ti_sci_rx_callback(struct mbox_client *cl, void *m)
 		return;
 	}
 
+	trace_ti_sci_rx_callback(hdr->type, hdr->host, hdr->seq, hdr->flags);
+
+	trace_ti_sci_msg_dump(hdr->type, hdr->host, hdr->seq, hdr->flags, xfer->xfer_buf, xfer->rx_len);
+
 	ti_sci_dump_header_dbg(dev, hdr);
 	/* Take a copy to the rx buffer.. */
 	memcpy(xfer->xfer_buf, mbox_msg->buf, xfer->rx_len);
@@ -402,6 +409,9 @@ static inline int ti_sci_do_xfer(struct ti_sci_info *info,
 	int timeout;
 	struct device *dev = info->dev;
 	bool done_state = true;
+	struct ti_sci_msg_hdr *hdr = (struct ti_sci_msg_hdr *)xfer->tx_message.buf;
+
+	trace_ti_sci_xfer_begin(hdr->type, hdr->host, hdr->seq, hdr->flags);
 
 	ret = mbox_send_message(info->chan_tx, &xfer->tx_message);
 	if (ret < 0)
@@ -436,6 +446,8 @@ static inline int ti_sci_do_xfer(struct ti_sci_info *info,
 	 * received our message.
 	 */
 	mbox_client_txdone(info->chan_tx, ret);
+
+	trace_ti_sci_xfer_end(hdr->type, hdr->host, hdr->seq, hdr->flags, ret);
 
 	return ret;
 }
