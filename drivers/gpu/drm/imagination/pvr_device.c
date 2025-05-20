@@ -626,6 +626,11 @@ pvr_device_init(struct pvr_device *pvr_dev)
 	if (err)
 		return err;
 
+	/* Explicitly power the GPU so we can access control registers before the FW is booted. */
+	err = pm_runtime_resume_and_get(dev);
+	if (err)
+		return err;
+
 	/* Enable and initialize clocks required for the device to operate. */
 	err = pvr_device_clk_init(pvr_dev);
 	if (err)
@@ -633,11 +638,6 @@ pvr_device_init(struct pvr_device *pvr_dev)
 
 	/* Get the reset line for the GPU */
 	err = pvr_device_reset_init(pvr_dev);
-	if (err)
-		return err;
-
-	/* Explicitly power the GPU so we can access control registers before the FW is booted. */
-	err = pm_runtime_resume_and_get(dev);
 	if (err)
 		return err;
 
