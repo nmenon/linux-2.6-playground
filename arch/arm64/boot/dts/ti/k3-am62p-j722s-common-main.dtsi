@@ -1084,6 +1084,21 @@
 		};
 	};
 
+
+	gpu: gpu@fd80000 {
+		compatible = "ti,j721s2-gpu", "img,img-bxs-4-64", "img,img-rogue";
+		reg = <0x00 0x0fd80000 0x00 0x80000>;
+		interrupts = <GIC_SPI 241 IRQ_TYPE_LEVEL_HIGH>;
+		clock-names = "core";
+		clocks = <&k3_clks 237 3>;
+		assigned-clocks = <&k3_clks 237 3>;
+		assigned-clock-rates = <800000000>;
+		power-domains = <&k3_pds 237 TI_SCI_PD_EXCLUSIVE>,
+				<&k3_pds 242 TI_SCI_PD_EXCLUSIVE>;
+		power-domain-names = "a", "b";
+	};
+
+
 	dphy0: phy@30110000 {
 		compatible = "cdns,dphy-rx";
 		reg = <0x00 0x30110000 0x00 0x1100>;
