@@ -98,11 +98,14 @@ static int pvr_device_clk_init(struct pvr_device *pvr_dev)
 	struct clk *core_clk;
 	struct clk *sys_clk;
 	struct clk *mem_clk;
+	u32 clock_speed_hz;
 
 	core_clk = devm_clk_get(drm_dev->dev, "core");
 	if (IS_ERR(core_clk))
 		return dev_err_probe(drm_dev->dev, PTR_ERR(core_clk),
 				     "failed to get core clock\n");
+	clock_speed_hz = clk_get_rate(pvr_dev->core_clk);
+	pr_err("Core clock rate: %u Hz\n", clock_speed_hz);
 
 	sys_clk = devm_clk_get_optional(drm_dev->dev, "sys");
 	if (IS_ERR(sys_clk))
@@ -618,6 +621,7 @@ pvr_device_init(struct pvr_device *pvr_dev)
 	struct device *dev = drm_dev->dev;
 	int err;
 
+	pr_err("______ %s %d\n", __func__, __LINE__);
 	/*
 	 * Setup device parameters. We do this first in case other steps
 	 * depend on them.
@@ -626,37 +630,45 @@ pvr_device_init(struct pvr_device *pvr_dev)
 	if (err)
 		return err;
 
+	pr_err("______ %s %d\n", __func__, __LINE__);
 	/* Explicitly power the GPU so we can access control registers before the FW is booted. */
 	err = pm_runtime_resume_and_get(dev);
 	if (err)
 		return err;
 
+	pr_err("______ %s %d\n", __func__, __LINE__);
 	/* Enable and initialize clocks required for the device to operate. */
 	err = pvr_device_clk_init(pvr_dev);
 	if (err)
 		return err;
 
+	pr_err("______ %s %d\n", __func__, __LINE__);
 	/* Get the reset line for the GPU */
 	err = pvr_device_reset_init(pvr_dev);
 	if (err)
 		return err;
 
+	pr_err("______ %s %d\n", __func__, __LINE__);
 	/* Map the control registers into memory. */
 	err = pvr_device_reg_init(pvr_dev);
 	if (err)
 		goto err_pm_runtime_put;
 
+	pr_err("______ %s %d\n", __func__, __LINE__);
 	/* Perform GPU-specific initialization steps. */
 	err = pvr_device_gpu_init(pvr_dev);
 	if (err)
 		goto err_pm_runtime_put;
 
+	pr_err("______ %s %d\n", __func__, __LINE__);
 	err = pvr_device_irq_init(pvr_dev);
 	if (err)
 		goto err_device_gpu_fini;
 
+	pr_err("______ %s %d\n", __func__, __LINE__);
 	pm_runtime_put(dev);
 
+	pr_err("______ %s %d\n", __func__, __LINE__);
 	return 0;
 
 err_device_gpu_fini:
