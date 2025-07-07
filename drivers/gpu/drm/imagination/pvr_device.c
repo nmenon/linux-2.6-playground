@@ -31,6 +31,8 @@
 #include <linux/types.h>
 #include <linux/workqueue.h>
 
+#include <linux/clk/clk-conf.h>
+
 /* Major number for the supported version of the firmware. */
 #define PVR_FW_VERSION_MAJOR 1
 
@@ -99,12 +101,23 @@ static int pvr_device_clk_init(struct pvr_device *pvr_dev)
 	struct clk *sys_clk;
 	struct clk *mem_clk;
 	u32 clock_speed_hz;
+	int err;
 
-	core_clk = devm_clk_get(drm_dev->dev, "core");
+	 /* Set clock values from dt */
+	if ((err = of_clk_set_defaults(drm_dev->dev->of_node, true))) {
+		pr_err("%s: failed to set clock rates", __func__);
+		return err;
+	}
+
+	core_clk = devm_clk_get_prepared(drm_dev->dev, "core");
 	if (IS_ERR(core_clk))
 		return dev_err_probe(drm_dev->dev, PTR_ERR(core_clk),
 				     "failed to get core clock\n");
-	clock_speed_hz = clk_get_rate(pvr_dev->core_clk);
+	/* Enable clock here instead of using devm_clk_get_enabled because
+	 * devm_clk_get_enabled makes the cleanup call an unbalanced disable
+	 */
+	clk_enable(core_clk);
+	clock_speed_hz = clk_get_rate(core_clk);
 	pr_err("Core clock rate: %u Hz\n", clock_speed_hz);
 
 	sys_clk = devm_clk_get_optional(drm_dev->dev, "sys");
